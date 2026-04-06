@@ -2324,6 +2324,25 @@ def candidate_generation_profiles(query):
         deduped.append(profile)
     return deduped
 
+def candidate_generation_profiles_for_onnx(query):
+    primary = generation_profile_for_query(query)
+    conservative = {
+        "temperature": min(0.45, max(0.0, round(primary.get("temperature", 0.55) - 0.18, 2))),
+        "top_k": min(16, max(6, int(primary.get("top_k", 12)))),
+        "top_p": min(0.88, max(0.72, round(primary.get("top_p", 0.9) - 0.06, 2))),
+    }
+    fallback = {
+        "temperature": 0.0,
+        "top_k": 1,
+        "top_p": 1.0,
+    }
+    profiles = []
+    for profile in [conservative, fallback]:
+        key = (profile["temperature"], profile["top_k"], profile["top_p"])
+        if key not in {(p["temperature"], p["top_k"], p["top_p"]) for p in profiles}:
+            profiles.append(profile)
+    return profiles
+
 def apply_numpy_generation_penalties(logits, generated, prompt_length):
     adjusted = np.array(logits, dtype=np.float64, copy=True)
     completion_ids = generated[prompt_length:]
@@ -3181,7 +3200,7 @@ def should_store_training_pair(query, answer):
         return False
     return True
 
-def generate_100m_chat_reply(query, history=None, max_new_tokens=96):
+def generate_100m_chat_reply(query, history=None, max_new_tokens=40):
     runtime = load_100m_runtime()
     if runtime is None:
         return None
@@ -3202,9 +3221,9 @@ def generate_100m_chat_reply(query, history=None, max_new_tokens=96):
         input_name = runtime["input_name"]
         output_name = runtime["output_name"]
         max_context = int(getattr(config, "max_position_embeddings", 2048))
-        for profile in candidate_generation_profiles(query):
+        for profile in candidate_generation_profiles_for_onnx(query):
             generated = list(prompt_ids)
-            for _ in range(max(8, max_new_tokens)):
+            for _ in range(max(6, max_new_tokens)):
                 window = np.array([generated[-max_context:]], dtype=np.int64)
                 outputs = session.run([output_name], {input_name: window})
                 next_logits = np.asarray(outputs[0][0, -1, :], dtype=np.float64)
@@ -3218,6 +3237,10 @@ def generate_100m_chat_reply(query, history=None, max_new_tokens=96):
                 generated.append(next_id)
                 if next_id == eos_id:
                     break
+                if len(generated) - prompt_length >= 12:
+                    partial = clean_generated_reply(decode_large_ids(generated, tokenizer)[len(prompt_text):])
+                    if partial and re.search(r"[.!?。！？]\s*$", partial):
+                        break
 
             full_text = decode_large_ids(generated, tokenizer)
             completion = full_text[len(prompt_text):]
@@ -3869,7 +3892,7 @@ def generate_response(query, history=None, use_web=True):
     model_reply = None
     if large_model_available():
         try:
-            model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=96)
+            model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=40)
         except Exception:
             model_reply = None
 
