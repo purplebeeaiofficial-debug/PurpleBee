@@ -2490,15 +2490,17 @@ def retrieve_dialogue_seed_reply(query):
     query_canonical = canonicalize_match_text(query)
     if not query_norm:
         return None
+    exact_matches = []
     best_score = 0.0
-    best_reply = None
+    scored_matches = []
     for example in load_dialogue_examples():
         prompt_norm = normalize_corpus_text(example.get("user", "")).strip().lower()
         prompt_canonical = canonicalize_match_text(example.get("user", ""))
         if not prompt_norm:
             continue
         if query_norm == prompt_norm:
-            return example.get("reply")
+            exact_matches.append(example.get("reply"))
+            continue
         if query_canonical["text"] and (
             query_canonical["text"] == prompt_canonical["text"]
             or (
@@ -2506,13 +2508,22 @@ def retrieve_dialogue_seed_reply(query):
                 and query_canonical["compact"] == prompt_canonical["compact"]
             )
         ):
-            return example.get("reply")
+            exact_matches.append(example.get("reply"))
+            continue
         score = example_similarity_score(query_norm, prompt_norm)
         if score > best_score:
             best_score = score
-            best_reply = example.get("reply")
+        if score >= 5.5:
+            scored_matches.append((score, example.get("reply")))
+    if exact_matches:
+        unique_matches = [reply for reply in dict.fromkeys(match for match in exact_matches if match)]
+        if unique_matches:
+            return random.choice(unique_matches)
     if best_score >= 5.5:
-        return best_reply
+        top_replies = [reply for score, reply in scored_matches if score >= best_score - 0.6 and reply]
+        unique_replies = [reply for reply in dict.fromkeys(top_replies)]
+        if unique_replies:
+            return random.choice(unique_replies)
     return None
 
 
@@ -2521,11 +2532,13 @@ def retrieve_exact_dialogue_seed_reply(query):
     query_canonical = canonicalize_match_text(query)
     if not query_norm:
         return None
+    matches = []
     for example in load_dialogue_examples():
         prompt_norm = normalize_corpus_text(example.get("user", "")).strip().lower()
         prompt_canonical = canonicalize_match_text(example.get("user", ""))
         if query_norm == prompt_norm:
-            return example.get("reply")
+            matches.append(example.get("reply"))
+            continue
         if query_canonical["text"] and (
             query_canonical["text"] == prompt_canonical["text"]
             or (
@@ -2533,7 +2546,10 @@ def retrieve_exact_dialogue_seed_reply(query):
                 and query_canonical["compact"] == prompt_canonical["compact"]
             )
         ):
-            return example.get("reply")
+            matches.append(example.get("reply"))
+    unique_matches = [reply for reply in dict.fromkeys(match for match in matches if match)]
+    if unique_matches:
+        return random.choice(unique_matches)
     return None
 
 def intent_natural_reply(query, history=None):
