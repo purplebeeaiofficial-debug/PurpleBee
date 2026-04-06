@@ -2348,6 +2348,9 @@ def extract_meaningful_keywords(text, limit=4):
         "what", "when", "where", "which", "while", "have", "need", "want", "just", "your", "there",
         "그리고", "그러면", "지금", "그냥", "이거", "저거", "그거", "뭔가", "관련", "내용", "문제", "원인", "해결",
         "정리", "설명", "도와줘", "도와", "할수", "있어", "있는", "하기", "대한", "지금은", "현재", "이어서",
+        "알아", "알지", "알려줘", "알려", "뭐야", "뭔지", "무엇", "뜻", "정의", "설명해줘",
+        "방법", "어떻게", "하는법", "하려면", "이모지", "앞으로", "말할때", "사용해줘", "사용하지마", "쓰지마",
+        "대해", "주세요", "주세용", "해줘요", "해주세요", "뭐", "거야", "거", "아니야",
     }
     seen = set()
     keywords = []
@@ -2571,6 +2574,21 @@ def intent_natural_reply(query, history=None):
             "잘 지내고 있어요~ 어떤 도움이 필요하세요?",
         ])
 
+    # ── 짧은 능력 질문 ────────────────────────────────────────────
+    if contains_phrase(lowered, ["뭐할수있어", "뭘 할 수 있어", "뭐 할 수 있어", "가능해", "할줄알아", "무엇을 할 수"]):
+        if lang == "ko":
+            return (
+                "대화, 설명, 요약, 코드/문서 분석, 아이디어 정리 같은 걸 도와드릴 수 있어요. "
+                "원하는 걸 한 줄로 말해주시면 바로 그 방향으로 이어갈게요."
+            )
+        return "I can help with conversation, explanations, summaries, code or document analysis, and brainstorming. Tell me what you want to do."
+
+    # ── 말투/이모지 선호 ─────────────────────────────────────────
+    if contains_phrase(lowered, ["이모지 쓰지마", "이모지 사용하지마", "이모지 빼", "이모지 없이", "emoji 없이", "no emoji"]):
+        return "알겠어요. 이번 답변부터는 이모지 없이 조금 더 깔끔하게 말할게요." if lang == "ko" else "Got it. I will keep the tone cleaner and avoid emoji."
+    if contains_phrase(lowered, ["이모지 써줘", "이모지 사용해줘", "emoji 써", "emoji 사용", "이모지 넣어줘"]):
+        return "좋아요. 필요할 때는 이모지도 조금 섞어서 더 부드럽게 답할게요." if lang == "ko" else "Sure. I can use a lighter tone with a bit of emoji when it fits."
+
     # ── 대화 맥락 확인 ───────────────────────────────────────────
     if contains_phrase(lowered, ["방금 내가 뭐라고", "내가 뭐라고", "직전에 내가", "what did i just say"]):
         topic = infer_recent_topic(history, exclude_query=query)
@@ -2690,6 +2708,20 @@ def _compose_natural_answer(query, snippets, history, lang):
         kw0 = keywords[0] if keywords else q[:15]
         kw2 = ", ".join(keywords[:2]) if keywords else q[:20]
 
+        simple_term_match = re.match(r"^\s*([가-힣A-Za-z0-9_+\-]{1,24})\s*(알아|뭐야|뭔지|설명해줘|알려줘|뜻|정의)\s*[!??]*\s*$", q)
+        if simple_term_match:
+            term = simple_term_match.group(1).strip()
+            term_lower = term.lower()
+            if term in {"사과"}:
+                return "사과는 과일이에요. 보통 둥글고 달콤하거나 새콤한 맛이 나고, 생으로 먹거나 주스·파이처럼 다양하게 활용해요."
+            if term in {"강아지", "개"}:
+                return "강아지는 사람과 오래 함께해 온 대표적인 반려동물이에요. 사회성이 높고 사람과 교감하는 능력이 좋아서 많은 가정에서 함께 지내요."
+            if term in {"고양이"}:
+                return "고양이는 독립적인 성향이 있으면서도 사람과 정서적으로 잘 교감하는 반려동물이에요. 조용하고 깔끔한 편이라 실내 반려동물로도 많이 길러요."
+            if term_lower in {"python", "파이썬"}:
+                return "파이썬은 문법이 비교적 읽기 쉽고 활용 범위가 넓은 프로그래밍 언어예요. 웹, 자동화, 데이터 분석, AI 개발까지 다양하게 쓰여요."
+            return f"{term}에 대해 간단히 설명하면, 핵심 개념이나 특징부터 차근차근 정리해드릴 수 있어요. 원하면 정의·예시·활용 순서로 바로 설명해드릴게요."
+
         # 날씨
         if re.search(r"날씨|기온|비|눈|맑음|흐림|습도|바람|기상|weather", lowered):
             region = re.search(r"([가-힣]{2,5})\s*(날씨|기온)", q)
@@ -2730,9 +2762,8 @@ def _compose_natural_answer(query, snippets, history, lang):
 
         # 정의/설명
         if re.search(r"뭐야|뭔지|뭔가요|무엇|뜻이|정의|설명해|알려줘|알아\?|어떤거야|어떤 거야|뭐임", lowered):
-            return (f"'{kw0}'에 대해 궁금하시군요! "
-                    f"간단히 말하면 {kw0}은(는) {kw2}와 관련된 개념이에요. "
-                    f"더 자세한 설명이나 예시가 필요하시면 알려주세요.")
+            return (f"{kw0}에 대해 간단히 설명해드릴게요. "
+                    f"먼저 핵심 뜻부터 짚고, 필요하면 예시나 활용까지 이어서 풀어드릴 수 있어요.")
 
         # 방법/절차
         if re.search(r"어떻게|방법|하려면|하는법|할수있|하면돼|방식|절차|순서", lowered):
@@ -2777,8 +2808,8 @@ def _compose_natural_answer(query, snippets, history, lang):
 
         # 키워드 있을 때
         if keywords:
-            return (f"'{kw0}'에 대해 궁금하시군요! "
-                    f"어떤 부분이 가장 궁금하신지 조금 더 알려주시면 바로 도와드릴게요.")
+            return (f"{kw0} 쪽으로 보고 계신 것 같아요. "
+                    f"정의, 예시, 비교, 방법 중 어떤 식으로 듣고 싶은지 말해주시면 바로 맞춰서 설명해드릴게요.")
 
         # 완전 일반 fallback
         return _rnd.choice([

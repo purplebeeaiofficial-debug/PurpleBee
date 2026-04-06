@@ -8937,11 +8937,35 @@ async function generateReasonedChatReply(prompt, language) {
     await writable.close();
   }
 
-  async function pbxVerifyAssetsFolder(handle) {
+  async function pbxReadJsonFile(handle, filename) {
+    try {
+      const fileHandle = await handle.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      return JSON.parse(text || "{}");
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function pbxNormalizeVersionTag(value) {
+    return String(value || "").trim();
+  }
+
+  async function pbxVerifyAssetsFolder(handle, repairPermission = false) {
     if (!handle) return { installed: false, reason: "missing-handle" };
-    const permission = await pbxCheckHandlePermission(handle, false);
+    let permission = await pbxCheckHandlePermission(handle, false);
     if (permission !== "granted") {
-      return { installed: false, reason: "permission-needed" };
+      if (repairPermission && typeof handle.requestPermission === "function") {
+        try {
+          permission = await handle.requestPermission({ mode: "readwrite" });
+        } catch (_error) {
+          permission = "denied";
+        }
+      }
+      if (permission !== "granted") {
+        return { installed: false, reason: "permission-needed" };
+      }
     }
     try {
       const manifestHandle = await handle.getFileHandle("purple-bee-package.json");
@@ -8951,7 +8975,13 @@ async function generateReasonedChatReply(prompt, language) {
       if (String(payload.family_name || "").trim() !== "Purple Bee") {
         return { installed: false, reason: "invalid-manifest" };
       }
-      return { installed: true, manifest: payload };
+      const assetsIndex = await pbxReadJsonFile(handle, "purple-bee-assets-index.json");
+      return {
+        installed: true,
+        manifest: payload,
+        assetsIndex,
+        assetVersion: pbxNormalizeVersionTag(payload.asset_version || assetsIndex?.asset_version),
+      };
     } catch (_error) {
       return { installed: false, reason: "manifest-missing" };
     }
@@ -8969,13 +8999,45 @@ async function generateReasonedChatReply(prompt, language) {
     return ko[reason] || ko.default;
   }
 
-  async function pbxEnsureAiAssetsInstalled() {
+  function pbxResolveInstallState(plan, verify) {
+    const latestVersion = pbxNormalizeVersionTag(plan?.asset_version);
+    if (!verify || !verify.installed) {
+      return {
+        kind: "warn",
+        title: "아직 준비가 끝나지 않았어요",
+        body: pbxInstallGuideText(verify?.reason || "no-folder-linked"),
+        cta: "설치 필요",
+        needsUpdate: false,
+      };
+    }
+
+    const installedVersion = pbxNormalizeVersionTag(verify.assetVersion || verify.manifest?.asset_version);
+    if (latestVersion && installedVersion && latestVersion !== installedVersion) {
+      return {
+        kind: "warn",
+        title: "업데이트가 준비되어 있어요",
+        body: `현재 폴더는 ${installedVersion} 버전 기준이고, 사이트 최신 준비물은 ${latestVersion} 버전이에요. 아래의 업데이트 버튼을 누르면 필요한 파일만 최신 상태로 다시 맞출 수 있어요.`,
+        cta: "업데이트 필요",
+        needsUpdate: true,
+      };
+    }
+
+    return {
+      kind: "ok",
+      title: "지금 바로 써도 괜찮아요",
+      body: "준비물 폴더가 정상적으로 연결되어 있고, 현재 사이트 버전과도 맞아요. 필요할 때만 다시 열어서 업데이트를 확인하면 됩니다.",
+      cta: "최신 상태",
+      needsUpdate: false,
+    };
+  }
+
+  async function pbxEnsureAiAssetsInstalled(repairPermission = false) {
     if (!("indexedDB" in window) || !("showDirectoryPicker" in window)) {
       return { installed: false, reason: "unsupported" };
     }
     const handle = await pbxLoadAssetsDirectoryHandle();
     if (!handle) return { installed: false, reason: "no-folder-linked" };
-    return pbxVerifyAssetsFolder(handle);
+    return pbxVerifyAssetsFolder(handle, repairPermission);
   }
 
   async function linkAiAssetsFolder() {
@@ -9097,40 +9159,56 @@ async function generateReasonedChatReply(prompt, language) {
     if (modal) return modal;
     modal = document.createElement("div");
     modal.id = "pbx-assets-modal";
-    modal.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "background:rgba(9,10,16,.58)",
-      "backdrop-filter:blur(10px)",
-      "display:none",
-      "align-items:center",
-      "justify-content:center",
-      "padding:24px",
-      "z-index:1200",
-    ].join(";");
+    modal.className = "pbx-assets-backdrop";
     modal.innerHTML = `
-      <div style="width:min(720px,100%);background:var(--panel);border:1px solid var(--border);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden">
-        <div style="padding:22px 24px 14px;border-bottom:1px solid var(--border)">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+      <div class="pbx-assets-dialog">
+        <div class="pbx-assets-header">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%">
             <div>
-              <div style="font-size:22px;font-weight:800;color:var(--text)">AI 준비물</div>
-              <div id="pbx-assets-modal-subtitle" style="margin-top:6px;font-size:13px;line-height:1.6;color:var(--text-2)">질문 전에 필요한 준비 상태를 확인하고, 현재 사이트용 준비물 파일을 폴더에 내려받을 수 있어요.</div>
+              <div class="pbx-assets-title">AI 준비물</div>
+              <div id="pbx-assets-modal-subtitle" class="pbx-assets-subtitle">질문하기 전에 준비 상태를 가볍게 확인하고, 필요한 파일이 있으면 한 번에 설치하거나 업데이트할 수 있어요.</div>
             </div>
-            <button type="button" id="pbx-assets-modal-close" style="width:40px;height:40px;border-radius:14px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;font-size:18px">×</button>
+            <button type="button" id="pbx-assets-modal-close" class="pbx-assets-close">×</button>
           </div>
         </div>
-        <div style="padding:20px 24px 8px">
-          <div id="pbx-assets-status-pill" style="display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;background:rgba(124,92,255,.12);color:var(--accent-light);font-size:12px;font-weight:700">상태 확인 중...</div>
-          <div id="pbx-assets-status-text" style="margin-top:14px;font-size:14px;line-height:1.7;color:var(--text)"></div>
-          <div style="margin-top:18px;padding:14px 16px;border:1px solid var(--border);border-radius:18px;background:var(--panel-2)">
-            <div style="font-size:12px;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase">현재 준비 목록</div>
-            <div id="pbx-assets-model-summary" style="margin-top:8px;font-size:14px;color:var(--text)"></div>
-            <div id="pbx-assets-list" style="margin-top:12px;display:grid;gap:8px"></div>
+        <div class="pbx-assets-content">
+          <div class="pbx-assets-status-card">
+            <div class="pbx-assets-status-top">
+              <div>
+                <div id="pbx-assets-status-pill" class="pbx-assets-pill">상태 확인 중...</div>
+                <div id="pbx-assets-status-title" class="pbx-assets-status-title" style="margin-top:12px">준비 상태를 확인하는 중이에요</div>
+                <div id="pbx-assets-status-text" class="pbx-assets-status-body">잠시만 기다려 주세요.</div>
+              </div>
+            </div>
+            <div class="pbx-assets-mini-grid">
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">현재 모델</div>
+                <div id="pbx-assets-model-name" class="pbx-assets-mini-value">Purple Bee 1.3</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">설치 상태</div>
+                <div id="pbx-assets-install-state" class="pbx-assets-mini-value">확인 중</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">자산 버전</div>
+                <div id="pbx-assets-version-state" class="pbx-assets-mini-value">확인 중</div>
+              </div>
+            </div>
+          </div>
+          <div class="pbx-assets-files-card">
+            <div class="pbx-assets-files-head">
+              <div>
+                <div class="pbx-assets-files-title">이번에 준비되는 파일</div>
+                <div id="pbx-assets-model-summary" class="pbx-assets-files-sub"></div>
+              </div>
+              <div class="pbx-assets-help">설치가 끝나면 이 폴더를 다시 열어보지 않아도 사이트가 연결 상태를 기억합니다.</div>
+            </div>
+            <div id="pbx-assets-list" class="pbx-assets-list"></div>
           </div>
         </div>
-        <div style="padding:0 24px 24px;display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end">
-          <button type="button" id="pbx-assets-choose-btn" style="padding:11px 15px;border-radius:14px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;font-weight:700">폴더 연결</button>
-          <button type="button" id="pbx-assets-install-btn" style="padding:11px 15px;border-radius:14px;border:0;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;cursor:pointer;font-weight:800">준비물 설치/업데이트</button>
+        <div class="pbx-assets-actions" style="padding:0 24px 24px">
+          <button type="button" id="pbx-assets-choose-btn" class="pbx-assets-btn">폴더 연결</button>
+          <button type="button" id="pbx-assets-install-btn" class="pbx-assets-btn primary">준비물 설치</button>
         </div>
       </div>
     `;
@@ -9148,13 +9226,14 @@ async function generateReasonedChatReply(prompt, language) {
 
   function pbxCloseAssetsSetupModal() {
     const modal = document.getElementById("pbx-assets-modal");
-    if (modal) modal.style.display = "none";
+    if (modal) modal.classList.remove("open");
   }
 
-  function pbxSetAssetsModalStatus(kind, text) {
+  function pbxSetAssetsModalStatus(kind, title, text) {
     const pill = document.getElementById("pbx-assets-status-pill");
+    const heading = document.getElementById("pbx-assets-status-title");
     const body = document.getElementById("pbx-assets-status-text");
-    if (!pill || !body) return;
+    if (!pill || !body || !heading) return;
     const palette = {
       loading: { bg: "rgba(124,92,255,.12)", color: "var(--accent-light)" },
       ok: { bg: "rgba(16,185,129,.12)", color: "var(--green)" },
@@ -9164,43 +9243,54 @@ async function generateReasonedChatReply(prompt, language) {
     const chosen = palette[kind] || palette.loading;
     pill.style.background = chosen.bg;
     pill.style.color = chosen.color;
-    pill.textContent = text;
+    pill.textContent = kind === "ok" ? "준비 완료" : kind === "warn" ? "확인 필요" : kind === "error" ? "문제 발생" : "확인 중";
+    heading.textContent = title || "";
     body.textContent = text;
   }
 
   function pbxRenderAssetsList(plan) {
     const list = document.getElementById("pbx-assets-list");
     const summary = document.getElementById("pbx-assets-model-summary");
+    const modelName = document.getElementById("pbx-assets-model-name");
     if (!list || !summary) return;
     const assets = Array.isArray(plan?.assets) ? plan.assets : [];
-    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} · ${assets.length}개 준비물 파일`;
+    if (modelName) modelName.textContent = String(plan?.display_name || "Purple Bee 1.3");
+    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} 기준으로 ${assets.length}개 파일을 준비해요. 연결 후 설치를 누르면 필요한 파일만 덮어써서 맞춰줍니다.`;
     list.innerHTML = assets.map((asset) => `
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--border)">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text)">${String(asset.filename || "")}</div>
-          <div style="margin-top:4px;font-size:12px;line-height:1.55;color:var(--text-3)">${String(asset.description || "")}</div>
+      <div class="pbx-assets-item">
+        <div class="pbx-assets-item-icon"><i class="ph ph-file-text"></i></div>
+        <div class="pbx-assets-item-main">
+          <div class="pbx-assets-item-name">${String(asset.filename || "")}</div>
+          <div class="pbx-assets-item-desc">${String(asset.description || "")}</div>
+          <div class="pbx-assets-item-kind">${String(asset.kind || "")}</div>
         </div>
-        <div style="font-size:11px;color:var(--text-3)">${String(asset.kind || "")}</div>
       </div>
     `).join("");
   }
 
   async function pbxRefreshAssetsButtonState() {
     const button = document.getElementById("ai-assets-btn");
+    const label = document.getElementById("ai-assets-label");
     if (!button) return;
     try {
-      const status = await pbxEnsureAiAssetsInstalled();
-      button.style.opacity = status.installed ? "1" : ".92";
-      button.title = status.installed ? "AI 준비물 연결 완료" : "AI 준비물 연결 필요";
+      const plan = await pbxFetchPackagePlan();
+      const status = await pbxEnsureAiAssetsInstalled(false);
+      const resolved = pbxResolveInstallState(plan, status);
+      button.style.opacity = "1";
+      button.title = resolved.body;
+      if (label) {
+        label.textContent = resolved.needsUpdate ? "업데이트 필요" : status.installed ? "AI 준비물 연결됨" : "AI 준비물";
+      }
     } catch (_error) {
       button.style.opacity = ".92";
+      if (label) label.textContent = "AI 준비물";
     }
   }
 
   async function pbxOpenAssetsSetupModal(reason = "") {
     const modal = pbxEnsureAssetsModal();
-    modal.style.display = "flex";
-    pbxSetAssetsModalStatus("loading", "AI 준비물 상태를 확인하고 있어요...");
+    modal.classList.add("open");
+    pbxSetAssetsModalStatus("loading", "준비 상태를 확인하고 있어요", "잠시만 기다려 주세요.");
     try {
       const [plan, handle] = await Promise.all([
         pbxFetchPackagePlan(),
@@ -9208,22 +9298,29 @@ async function generateReasonedChatReply(prompt, language) {
       ]);
       modal._pbxPlan = plan;
       pbxRenderAssetsList(plan);
-      const verify = handle ? await pbxVerifyAssetsFolder(handle) : { installed: false, reason: "no-folder-linked" };
-      if (verify.installed) {
-        pbxSetAssetsModalStatus("ok", "준비물 폴더가 연결되어 있어요. 필요하면 업데이트만 다시 눌러 주세요.");
-      } else if (reason || verify.reason) {
-        pbxSetAssetsModalStatus("warn", pbxInstallGuideText(reason || verify.reason));
-      } else {
-        pbxSetAssetsModalStatus("warn", "아직 준비물 폴더가 연결되지 않았어요. 아래에서 폴더 연결을 먼저 눌러 주세요.");
+      const verify = handle ? await pbxVerifyAssetsFolder(handle, false) : { installed: false, reason: "no-folder-linked" };
+      const resolved = pbxResolveInstallState(plan, verify.installed ? verify : { installed: false, reason: reason || verify.reason });
+      pbxSetAssetsModalStatus(resolved.kind, resolved.title, resolved.body);
+      const installState = document.getElementById("pbx-assets-install-state");
+      const versionState = document.getElementById("pbx-assets-version-state");
+      const installBtn = document.getElementById("pbx-assets-install-btn");
+      if (installState) installState.textContent = verify.installed ? "연결 완료" : "설치 필요";
+      if (versionState) {
+        versionState.textContent = verify.installed
+          ? `${pbxNormalizeVersionTag(verify.assetVersion || "-")} → ${pbxNormalizeVersionTag(plan?.asset_version || "-")}`
+          : pbxNormalizeVersionTag(plan?.asset_version || "확인 중");
+      }
+      if (installBtn) {
+        installBtn.textContent = resolved.needsUpdate ? "준비물 업데이트" : verify.installed ? "다시 설치/점검" : "준비물 설치";
       }
     } catch (_error) {
-      pbxSetAssetsModalStatus("error", "준비물 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+      pbxSetAssetsModalStatus("error", "준비 목록을 불러오지 못했어요", "사이트에서 최신 준비물 목록을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   }
 
   async function pbxChooseAssetsFolderFromModal() {
     if (!("showDirectoryPicker" in window)) {
-      pbxSetAssetsModalStatus("error", "이 브라우저에서는 폴더 연결 기능을 지원하지 않아요. 최신 Edge에서 다시 열어 주세요.");
+      pbxSetAssetsModalStatus("error", "이 브라우저에서는 지원되지 않아요", "폴더 연결 기능은 최신 Edge에서 가장 안정적으로 동작해요. 가능하면 Edge에서 다시 열어 주세요.");
       return;
     }
     try {
@@ -9232,15 +9329,16 @@ async function generateReasonedChatReply(prompt, language) {
       if (writePermission !== "granted" && typeof handle.requestPermission === "function") {
         const requested = await handle.requestPermission({ mode: "readwrite" });
         if (requested !== "granted") {
-          pbxSetAssetsModalStatus("warn", "폴더 권한이 있어야 준비물 파일을 넣을 수 있어요.");
+          pbxSetAssetsModalStatus("warn", "폴더 권한이 필요해요", "준비물 파일을 폴더에 넣으려면 읽기/쓰기 권한이 필요해요.");
           return;
         }
       }
       await pbxSaveAssetsDirectoryHandle(handle);
-      pbxSetAssetsModalStatus("ok", "폴더를 연결했어요. 이제 '준비물 설치/업데이트'를 눌러 주세요.");
+      pbxSetAssetsModalStatus("ok", "폴더를 연결했어요", "좋아요. 이제 아래 버튼으로 준비물 설치나 업데이트를 진행하면 돼요.");
       await pbxRefreshAssetsButtonState();
+      await pbxOpenAssetsSetupModal();
     } catch (_error) {
-      pbxSetAssetsModalStatus("warn", "폴더 연결을 취소했어요. 다시 시도할 때는 빈 폴더나 전용 폴더를 추천해요.");
+      pbxSetAssetsModalStatus("warn", "폴더 연결을 취소했어요", "괜찮아요. 다시 시도할 때는 빈 폴더나 Purple Bee 전용 폴더를 추천해요.");
     }
   }
 
@@ -9252,17 +9350,18 @@ async function generateReasonedChatReply(prompt, language) {
         handle = await pbxLoadAssetsDirectoryHandle();
       }
       if (!handle) {
-        pbxSetAssetsModalStatus("warn", "먼저 준비물 폴더를 연결해 주세요.");
+        pbxSetAssetsModalStatus("warn", "먼저 폴더를 연결해 주세요", "설치나 업데이트를 시작하려면 준비물 폴더가 먼저 연결되어 있어야 해요.");
         return;
       }
       const plan = document.getElementById("pbx-assets-modal")?._pbxPlan || await pbxFetchPackagePlan();
-      pbxSetAssetsModalStatus("loading", "준비물 파일을 폴더에 넣고 있어요...");
+      pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "필요한 파일을 확인해서 설치하거나 업데이트하고 있어요.");
       await pbxInstallAssetsToFolder(handle, plan);
-      pbxSetAssetsModalStatus("ok", "준비물 설치가 끝났어요. 이제 이 브라우저에서 바로 질문할 수 있어요.");
+      pbxSetAssetsModalStatus("ok", "설치/업데이트가 끝났어요", "이제 현재 사이트 기준으로 준비물이 맞춰졌어요. 바로 질문을 이어가면 됩니다.");
       await pbxRefreshAssetsButtonState();
       showToast(getActiveUiLanguage() === "ko" ? "AI 준비물 설치가 완료됐어요." : "AI assets are ready.");
+      await pbxOpenAssetsSetupModal();
     } catch (_error) {
-      pbxSetAssetsModalStatus("error", "준비물 설치 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
+      pbxSetAssetsModalStatus("error", "설치/업데이트 중 문제가 생겼어요", "폴더에 파일을 쓰는 과정에서 오류가 났어요. 잠시 후 다시 시도해 주세요.");
     }
   }
 
@@ -9311,7 +9410,7 @@ async function generateReasonedChatReply(prompt, language) {
     const typingId = appendTyping();
 
     try {
-      const installStatus = await pbxEnsureAiAssetsInstalled();
+      const installStatus = await pbxEnsureAiAssetsInstalled(true);
       if (!installStatus.installed) {
         pbxOpenAssetsSetupModal(installStatus.reason).catch(() => {});
         const failureEntry = {
@@ -9324,6 +9423,11 @@ async function generateReasonedChatReply(prompt, language) {
         const bubble = appendMessage("ai", "", failureEntry);
         await streamToBubble(bubble, failureEntry.content);
         return;
+      }
+      const latestPlan = await pbxFetchPackagePlan().catch(() => null);
+      const resolvedInstall = pbxResolveInstallState(latestPlan, installStatus);
+      if (resolvedInstall.needsUpdate) {
+        showToast("AI 준비물 업데이트가 있어요. 지금 답변은 가능하지만, 상단 버튼에서 최신 상태로 맞출 수 있어요.");
       }
 
       const reply = await Promise.race([
