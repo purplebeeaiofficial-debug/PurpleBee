@@ -1,0 +1,70 @@
+{
+  "running": false,
+  "stage": "dry-run-complete",
+  "message": "100M dry run completed",
+  "model_id": "purple-bee-1-3",
+  "estimated_params": 111204864,
+  "backend": {
+    "torch_available": true,
+    "device": "cuda",
+    "cuda_available": true
+  },
+  "progress": 100,
+  "corpus_path": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_v2.txt",
+  "output_dir": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2",
+  "dry_run": true,
+  "eval_schedule": [
+    250,
+    500,
+    750,
+    1000
+  ],
+  "eval_file": "D:\\Purple Bee AI\\Model\\evals\\public_chat_regression_ko.jsonl",
+  "eval_latest_output": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2\\latest_eval.json",
+  "evaluation_history": [],
+  "latest_evaluation": null,
+  "evaluation_running": false,
+  "updated_at": "2026-04-05T23:00:41",
+  "corpus_characters": 628747,
+  "tokenizer_path": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2\\tokenizer.json",
+  "tokenizer_report_path": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2\\tokenizer_report.json",
+  "tokenizer_vocab_size": 18591,
+  "tokenizer_coverage": 1.0,
+  "reward_profile": {
+    "category_boosts": {},
+    "tag_boosts": {}
+  },
+  "training_summary": {
+    "estimated_params": 111204864,
+    "corpus_characters": 628747,
+    "lm_corpus_characters": 674932,
+    "backend": {
+      "torch_available": true,
+      "device": "cuda",
+      "cuda_available": true
+    },
+    "steps_requested": 1000,
+    "tokenizer_vocab_size": 18591,
+    "tokenizer_coverage": 1.0,
+    "tokenizer_report_path": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2\\tokenizer_report.json",
+    "sft_dataset": {
+      "rows": 479,
+      "usable_examples": 479,
+      "total_weight": 5274,
+      "dataset_path": "D:\\Purple Bee AI\\Model\\corpora\\dialogue_sft\\purple_bee_sft_dataset_clean.jsonl"
+    },
+    "eval_schedule": [
+      250,
+      500,
+      750,
+      1000
+    ],
+    "eval_file": "D:\\Purple Bee AI\\Model\\evals\\public_chat_regression_ko.jsonl",
+    "reward_profile": {
+      "category_boosts": {},
+      "tag_boosts": {}
+    },
+    "resume_checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\checkpoints\\purple_bee_100m_reward_best.pt",
+    "tokenizer_source": "D:\\Purple Bee AI\\Model\\status\\dryrun_resume_v2\\tokenizer.json"
+  }
+}

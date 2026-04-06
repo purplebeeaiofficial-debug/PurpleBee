@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "provider": "openai-compatible",
+  "base_url": "",
+  "model": "",
+  "api_key_env": "PURPLE_BEE_TEACHER_API_KEY",
+  "samples_per_run": 8,
+  "temperature": 0.4,
+  "max_output_tokens": 900,
+  "system_prompt": "You are a teacher model helping Purple Bee improve. Generate clean, natural, high-quality conversational and problem-solving training pairs. Avoid boilerplate, repetition, meta commentary, and policy filler. Return strict JSON only.",
+  "last_saved_at": "2026-04-05T02:12:56",
+  "model_id": "purple-bee-1-3"
+}

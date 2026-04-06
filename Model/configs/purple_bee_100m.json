@@ -1,0 +1,33 @@
+{
+  "name": "Purple Bee 100M",
+  "family": "Purple Bee",
+  "architecture": "decoder-only-transformer",
+  "parameter_budget": 100000000,
+  "config": {
+    "vocab_size": 32000,
+    "hidden_size": 768,
+    "intermediate_size": 3072,
+    "num_hidden_layers": 12,
+    "num_attention_heads": 12,
+    "max_position_embeddings": 2048,
+    "layer_norm_epsilon": 1e-05,
+    "resid_dropout": 0.1,
+    "attn_dropout": 0.1,
+    "tie_word_embeddings": true
+  },
+  "training_defaults": {
+    "sequence_length": 512,
+    "batch_size": 2,
+    "gradient_accumulation_steps": 12,
+    "learning_rate": 0.0001,
+    "min_learning_rate": 0.00001,
+    "weight_decay": 0.01,
+    "warmup_steps": 120,
+    "train_steps": 2000,
+    "gradient_clip": 1.0
+  },
+  "notes": [
+    "This is the planned 100M-class offline training blueprint for the management computer.",
+    "The live browser runtime is still a lighter prototype until a trained checkpoint is produced."
+  ]
+}

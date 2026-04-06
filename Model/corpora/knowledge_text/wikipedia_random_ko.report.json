@@ -1,0 +1,7 @@
+{
+  "output": "D:\\Purple Bee AI\\Model\\corpora\\knowledge_text\\wikipedia_random_ko.txt",
+  "target_count": 1000,
+  "written_count": 1000,
+  "failures": 344,
+  "characters": 192797
+}

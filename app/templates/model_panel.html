@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee 운영 패널</title>
+<style>
+  :root{
+    --bg:#0b0b10;
+    --panel:#14141c;
+    --card:#1b1b25;
+    --line:#2a2a37;
+    --text:#f5f5f7;
+    --muted:#9ca3af;
+    --accent:#8b5cf6;
+    --accent2:#ec4899;
+    --good:#10b981;
+    --warn:#f59e0b;
+    --bad:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:radial-gradient(circle at top,#1a1430 0,#0b0b10 42%);
+    color:var(--text);
+    font-family:-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  }
+  .wrap{max-width:1540px;margin:0 auto;padding:28px 20px 60px}
+  .hero{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}
+  .hero h1{margin:0;font-size:34px}
+  .hero p{margin:10px 0 0;color:var(--muted);line-height:1.7;max-width:920px}
+  .toolbar,.actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    border:none;
+    border-radius:14px;
+    padding:12px 16px;
+    background:var(--card);
+    color:var(--text);
+    font-weight:700;
+    cursor:pointer;
+    border:1px solid transparent;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .btn.ghost{background:transparent;border-color:var(--line)}
+  .btn.warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fcd34d}
+  .btn.bad{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fca5a5}
+  .layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px}
+  .panel,.card{
+    background:rgba(20,20,28,.95);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:0 18px 60px rgba(0,0,0,.28);
+  }
+  .panel{padding:18px}
+  .card{padding:20px}
+  .section{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:12px}
+  .hint{color:var(--muted);line-height:1.7;font-size:13px}
+  .sidebar-stack{display:flex;flex-direction:column;gap:16px}
+  .nav-list,.model-list{display:flex;flex-direction:column;gap:10px}
+  .nav-button,.model-item{
+    width:100%;
+    text-align:left;
+    padding:14px;
+    border-radius:16px;
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--text);
+    cursor:pointer;
+  }
+  .nav-button.active,.model-item.active,.nav-button:hover,.model-item:hover{border-color:rgba(139,92,246,.6)}
+  .model-item.disabled{opacity:.65}
+  .nav-title,.name{font-size:15px;font-weight:800}
+  .nav-copy,.meta{font-size:12px;color:var(--muted);line-height:1.7;margin-top:6px}
+  .badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .badge{
+    font-size:11px;
+    padding:5px 9px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    color:var(--muted);
+  }
+  .badge.current{color:#d8b4fe;border-color:rgba(139,92,246,.45);background:rgba(139,92,246,.12)}
+  .badge.latest{color:#86efac;border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.12)}
+  .badge.disabled{color:#fca5a5;border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.12)}
+  .badge.trainable{color:#fcd34d;border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.12)}
+  .page{display:none}
+  .page.active{display:block}
+  .page-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
+  .page-head h2{margin:0;font-size:24px}
+  .page-head p{margin:8px 0 0;color:var(--muted);line-height:1.7;max-width:780px}
+  .page-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+  .wide{grid-column:1/-1}
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .stat,.pill{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px;
+  }
+  .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .value{font-size:24px;font-weight:800;margin-top:8px}
+  .value.sm{font-size:15px;line-height:1.6}
+  input,select,textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:#0f0f16;
+    color:var(--text);
+    padding:12px 14px;
+    font:inherit;
+  }
+  textarea{min-height:120px;resize:vertical}
+  .form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .preview{
+    white-space:pre-wrap;
+    line-height:1.7;
+    padding:14px;
+    border-radius:16px;
+    background:#101018;
+    border:1px solid var(--line);
+  }
+  .list{margin:8px 0 0;padding-left:18px}
+  .list li{margin:6px 0;line-height:1.6}
+  .status-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--good)}
+  .dot.off{background:#5b6170}
+  .dot.warn{background:var(--warn)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  .log{max-height:360px;overflow:auto}
+  @media (max-width:1200px){
+    .layout{grid-template-columns:1fr}
+    .page-grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .form-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:760px){
+    .hero,.page-head{flex-direction:column}
+    .stats,.grid-2,.grid-3{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Purple Bee 운영 패널</h1>
+      <p>이제 패널을 한 화면 카드 모음이 아니라 페이지형 구조로 나눴습니다. 모델 상태를 확인하고, 학습을 돌리고, 배포하고, 정리 보관까지 순서대로 따라가면 됩니다.</p>
+    </div>
+    <div class="toolbar">
+      <button class="btn ghost" onclick="refreshOverview()">새로고침</button>
+      <button class="btn ghost" onclick="window.location.href='/'">채팅 화면</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="sidebar-stack">
+        <div>
+          <div class="section">페이지</div>
+          <div class="nav-list">
+            <button class="nav-button active" data-page="dashboard" onclick="switchPage('dashboard')">
+              <div class="nav-title">대시보드</div>
+              <div class="nav-copy">전체 상태를 빠르게 확인하고 다음 작업을 고릅니다.</div>
+            </button>
+            <button class="nav-button" data-page="models" onclick="switchPage('models')">
+              <div class="nav-title">모델 관리</div>
+              <div class="nav-copy">모델 선택, 비활성화, 현재 문제를 확인합니다.</div>
+            </button>
+            <button class="nav-button" data-page="training" onclick="switchPage('training')">
+              <div class="nav-title">학습</div>
+              <div class="nav-copy">도메인별 100M 학습과 회귀 평가를 실행합니다.</div>
+            </button>
+            <button class="nav-button" data-page="deployment" onclick="switchPage('deployment')">
+              <div class="nav-title">배포</div>
+              <div class="nav-copy">브라우저 패키징, HF 업로드, Cloudflare 배포를 처리합니다.</div>
+            </button>
+            <button class="nav-button" data-page="cleanup" onclick="switchPage('cleanup')">
+              <div class="nav-title">정리</div>
+              <div class="nav-copy">백업, 캐시, 실패한 학습 폴더를 보관 폴더로 이동합니다.</div>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="section">모델 목록</div>
+          <div id="model-list" class="model-list"></div>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <section class="page active" data-page="dashboard">
+        <div class="page-head">
+          <div>
+            <h2>대시보드</h2>
+            <p>지금 가장 중요한 상태를 한 번에 보여주는 화면입니다. 답변 실패가 생기면 먼저 런타임 점검부터 해보면 됩니다.</p>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="card wide">
+            <div class="section">선택 모델 요약</div>
+            <div id="selected-model"></div>
+          </div>
+
+          <div class="card">
+            <div class="section">실시간 상태</div>
+            <div class="stats">
+              <div class="stat"><div class="label">추정 파라미터</div><div class="value" id="stat-params">-</div></div>
+              <div class="stat"><div class="label">학습 문서</div><div class="value" id="stat-docs">-</div></div>
+              <div class="stat"><div class="label">평균 손실</div><div class="value" id="stat-loss">-</div></div>
+              <div class="stat"><div class="label">최근 평가</div><div class="value" id="stat-eval">-</div></div>
+            </div>
+            <div class="hint" style="margin-top:14px" id="runtime-hint">상태를 불러오는 중입니다.</div>
+          </div>
+
+          <div class="card">
+            <div class="section">즉시 점검</div>
+            <div class="hint">공개 사이트에서 답변이 생성되지 않을 때 먼저 실행해보면 좋은 점검입니다.</div>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn primary" onclick="runRuntimeSmoke()">런타임 점검 실행</button>
+              <button class="btn ghost" onclick="runManualEval()">즉시 회귀 평가</button>
+            </div>
+            <div class="preview" id="runtime-smoke-result" style="margin-top:14px">아직 점검을 실행하지 않았습니다.</div>
+          </div>
+
+          <div class="card wide">
+            <div class="section">최근 작업 로그</div>
+            <div id="action-log" class="preview log">아직 실행된 작업이 없습니다.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="models">
+        <div class="page-head">
+          <div>
+            <h2>모델 관리</h2>
+            <p>현재 모델을 선택하고, 비활성화 여부를 관리하고, 모델 구조와 이슈를 확인하는 화면입니다.</p>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="card wide">
+            <div class="section">모델 상세</div>
+            <div id="selected-model-duplicate"></div>
+          </div>
+
+          <div class="card">
+            <div class="section">운영 가이드</div>
+            <ul class="list">
+              <li>항상 현재 모델 하나만 활성 상태로 유지하는 것이 안전합니다.</li>
+              <li>응답 품질을 건드릴 때는 먼저 평가를 돌리고, 그 다음 학습을 이어가면 좋습니다.</li>
+              <li>최신 모델이라도 품질이 낮으면 바로 배포하지 말고 회귀 평가부터 확인하세요.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <div class="section">모델 생성</div>
+            <div class="hint">새 모델 버전은 현재 최신 모델을 복사해서 시작합니다.</div>
+            <div class="form-grid" style="margin-top:14px">
+              <div>
+                <label class="hint">새 버전</label>
+                <input id="new-version" placeholder="예: 1.4 또는 2.0">
+              </div>
+              <div>
+                <label class="hint">목표 파라미터</label>
+                <input value="111,204,864" disabled>
+              </div>
+              <div style="display:flex;align-items:end">
+                <button class="btn primary" style="width:100%" onclick="createModel()">새 모델 복제</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="training">
+        <div class="page-head">
+          <div>
+            <h2>학습</h2>
+            <p>대화, 추론, 후속 발화 같은 영역별 코퍼스를 바탕으로 재학습과 평가를 진행합니다. 평가 step도 직접 조절할 수 있습니다.</p>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="card wide">
+            <div class="section">100M 학습 제어</div>
+            <div class="form-grid">
+              <div>
+                <label class="hint">학습 도메인</label>
+                <select id="train-domain">
+                  <option value="general">일반 대화 + 후속 보정</option>
+                  <option value="dialogue">대화 중심</option>
+                  <option value="reasoning">추론 중심</option>
+                  <option value="followup">정정/후속 발화 중심</option>
+                </select>
+              </div>
+              <div>
+                <label class="hint">총 학습 step</label>
+                <input id="train-steps" value="5000" inputmode="numeric">
+              </div>
+              <div>
+                <label class="hint">평가 step 목록</label>
+                <input id="eval-steps" value="500,1000,2000,5000">
+              </div>
+            </div>
+            <label class="hint" style="display:block;margin-top:14px">추가 학습 텍스트</label>
+            <textarea id="train-100m-text" placeholder="필요한 텍스트가 있으면 여기에 직접 넣어주세요. 비워두면 선택한 도메인의 기본 코퍼스만 사용합니다."></textarea>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn warn" onclick="run100M(true)">드라이런</button>
+              <button class="btn primary" onclick="run100M(false)">100M 학습 시작</button>
+              <button class="btn ghost" onclick="runManualEval()">즉시 회귀 평가</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section">100M 생성 테스트</div>
+            <textarea id="generate-100m-prompt" placeholder="예: 강아지가 뭔지 설명해줘"></textarea>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn primary" onclick="run100MGenerate()">생성 테스트</button>
+            </div>
+            <div class="preview" id="generate-100m-result" style="margin-top:14px">-</div>
+          </div>
+
+          <div class="card">
+            <div class="section">회귀 평가 요약</div>
+            <div class="grid-2" id="evaluation-stats"></div>
+            <div class="preview" id="evaluation-preview" style="margin-top:14px">-</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="deployment">
+        <div class="page-head">
+          <div>
+            <h2>배포</h2>
+            <p>브라우저 패키지 생성부터 Hugging Face 업로드, Cloudflare 재배포까지 연결된 작업을 수행합니다.</p>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="card">
+            <div class="section">배포 설정</div>
+            <div class="form-grid">
+              <div>
+                <label class="hint">저장소 모드</label>
+                <select id="deploy-storage">
+                  <option value="auto">자동</option>
+                  <option value="hf-hub">Hugging Face Hub</option>
+                  <option value="workers-static-assets">Workers 정적 에셋</option>
+                </select>
+              </div>
+              <div>
+                <label class="hint">런타임 우선순위</label>
+                <select id="deploy-provider">
+                  <option value="wasm">WASM 우선</option>
+                  <option value="webgpu,wasm">WebGPU → WASM</option>
+                  <option value="webgpu">WebGPU만</option>
+                </select>
+              </div>
+              <div>
+                <label class="hint">공개 자산 URL</label>
+                <input id="deploy-base-url" placeholder="https://huggingface.co/.../resolve/main">
+              </div>
+              <div>
+                <label class="hint">공개 백엔드 URL</label>
+                <input id="deploy-backend-url" placeholder="https://your-purple-bee-backend.example.com">
+              </div>
+            </div>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn primary" onclick="saveDeploySettings()">설정 저장</button>
+              <button class="btn ghost" onclick="fillDeployFromPayload()">현재 값 다시 불러오기</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section">배포 워크플로우</div>
+            <div class="hint">일반적으로는 패키징 → HF 업로드 → Cloudflare 배포 순서로 진행합니다.</div>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn ghost" onclick="runBrowserPackaging()">브라우저 패키징</button>
+              <button class="btn ghost" onclick="runHfUpload()">HF 업로드</button>
+              <button class="btn ghost" onclick="runCloudflareDeploy()">Cloudflare 배포</button>
+              <button class="btn primary" onclick="runPackageAndDeploy()">한 번에 실행</button>
+            </div>
+          </div>
+
+          <div class="card wide">
+            <div class="section">배포 메모</div>
+            <ul class="list">
+              <li>초기화 실패가 잦으면 `WASM 우선` 설정으로 두는 편이 더 안정적입니다.</li>
+              <li>HF 업로드 후 Cloudflare를 다시 배포해야 웹사이트에서 최신 설정을 읽습니다.</li>
+              <li>모델 자체 품질이 낮으면 배포는 성공해도 답변은 여전히 부자연스러울 수 있습니다.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="cleanup">
+        <div class="page-head">
+          <div>
+            <h2>정리</h2>
+            <p>운영에 꼭 필요하지 않은 파일만 `Cleanup_Archive`로 이동합니다. 바로 삭제하지 않고 보관하는 방식이라 복구도 가능합니다.</p>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="card wide">
+            <div class="section">정리 후보</div>
+            <div class="preview" id="cleanup-preview">후보를 불러오는 중입니다.</div>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn bad" onclick="runCleanup()">Cleanup_Archive로 이동</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section">정리 기준</div>
+            <ul class="list">
+              <li>파이썬 캐시 폴더</li>
+              <li>남겨둔 백업 파일</li>
+              <li>현재 쓰지 않는 실패 학습 폴더</li>
+              <li>임시 패치 스크립트</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <div class="section">주의 사항</div>
+            <ul class="list">
+              <li>현재 활성 모델과 현재 브라우저 패키지는 정리하지 않습니다.</li>
+              <li>필요하면 Cleanup_Archive에서 다시 원래 위치로 복원할 수 있습니다.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+let latestPayload = null;
+let selectedModelId = null;
+let currentPage = "dashboard";
+
+function numberWithCommas(value) {
+  return new Intl.NumberFormat("ko-KR").format(Number(value || 0));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function logLines(lines) {
+  const root = document.getElementById("action-log");
+  const current = root.dataset.lines ? JSON.parse(root.dataset.lines) : [];
+  const merged = [...lines, ...current].slice(0, 24);
+  root.dataset.lines = JSON.stringify(merged);
+  root.textContent = merged.join("\n\n");
+}
+
+function switchPage(page) {
+  currentPage = page;
+  document.querySelectorAll(".page").forEach((node) => {
+    node.classList.toggle("active", node.dataset.page === page);
+  });
+  document.querySelectorAll(".nav-button").forEach((node) => {
+    node.classList.toggle("active", node.dataset.page === page);
+  });
+}
+
+function selectedModel() {
+  if (!latestPayload) return null;
+  const currentId = latestPayload.registry.current_model_id;
+  return latestPayload.registry.models.find((item) => item.id === (selectedModelId || currentId)) || null;
+}
+
+function selectedPipeline() {
+  const model = selectedModel();
+  return model ? (latestPayload.pipelines?.[model.id] || null) : null;
+}
+
+function fillDeployFromPayload() {
+  const config = latestPayload?.deployment_config || {};
+  document.getElementById("deploy-storage").value = config.storage || "auto";
+  document.getElementById("deploy-provider").value = Array.isArray(config.provider_preference)
+    ? config.provider_preference.join(",")
+    : "wasm";
+  document.getElementById("deploy-base-url").value = config.public_base_url || "";
+  document.getElementById("deploy-backend-url").value = config.public_backend_url || "";
+}
+
+function renderModelList() {
+  const root = document.getElementById("model-list");
+  const registry = latestPayload?.registry;
+  if (!registry) return;
+  root.innerHTML = "";
+  registry.models.forEach((model) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `model-item${model.id === (selectedModelId || registry.current_model_id) ? " active" : ""}${model.enabled === false ? " disabled" : ""}`;
+    button.onclick = () => {
+      selectedModelId = model.id;
+      renderSelectedModelCards();
+    };
+    button.innerHTML = `
+      <div class="name">${escapeHtml(model.display_name)}</div>
+      <div class="meta">
+        버전 ${escapeHtml(model.version)}<br>
+        추정 파라미터 ${numberWithCommas(model.actual_params_estimate)}<br>
+        상태 ${escapeHtml(model.pipeline_message || "-")}
+      </div>
+      <div class="badge-row">
+        ${model.current ? '<span class="badge current">현재 사용 중</span>' : ""}
+        ${model.latest ? '<span class="badge latest">최신</span>' : ""}
+        ${model.trainable ? '<span class="badge trainable">학습 가능</span>' : ""}
+        ${model.enabled === false ? '<span class="badge disabled">비활성화</span>' : ""}
+      </div>
+    `;
+    root.appendChild(button);
+  });
+}
+
+function buildModelCardHtml() {
+  const model = selectedModel();
+  const pipeline = selectedPipeline();
+  if (!model) return "";
+  const issues = model.issues?.length ? model.issues : ["현재 등록된 치명적 문제는 없습니다."];
+  return `
+    <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0">${escapeHtml(model.display_name)}</h2>
+        <div class="meta" style="margin-top:8px">
+          버전 ${escapeHtml(model.version)} · 생성 ${escapeHtml(model.created_at || "-")}<br>
+          기반 모델 ${escapeHtml(model.created_from || "초기 모델")}
+        </div>
+        <div class="badge-row">
+          ${model.current ? '<span class="badge current">현재 사용 중</span>' : ""}
+          ${model.latest ? '<span class="badge latest">최신 버전</span>' : ""}
+          ${model.trainable ? '<span class="badge trainable">학습 가능</span>' : ""}
+          ${model.enabled === false ? '<span class="badge disabled">비활성화</span>' : ""}
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" onclick="selectModel('${model.id}')">이 모델 선택</button>
+        <button class="btn ${model.enabled === false ? "warn" : "bad"}" onclick="toggleModelEnabled('${model.id}', ${model.enabled === false ? "true" : "false"})">
+          ${model.enabled === false ? "다시 활성화" : "비활성화"}
+        </button>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:18px">
+      <div class="stat"><div class="label">현재 추정치</div><div class="value">${numberWithCommas(model.actual_params_estimate)}</div></div>
+      <div class="stat"><div class="label">목표 파라미터</div><div class="value">${numberWithCommas(model.target_params)}</div></div>
+      <div class="stat"><div class="label">백엔드</div><div class="value sm">${escapeHtml(model.backend_status || "-")}</div></div>
+      <div class="stat"><div class="label">아키텍처</div><div class="value sm">${escapeHtml(model.architecture_name || "Purple Bee 100M")}</div></div>
+    </div>
+    <div class="grid-2" style="margin-top:14px">
+      <div class="pill">
+        <div class="label">파이프라인 단계</div>
+        <div class="value sm">${escapeHtml(model.pipeline_stage || "idle")}</div>
+      </div>
+      <div class="pill">
+        <div class="label">체크포인트</div>
+        <div class="value sm mono">${escapeHtml(String(pipeline?.preferred_checkpoint || "-").split("\\\\").pop())}</div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="section">현재 경고 / 점검 포인트</div>
+      <ul class="list">${issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function renderSelectedModelCards() {
+  const html = buildModelCardHtml();
+  document.getElementById("selected-model").innerHTML = html;
+  document.getElementById("selected-model-duplicate").innerHTML = html;
+}
+
+function renderRuntimeCard() {
+  const live = latestPayload?.live_stats || {};
+  const latestEval = latestPayload?.evaluation?.latest || {};
+  document.getElementById("stat-params").textContent = numberWithCommas(live.estimated_params);
+  document.getElementById("stat-docs").textContent = numberWithCommas(live.trained_docs);
+  document.getElementById("stat-loss").textContent = live.avg_loss ?? "-";
+  document.getElementById("stat-eval").textContent = latestEval && latestEval.total ? `${latestEval.passed}/${latestEval.total}` : "-";
+  document.getElementById("runtime-hint").textContent =
+    `현재 선택 모델 ${latestPayload?.current_model?.display_name || "-"} · 최근 평가 ${latestEval?.pass_rate ?? "-"}%`;
+}
+
+function renderEvaluation() {
+  const evalBlock = selectedPipeline()?.evaluation || latestPayload?.evaluation || {};
+  const latest = evalBlock.latest || {};
+  const latestOutput = evalBlock.latest_output || {};
+  document.getElementById("evaluation-stats").innerHTML = [
+    ["최근 통과", latest.total ? `${latest.passed}/${latest.total}` : "-"],
+    ["통과율", latest.pass_rate != null ? `${latest.pass_rate}%` : "-"],
+    ["디바이스", latest.device || latestOutput.device || "-"],
+    ["평가 step", latest.step ?? "-"],
+  ].map(([label, value]) => `
+    <div class="pill">
+      <div class="label">${escapeHtml(label)}</div>
+      <div class="value sm">${escapeHtml(value)}</div>
+    </div>
+  `).join("");
+
+  const preview = [];
+  if (Array.isArray(evalBlock.schedule) && evalBlock.schedule.length) {
+    preview.push(`평가 일정: ${evalBlock.schedule.join(", ")}`);
+  }
+  if (evalBlock.prompt_set) {
+    preview.push(`프롬프트 세트: ${evalBlock.prompt_set}`);
+  }
+  if (latestOutput.by_category) {
+    preview.push("", "카테고리별 요약:");
+    Object.entries(latestOutput.by_category).forEach(([key, value]) => {
+      preview.push(`- ${key}: ${value.passed}/${value.total}`);
+    });
+  }
+  document.getElementById("evaluation-preview").textContent = preview.length ? preview.join("\n") : "아직 평가 결과가 없습니다.";
+}
+
+function renderCleanup() {
+  const cleanup = latestPayload?.cleanup || {};
+  const candidates = cleanup.candidates || [];
+  document.getElementById("cleanup-preview").textContent = candidates.length
+    ? `정리 후보 ${cleanup.candidate_count}개\n\n- ${candidates.join("\n- ")}`
+    : "현재 자동 정리 후보가 없습니다.";
+}
+
+function renderAll() {
+  renderModelList();
+  renderSelectedModelCards();
+  renderRuntimeCard();
+  renderEvaluation();
+  renderCleanup();
+  fillDeployFromPayload();
+  switchPage(currentPage);
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "요청 처리에 실패했습니다.");
+  }
+  return payload;
+}
+
+async function refreshOverview() {
+  const response = await fetch("/api/model_panel/overview");
+  latestPayload = await response.json();
+  selectedModelId = selectedModelId || latestPayload.registry.current_model_id;
+  renderAll();
+}
+
+async function runAction(label, runner) {
+  try {
+    logLines([`[실행] ${label}`]);
+    const payload = await runner();
+    if (payload.payload) {
+      latestPayload = payload.payload;
+    } else if (payload.registry) {
+      latestPayload = payload;
+    }
+    renderAll();
+    logLines([`[완료] ${label}`, JSON.stringify(payload.result || payload, null, 2)]);
+    return payload;
+  } catch (error) {
+    logLines([`[실패] ${label}`, String(error.message || error)]);
+    alert(error.message || String(error));
+    throw error;
+  }
+}
+
+function currentModelId() {
+  return selectedModel()?.id || latestPayload?.registry?.current_model_id || "";
+}
+
+async function selectModel(modelId) {
+  await runAction("모델 선택", () => postJson("/api/model_panel/select", { model_id: modelId }));
+  selectedModelId = modelId;
+  renderAll();
+}
+
+async function toggleModelEnabled(modelId, enabled) {
+  await runAction(enabled ? "모델 활성화" : "모델 비활성화", () => postJson("/api/model_panel/toggle", {
+    model_id: modelId,
+    enabled,
+  }));
+}
+
+async function createModel() {
+  const version = document.getElementById("new-version").value.trim();
+  if (!version) {
+    alert("새 모델 버전을 입력해 주세요.");
+    return;
+  }
+  const payload = await runAction("새 모델 복제", () => postJson("/api/model_panel/create", { version }));
+  selectedModelId = payload?.payload?.registry?.current_model_id || selectedModelId;
+  document.getElementById("new-version").value = "";
+  switchPage("models");
+}
+
+async function saveDeploySettings() {
+  await runAction("배포 설정 저장", () => postJson("/api/model_panel/deploy-settings", {
+    public_base_url: document.getElementById("deploy-base-url").value.trim(),
+    public_backend_url: document.getElementById("deploy-backend-url").value.trim(),
+    storage: document.getElementById("deploy-storage").value,
+    provider_preference: document.getElementById("deploy-provider").value.split(","),
+  }));
+}
+
+async function runRuntimeSmoke() {
+  const payload = await runAction("런타임 점검", () => postJson("/api/model_panel/runtime-smoke", {
+    model_id: currentModelId(),
+  }));
+  const result = payload.result || {};
+  const lines = [
+    `모델: ${result.display_name || "-"}`,
+    `provider: ${(result.provider_preference || []).join(", ") || "-"}`,
+    `website ready: ${result.website_runtime_ready ? "yes" : "no"}`,
+    "",
+    "로컬 자산:",
+  ];
+  (result.asset_checks || []).forEach((item) => {
+    lines.push(`- ${item.name}: ${item.exists ? "ok" : "missing"} (${numberWithCommas(item.size)} bytes)`);
+  });
+  if (result.public_checks?.length) {
+    lines.push("", "공개 URL 점검:");
+    result.public_checks.forEach((item) => {
+      lines.push(`- ${item.name}: ${item.status_code ?? "failed"} · ${item.url}`);
+    });
+  }
+  document.getElementById("runtime-smoke-result").textContent = lines.join("\n");
+  switchPage("dashboard");
+}
+
+async function runBrowserPackaging() {
+  await runAction("브라우저 패키징", () => postJson("/api/model_panel/package-browser", {
+    model_id: currentModelId(),
+  }));
+}
+
+async function runHfUpload() {
+  await runAction("HF 업로드", () => postJson("/api/model_panel/hf-upload", {}));
+}
+
+async function runCloudflareDeploy() {
+  await runAction("Cloudflare 배포", () => postJson("/api/model_panel/deploy-cloudflare", {}));
+}
+
+async function runPackageAndDeploy() {
+  await runAction("패키징 → HF 업로드 → Cloudflare 배포", () => postJson("/api/model_panel/package-and-deploy", {
+    model_id: currentModelId(),
+    run_hf_upload: true,
+  }));
+}
+
+async function run100M(dryRun) {
+  await runAction(dryRun ? "100M 드라이런" : "100M 학습 시작", () => postJson("/api/model_panel/train-100m", {
+    model_id: currentModelId(),
+    domain: document.getElementById("train-domain").value,
+    text: document.getElementById("train-100m-text").value,
+    steps: Number(document.getElementById("train-steps").value || 0),
+    eval_steps: document.getElementById("eval-steps").value.trim(),
+    dry_run: !!dryRun,
+  }));
+}
+
+async function runManualEval() {
+  await runAction("즉시 회귀 평가", () => postJson("/api/model_panel/evaluate-100m", {
+    model_id: currentModelId(),
+  }));
+}
+
+async function run100MGenerate() {
+  const payload = await runAction("100M 생성 테스트", () => postJson("/api/model_panel/generate-100m", {
+    model_id: currentModelId(),
+    prompt: document.getElementById("generate-100m-prompt").value.trim(),
+  }));
+  const result = payload.result || {};
+  document.getElementById("generate-100m-result").textContent = result.output || JSON.stringify(result, null, 2);
+}
+
+async function runCleanup() {
+  if (!confirm("정리 후보를 Cleanup_Archive로 이동할까요?")) return;
+  await runAction("정리 보관", () => postJson("/api/model_panel/cleanup", {}));
+}
+
+refreshOverview();
+</script>
+</body>
+</html>

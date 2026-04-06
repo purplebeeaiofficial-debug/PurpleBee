@@ -1,0 +1,28 @@
+{
+  "model_id": "purple-bee-1-3",
+  "display_name": "Purple Bee 1.3",
+  "browser_dir": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package",
+  "browser_bundle_mode": "browser-package",
+  "artifacts": {
+    "onnx": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx",
+    "onnx_data": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx.data",
+    "tokenizer": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\tokenizer.json",
+    "manifest": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\browser-manifest.json",
+    "package_report": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\package-report.json"
+  },
+  "remote_asset_urls": {},
+  "sizes": {
+    "onnx": 68144,
+    "onnx_data": 444858368,
+    "tokenizer": 1859990,
+    "largest_file": 444858368
+  },
+  "static_asset_safe_limit": 26214400,
+  "static_assets_ready": true,
+  "static_assets_safe": false,
+  "recommended_storage": "r2-or-public-object-storage",
+  "selected_storage": "hf-hub",
+  "public_base_url": "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main",
+  "runtime_engine": "purple-bee-onnx",
+  "website_runtime_ready": true
+}

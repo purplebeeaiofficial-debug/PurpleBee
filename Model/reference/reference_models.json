@@ -1,0 +1,46 @@
+{
+  "selected_primary_reference": "HuggingFaceTB/SmolLM2-135M",
+  "selected_architecture_reference": "MobileLLM-125M",
+  "references": [
+    {
+      "id": "smollm2_135m",
+      "name": "SmolLM2-135M-Instruct",
+      "provider": "Hugging Face",
+      "type": "training-and-behavior-baseline",
+      "model_card_url": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M",
+      "notes": [
+        "0.1B 공개 소형 디코더 모델 계열",
+        "instruction 모델 성능 수치와 학습 규모가 공개돼 있어 비교 기준으로 쓰기 좋음",
+        "영어 중심 모델이라 한국어 대화 품질의 직접 대체재는 아님"
+      ],
+      "target_takeaways": [
+        "소형 모델에서 instruction tuning 전후 차이",
+        "평가 항목(MT-Bench, IFEval, HellaSwag 등) 기반 비교 방식",
+        "작은 모델도 대규모 사전학습 토큰이 핵심이라는 점"
+      ]
+    },
+    {
+      "id": "mobilellm_125m",
+      "name": "MobileLLM 125M",
+      "provider": "arXiv / ICML 2024",
+      "type": "architecture-baseline",
+      "paper_url": "https://arxiv.org/abs/2402.14905",
+      "notes": [
+        "sub-billion on-device 모델 최적화 논문",
+        "deep-thin 구조, embedding sharing, grouped-query attention이 핵심",
+        "작은 모델에서는 데이터 양뿐 아니라 아키텍처 선택이 매우 중요하다는 근거"
+      ],
+      "target_takeaways": [
+        "Purple Bee 1.4 아키텍처 리비전 기준",
+        "GQA 및 더 얇고 깊은 구조 검토",
+        "소형 모델용 메모리/지연 최적화 방향"
+      ]
+    }
+  ],
+  "purple_bee_next_actions": [
+    "웹 응답 경로는 모델 우선 유지",
+    "고정 규칙 응답은 fallback 최소 안내만 유지",
+    "평가셋 기반으로 회귀 검증 후에만 브라우저 패키지 재배포",
+    "다음 아키텍처 리비전은 MobileLLM 계열 설계를 참고"
+  ]
+}

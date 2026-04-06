@@ -1,0 +1,47 @@
+{
+  "model_family": "Purple Bee",
+  "goal": "Small but natural on-device multilingual assistant",
+  "stages": [
+    {
+      "id": "tokenizer-and-foundation",
+      "purpose": "Keep tokenizer coverage and base corpus quality stable before any dialogue tuning.",
+      "sources": [
+        "Model/corpora/dialogue_sft/chat_quality_pack_ko.jsonl",
+        "Model/corpora/dialogue_sft/reasoning_seed_ko.jsonl",
+        "Model/corpora/dialogue_sft/dialogue_followup_repair_ko.jsonl"
+      ]
+    },
+    {
+      "id": "instruction-sft",
+      "purpose": "Teach question understanding, direct answering, short dialogue, and follow-up correction with supervised finetuning.",
+      "sources": [
+        "Model/corpora/dialogue_sft/chat_quality_pack_ko.jsonl",
+        "Model/corpora/dialogue_sft/dialogue_followup_repair_ko.jsonl"
+      ]
+    },
+    {
+      "id": "reasoning-sft",
+      "purpose": "Add answer planning and reasoning-style examples without exposing hidden chain-of-thought in user-facing output.",
+      "sources": [
+        "Model/corpora/dialogue_sft/reasoning_seed_ko.jsonl"
+      ]
+    },
+    {
+      "id": "regression-eval-gate",
+      "purpose": "Promote checkpoints only when the fixed public regression prompt set improves.",
+      "sources": [
+        "Model/evals/public_chat_regression_ko.jsonl"
+      ]
+    }
+  ],
+  "promotion_policy": {
+    "rule": "Only promote a new checkpoint when pass rate improves on the fixed regression set and no major category regresses.",
+    "eval_schedule": [500, 1000, 2000, 5000]
+  },
+  "runtime_guidance": {
+    "social_temperature": 0.30,
+    "task_temperature": 0.22,
+    "top_p": 0.84,
+    "notes": "For the current 1.3 browser model, lower-temperature direct answers are more stable than creative high-temperature sampling."
+  }
+}

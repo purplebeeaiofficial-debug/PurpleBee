@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee | 기능</title>
+<style>
+  :root{--bg:#f6f7fb;--panel:#fff;--text:#111827;--sub:#4b5563;--line:#dbe1eb;--accent:#6d28d9}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Segoe UI",sans-serif}
+  .wrap{width:min(1140px,92vw);margin:0 auto}
+  header{height:74px;border-bottom:1px solid var(--line);display:flex;align-items:center;background:#fff}
+  .nav{display:flex;justify-content:space-between;align-items:center;width:100%}
+  .brand{font-weight:800;font-size:22px}
+  .menu{display:flex;gap:20px}
+  .menu a{text-decoration:none;color:var(--sub);font-size:14px;font-weight:600}
+  .menu a.active,.menu a:hover{color:var(--text)}
+  .hero{margin:26px 0 14px;padding:34px;border:1px solid var(--line);border-radius:18px;background:var(--panel)}
+  .hero h1{font-size:44px;letter-spacing:-1px}
+  .hero p{margin-top:12px;color:var(--sub);font-size:16px;line-height:1.7;max-width:840px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .card{padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}
+  .card h2{font-size:19px;letter-spacing:-.2px}
+  .card ul{margin-top:10px;padding-left:18px;color:var(--sub);display:grid;gap:6px;font-size:14px;line-height:1.6}
+  .highlight{margin-top:14px;padding:16px;border-radius:12px;background:#f5f3ff;border:1px solid #ddd6fe;color:#4c1d95;font-size:14px;line-height:1.65}
+  footer{margin:24px 0 30px;color:var(--sub);font-size:13px}
+  @media(max-width:900px){.hero h1{font-size:34px}.grid{grid-template-columns:1fr}.menu{display:none}}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand">Purple Bee</div>
+      <nav class="menu">
+        <a href="/ko-KR/index/purple-bee/">소개</a>
+        <a class="active" href="/ko-KR/index/purple-bee/features/">기능</a>
+        <a href="/ko-KR/index/purple-bee/safety/">안전</a>
+        <a href="/ko-KR/index/purple-bee/architecture/">아키텍처</a>
+        <a href="/ko-KR/index/purple-bee/pricing/">요금</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Purple Bee 기능</h1>
+      <p>실사용 중심으로 바로 도움이 되는 기능을 우선 제공합니다. 모든 기능은 “대화 + 첨부 자료 + 최근 문맥”을 함께 활용하도록 설계했습니다.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>대화형 문제 해결</h2>
+        <ul>
+          <li>짧은 질문부터 복합 요구까지 의도 파악</li>
+          <li>오류 원인 후보 정리 + 우선순위 제안</li>
+          <li>후속 질문 자동 제안으로 탐색 속도 향상</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>문서/코드 분석</h2>
+        <ul>
+          <li>파일 내용 요약, 핵심 문장 추출, 비교</li>
+          <li>코드/로그/설정 파일을 함께 연결해 설명</li>
+          <li>문제 재현 순서와 수정 포인트를 구체화</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>사용자 메모리</h2>
+        <ul>
+          <li>“기억해줘/저장해줘” 요청을 사용자별로 저장</li>
+          <li>필요 시 답변 문맥에 반영</li>
+          <li>개별 삭제/전체 삭제/확인 다이얼로그 지원</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>온디바이스 추론</h2>
+        <ul>
+          <li>브라우저에서 모델 실행 (WebGPU/WASM)</li>
+          <li>첫 질문 워밍업 안내 + 지연 시간 표시</li>
+          <li>추론 타임아웃/락으로 멈춤 현상 완화</li>
+        </ul>
+      </article>
+    </section>
+
+    <div class="highlight">
+      현재 Purple Bee는 무료 플랜으로 제공됩니다. 결제 기능 없이, 대화 품질/속도/안정성 개선을 우선 진행합니다.
+    </div>
+  </main>
+
+  <footer class="wrap">© 2026 Purple Bee · Free Preview</footer>
+</body>
+</html>

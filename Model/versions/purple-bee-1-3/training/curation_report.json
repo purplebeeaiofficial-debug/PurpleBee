@@ -1,0 +1,123 @@
+{
+  "jsonl_sources": {
+    "basic_dialogue_variants_ko.jsonl": {
+      "kept": 43,
+      "weighted": 170
+    },
+    "conversation_core_ko.jsonl": {
+      "kept": 35,
+      "weighted": 142
+    },
+    "conversation_natural_ko.jsonl": {
+      "kept": 15,
+      "weighted": 101
+    },
+    "curriculum_chat_ko.jsonl": {
+      "kept": 120,
+      "weighted": 720
+    },
+    "curriculum_knowledge_ko.jsonl": {
+      "kept": 120,
+      "weighted": 540
+    },
+    "everyday_chat_ko.jsonl": {
+      "kept": 23,
+      "weighted": 156
+    },
+    "foundation_chat_ko.jsonl": {
+      "kept": 47,
+      "weighted": 376
+    },
+    "instruction_seed_ko.jsonl": {
+      "kept": 10,
+      "weighted": 38
+    },
+    "instruction_social_ko.jsonl": {
+      "kept": 15,
+      "weighted": 87
+    },
+    "reasoning_seed_ko.jsonl": {
+      "kept": 0,
+      "weighted": 0
+    },
+    "regression_anchor_ko.jsonl": {
+      "kept": 18,
+      "weighted": 71
+    }
+  },
+  "text_sources": {
+    "purple_bee_dialogues_v2.txt": {
+      "kept": 248,
+      "weighted": 496
+    },
+    "purple_bee_seed_v1.txt": {
+      "kept": 19,
+      "weighted": 19
+    },
+    "README.md": {
+      "kept": 11,
+      "weighted": 11
+    },
+    "wikipedia_random_ko.txt": {
+      "kept": 200,
+      "weighted": 200
+    },
+    "deep-research-report.md": {
+      "kept": 77,
+      "weighted": 77
+    },
+    "DEEP_RESEARCH_INTEGRATION.md": {
+      "kept": 43,
+      "weighted": 43
+    }
+  },
+  "raw_blocks": 1044,
+  "weighted_blocks": 3247,
+  "manual_text": {
+    "weighted": 0,
+    "characters": 0
+  },
+  "output": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\corpus_snapshot.txt",
+  "characters": 291916,
+  "paragraphs": 3247,
+  "tag_counts": {
+    "ability": 93,
+    "ai": 2,
+    "alternative": 3,
+    "clarity": 1,
+    "coding": 10,
+    "concise": 120,
+    "confusion": 1,
+    "conversation": 67,
+    "correction": 7,
+    "definition": 88,
+    "detailed": 120,
+    "direct": 1,
+    "direct-answer": 49,
+    "directness": 1,
+    "emotion": 2,
+    "followup": 39,
+    "greeting": 24,
+    "hesitation": 6,
+    "identity": 25,
+    "knowledge": 88,
+    "language": 66,
+    "link": 6,
+    "links": 1,
+    "minimal": 1,
+    "natural": 219,
+    "planning": 20,
+    "preference": 35,
+    "python": 3,
+    "repair": 115,
+    "search": 61,
+    "self-intro": 4,
+    "short": 2,
+    "smalltalk": 140,
+    "status": 7,
+    "style": 105,
+    "tone": 61,
+    "tool": 95,
+    "weather": 3
+  }
+}

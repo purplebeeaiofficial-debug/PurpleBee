@@ -1,0 +1,28 @@
+{
+  "model_id": "purple-bee-1-3",
+  "display_name": "Purple Bee 1.3",
+  "output_dir": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package",
+  "quantized": false,
+  "quantize_error": "",
+  "safe_limit": 26214400,
+  "recommended_storage": "r2-or-public-object-storage",
+  "public_base_url": "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main",
+  "artifacts": {
+    "onnx": {
+      "path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx",
+      "size": 68144
+    },
+    "onnx_data": {
+      "path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx.data",
+      "size": 444858368
+    },
+    "tokenizer": {
+      "path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\tokenizer.json",
+      "size": 1859990
+    },
+    "manifest": {
+      "path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\browser-manifest.json",
+      "size": 350
+    }
+  }
+}

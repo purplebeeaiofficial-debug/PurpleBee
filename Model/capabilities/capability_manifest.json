@@ -1,0 +1,75 @@
+{
+  "family_name": "Purple Bee",
+  "core_router_model": {
+    "id": "purple-bee-1-3",
+    "role": "conversation-core",
+    "target_params": 111204864,
+    "summary": "Natural language understanding, dialogue control, tool routing, safety, and response composition."
+  },
+  "capabilities": [
+    {
+      "id": "conversation",
+      "display_name": "Conversation",
+      "modality": "text",
+      "status": "active-foundation",
+      "training_dir": "Model/corpora/dialogue_sft",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/conversation",
+      "notes": "Everyday chat, coding help, correction handling, memory-aware replies."
+    },
+    {
+      "id": "file-analysis",
+      "display_name": "File Analysis",
+      "modality": "text+documents",
+      "status": "active-foundation",
+      "training_dir": "Model/corpora/knowledge_text",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/file-analysis",
+      "notes": "Summaries and troubleshooting from logs, configs, markdown, PDFs, code, and mixed docs."
+    },
+    {
+      "id": "vision-analysis",
+      "display_name": "Vision Analysis",
+      "modality": "image+text",
+      "status": "planned",
+      "training_dir": "Model/corpora/image_analysis",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/vision-analysis",
+      "notes": "Screenshot interpretation, UI debugging, scene-level reasoning, OCR-assisted answers."
+    },
+    {
+      "id": "image-generation",
+      "display_name": "Image Generation",
+      "modality": "text-to-image",
+      "status": "planned",
+      "training_dir": "Model/corpora/image_generation",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/image-generation",
+      "notes": "Separate generator head or external local generation path coordinated by the core router."
+    },
+    {
+      "id": "audio-analysis",
+      "display_name": "Audio Analysis",
+      "modality": "audio+text",
+      "status": "planned",
+      "training_dir": "Model/corpora/audio_analysis",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/audio-analysis",
+      "notes": "Speech understanding, meeting analysis, sound-event reasoning, transcription-aware answers."
+    },
+    {
+      "id": "music-analysis",
+      "display_name": "Music Analysis",
+      "modality": "music+text",
+      "status": "planned",
+      "training_dir": "Model/corpora/music_analysis",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/music-analysis",
+      "notes": "Style, structure, mood, and arrangement analysis for uploaded tracks."
+    },
+    {
+      "id": "music-generation",
+      "display_name": "Music Generation",
+      "modality": "text-to-music",
+      "status": "planned",
+      "training_dir": "Model/corpora/music_generation",
+      "eval_dir": "Model/versions/purple-bee-1-3/training/evals/music-generation",
+      "notes": "Separate generation module directed by Purple Bee's conversation core."
+    }
+  ],
+  "design_rule": "Purple Bee should feel like one AI to the user, but internally route work through specialized capability datasets, evaluation suites, and generation paths."
+}

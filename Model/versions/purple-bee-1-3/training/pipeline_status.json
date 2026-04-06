@@ -1,0 +1,71 @@
+{
+  "running": false,
+  "stage": "complete",
+  "message": "100M bootstrap training completed",
+  "model_id": "purple-bee-1-3",
+  "estimated_params": 111204864,
+  "backend": {
+    "torch_available": true,
+    "device": "cuda",
+    "cuda_available": true
+  },
+  "progress": 100,
+  "corpus_path": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_preview.txt",
+  "output_dir": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training",
+  "dry_run": false,
+  "eval_schedule": [
+    250,
+    500
+  ],
+  "eval_file": "D:\\Purple Bee AI\\Model\\evals\\public_chat_regression_ko.jsonl",
+  "eval_latest_output": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\evaluations\\latest.json",
+  "evaluation_history": [
+    {
+      "step": 250,
+      "error": "Traceback (most recent call last):\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 235, in <module>\n    main()\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 174, in main\n    rows = read_jsonl(Path(args.eval_file))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 39, in read_jsonl\n    rows.append(json.loads(line))\n                ^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Phwnx\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\json\\__init__.py\", line 335, in loads\n    raise JSONDecodeError(\"Unexpected UTF-8 BOM (decode using utf-8-sig)\",\njson.decoder.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)\n"
+    },
+    {
+      "step": 500,
+      "error": "Traceback (most recent call last):\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 235, in <module>\n    main()\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 174, in main\n    rows = read_jsonl(Path(args.eval_file))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 39, in read_jsonl\n    rows.append(json.loads(line))\n                ^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Phwnx\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\json\\__init__.py\", line 335, in loads\n    raise JSONDecodeError(\"Unexpected UTF-8 BOM (decode using utf-8-sig)\",\njson.decoder.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)\n"
+    }
+  ],
+  "latest_evaluation": {
+    "step": 500,
+    "error": "Traceback (most recent call last):\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 235, in <module>\n    main()\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 174, in main\n    rows = read_jsonl(Path(args.eval_file))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Purple Bee AI\\Model\\scripts\\run_public_chat_eval.py\", line 39, in read_jsonl\n    rows.append(json.loads(line))\n                ^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Phwnx\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\json\\__init__.py\", line 335, in loads\n    raise JSONDecodeError(\"Unexpected UTF-8 BOM (decode using utf-8-sig)\",\njson.decoder.JSONDecodeError: Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)\n"
+  },
+  "evaluation_running": false,
+  "updated_at": "2026-04-05T22:46:52",
+  "corpus_characters": 76089,
+  "tokenizer_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\tokenizer.json",
+  "tokenizer_report_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\tokenizer_report.json",
+  "tokenizer_vocab_size": 3266,
+  "tokenizer_coverage": 1.0,
+  "reward_profile": {
+    "category_boosts": {
+      "능력 설명": 2.5,
+      "인사": 2.5,
+      "자기소개": 2.5,
+      "정의 설명": 2.5,
+      "짧은 질문 직답": 2.5,
+      "후속 질문 생성": 2.5
+    },
+    "tag_boosts": {}
+  },
+  "actual_params": 111204864,
+  "device": "cuda",
+  "last_loss": 6e-06,
+  "avg_loss": 0.0016,
+  "learning_rate": 1e-05,
+  "gradient_accumulation_steps": 12,
+  "training_mode": "supervised-dialogue-sft",
+  "sft_dataset": {
+    "rows": 229,
+    "usable_examples": 229,
+    "total_weight": 3453,
+    "dataset_path": "D:\\Purple Bee AI\\Model\\corpora\\dialogue_sft\\purple_bee_sft_dataset_clean.jsonl"
+  },
+  "lm_corpus_characters": 96230,
+  "lm_warmup_steps": 325,
+  "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\checkpoints\\purple_bee_100m_bootstrap.pt",
+  "summary_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training\\training_summary.json"
+}

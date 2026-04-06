@@ -1,0 +1,31 @@
+cloudflare/cf-auth.local.json
+cloudflare/hf-auth.local.json
+cloudflare/model-deploy.local.json
+cloudflare/.wrangler/
+
+# Local secrets and machine state
+app/data/admin_config.json
+app/data/google_oauth_client.json
+Data/
+logs/
+build/
+include/
+Cleanup_Archive/
+
+# Python noise
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Large training artifacts and browser binaries
+Model/versions/**/checkpoints/
+Model/versions/**/*.pt
+Model/versions/**/*.onnx
+Model/versions/**/*.onnx.data
+Model/versions/**/*.bin
+Model/versions/**/*.safetensors
+
+# Local runtime / generated assets
+app/static/model-registry.local.json
+cloudflare/public/static/public-backend.local.json

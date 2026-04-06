@@ -1,0 +1,25 @@
+{
+  "primary_chat_baseline": {
+    "id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "display_name": "SmolLM2 135M Instruct",
+    "parameters": 135000000,
+    "source_type": "open-weights",
+    "official_model_card": "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct",
+    "official_paper": "https://arxiv.org/abs/2502.02737",
+    "why": [
+      "Close to the Purple Bee 100M target size",
+      "Explicit instruct tuning stage",
+      "Useful as a direct casual-chat baseline"
+    ]
+  },
+  "architecture_reference": {
+    "id": "MobileLLM-125M",
+    "display_name": "MobileLLM 125M",
+    "parameters": 125000000,
+    "official_paper": "https://arxiv.org/abs/2402.14905",
+    "why": [
+      "Sub-billion architecture optimized for on-device use",
+      "Helpful reference for tiny-model architecture and tokenizer choices"
+    ]
+  }
+}

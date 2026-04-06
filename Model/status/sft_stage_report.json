@@ -1,0 +1,82 @@
+{
+  "jsonl_sources": {
+    "conversation_natural_ko.jsonl": {
+      "kept": 15,
+      "weighted": 101
+    },
+    "curriculum_chat_ko.jsonl": {
+      "kept": 120,
+      "weighted": 720
+    },
+    "curriculum_knowledge_ko.jsonl": {
+      "kept": 120,
+      "weighted": 540
+    },
+    "everyday_chat_ko.jsonl": {
+      "kept": 23,
+      "weighted": 156
+    },
+    "foundation_chat_ko.jsonl": {
+      "kept": 51,
+      "weighted": 408
+    },
+    "instruction_seed_ko.jsonl": {
+      "kept": 10,
+      "weighted": 38
+    },
+    "instruction_social_ko.jsonl": {
+      "kept": 15,
+      "weighted": 87
+    },
+    "reasoning_seed_ko.jsonl": {
+      "kept": 0,
+      "weighted": 0
+    }
+  },
+  "text_sources": {},
+  "raw_blocks": 354,
+  "weighted_blocks": 2050,
+  "manual_text": {
+    "weighted": 0,
+    "characters": 0
+  },
+  "output": "Model\\status\\sft_stage_corpus.txt",
+  "characters": 136966,
+  "paragraphs": 2050,
+  "tag_counts": {
+    "ability": 76,
+    "ai": 1,
+    "alternative": 3,
+    "clarity": 1,
+    "coding": 5,
+    "concise": 120,
+    "confusion": 1,
+    "conversation": 67,
+    "correction": 4,
+    "definition": 74,
+    "detailed": 120,
+    "direct": 1,
+    "directness": 1,
+    "emotion": 2,
+    "greeting": 12,
+    "hesitation": 5,
+    "identity": 14,
+    "knowledge": 74,
+    "language": 61,
+    "link": 4,
+    "links": 1,
+    "minimal": 1,
+    "natural": 117,
+    "planning": 11,
+    "preference": 20,
+    "python": 3,
+    "repair": 90,
+    "search": 61,
+    "smalltalk": 111,
+    "status": 4,
+    "style": 82,
+    "tone": 61,
+    "tool": 85,
+    "weather": 2
+  }
+}

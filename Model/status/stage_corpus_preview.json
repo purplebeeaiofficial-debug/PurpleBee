@@ -1,0 +1,94 @@
+{
+  "jsonl_sources": {
+    "basic_dialogue_variants_ko.jsonl": {
+      "kept": 43,
+      "weighted": 180
+    },
+    "chat_quality_pack_ko.jsonl": {
+      "kept": 25,
+      "weighted": 200
+    },
+    "conversation_core_ko.jsonl": {
+      "kept": 35,
+      "weighted": 164
+    },
+    "conversation_natural_ko.jsonl": {
+      "kept": 16,
+      "weighted": 47
+    },
+    "everyday_chat_ko.jsonl": {
+      "kept": 23,
+      "weighted": 66
+    },
+    "foundation_chat_ko.jsonl": {
+      "kept": 47,
+      "weighted": 208
+    },
+    "instruction_social_ko.jsonl": {
+      "kept": 15,
+      "weighted": 42
+    },
+    "reasoning_seed_ko.jsonl": {
+      "kept": 7,
+      "weighted": 39
+    },
+    "regression_anchor_ko.jsonl": {
+      "kept": 18,
+      "weighted": 77
+    }
+  },
+  "text_sources": {},
+  "raw_blocks": 229,
+  "weighted_blocks": 1023,
+  "manual_text": {
+    "weighted": 0,
+    "characters": 0
+  },
+  "output": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_preview.txt",
+  "characters": 76089,
+  "paragraphs": 1023,
+  "tag_counts": {
+    "ability": 36,
+    "ai": 3,
+    "alternative": 4,
+    "analysis": 1,
+    "coding": 12,
+    "confusion": 1,
+    "conversation": 7,
+    "correction": 7,
+    "debug": 1,
+    "definition": 33,
+    "direct": 1,
+    "direct-answer": 52,
+    "directness": 1,
+    "document": 1,
+    "emotion": 5,
+    "empathy": 3,
+    "followup": 46,
+    "greeting": 24,
+    "hesitation": 4,
+    "identity": 25,
+    "knowledge": 32,
+    "language": 8,
+    "link": 6,
+    "links": 1,
+    "math": 1,
+    "minimal": 1,
+    "natural": 185,
+    "planning": 20,
+    "preference": 36,
+    "python": 3,
+    "reasoning": 7,
+    "repair": 57,
+    "science": 1,
+    "search": 1,
+    "self-intro": 7,
+    "short": 2,
+    "smalltalk": 77,
+    "status": 8,
+    "style": 49,
+    "tone": 1,
+    "tool": 35,
+    "weather": 3
+  }
+}

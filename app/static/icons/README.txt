@@ -1,0 +1,1 @@
+아이콘 폴더 - 아이콘은 앱 실행시 자동으로 CDN에서 로드됩니다 (Heroicons / Phosphor Icons)

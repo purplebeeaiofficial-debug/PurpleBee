@@ -1,0 +1,16 @@
+{
+    "family_name":  "Purple Bee",
+    "model_id":  "purple-bee-1-3",
+    "display_name":  "Purple Bee 1.3",
+    "browser_assets":  {
+                           "onnx":  "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main/purple-bee-1-3.onnx",
+                           "tokenizer":  "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main/tokenizer.json",
+                           "onnx_data":  "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main/purple-bee-1-3.onnx.data"
+                       },
+    "runtime":  {
+                    "provider_preference":  [
+                                                "wasm"
+                                            ],
+                    "max_context":  2048
+                }
+}

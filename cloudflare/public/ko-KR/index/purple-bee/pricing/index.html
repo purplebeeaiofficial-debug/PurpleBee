@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee | 요금</title>
+<style>
+  :root{--bg:#f5f7fc;--panel:#fff;--text:#0f172a;--sub:#475569;--line:#dbe1eb;--accent:#6d28d9}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Segoe UI",sans-serif}
+  .wrap{width:min(1040px,92vw);margin:0 auto}
+  header{height:74px;border-bottom:1px solid var(--line);display:flex;align-items:center;background:#fff}
+  .nav{display:flex;justify-content:space-between;align-items:center;width:100%}
+  .brand{font-size:22px;font-weight:800}
+  .menu{display:flex;gap:20px}
+  .menu a{text-decoration:none;color:var(--sub);font-size:14px;font-weight:600}
+  .menu a.active,.menu a:hover{color:var(--text)}
+  .hero{margin:24px 0 12px;padding:30px;border:1px solid var(--line);border-radius:18px;background:#fff}
+  .hero h1{font-size:40px;letter-spacing:-1px}
+  .hero p{margin-top:10px;color:var(--sub);font-size:16px;line-height:1.72}
+  .price-card{padding:24px;border:1px solid #ddd6fe;border-radius:16px;background:linear-gradient(135deg,#faf5ff,#ffffff)}
+  .badge{display:inline-block;padding:5px 10px;border-radius:999px;background:#dcfce7;color:#065f46;font-size:11px;font-weight:800}
+  .title{margin-top:12px;font-size:26px;font-weight:800}
+  .amount{margin-top:8px;font-size:44px;font-weight:900;letter-spacing:-1px}
+  .amount small{font-size:16px;color:var(--sub);font-weight:700}
+  ul{margin-top:16px;padding-left:20px;display:grid;gap:8px;color:var(--sub);line-height:1.6}
+  .note{margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--sub);font-size:13px;line-height:1.65}
+  footer{margin:22px 0 28px;color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand">Purple Bee</div>
+      <nav class="menu">
+        <a href="/ko-KR/index/purple-bee/">소개</a>
+        <a href="/ko-KR/index/purple-bee/features/">기능</a>
+        <a href="/ko-KR/index/purple-bee/safety/">안전</a>
+        <a href="/ko-KR/index/purple-bee/architecture/">아키텍처</a>
+        <a class="active" href="/ko-KR/index/purple-bee/pricing/">요금</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>요금 정책</h1>
+      <p>현재 Purple Bee는 안정화와 품질 개선 단계이며, 모든 기본 기능을 무료로 제공합니다.</p>
+    </section>
+
+    <section class="price-card">
+      <span class="badge">FREE</span>
+      <div class="title">Purple Bee Preview</div>
+      <div class="amount">₩0 <small>/ 월</small></div>
+      <ul>
+        <li>온디바이스 대화 추론</li>
+        <li>파일/문서/이미지 기반 보조 분석</li>
+        <li>Google 로그인 기반 사용자별 대화/메모리 저장</li>
+        <li>설정(언어/테마/답변 스타일) 커스터마이징</li>
+      </ul>
+      <div class="note">
+        과금 기능은 아직 비활성화 상태입니다. 이후 플랜이 추가되더라도 기존 무료 기능은 명확히 구분해 안내합니다.
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">© 2026 Purple Bee · Current plan: Free</footer>
+</body>
+</html>

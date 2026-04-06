@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%237c3aed'/><ellipse cx='50' cy='54' rx='22' ry='18' fill='%23f5d76e'/><ellipse cx='50' cy='54' rx='22' ry='18' fill='none' stroke='%234c1d95' stroke-width='3'/><rect x='36' y='44' width='6' height='18' rx='2' fill='%234c1d95' opacity='.7'/><rect x='58' y='44' width='6' height='18' rx='2' fill='%234c1d95' opacity='.7'/><rect x='47' y='44' width='6' height='18' rx='2' fill='%234c1d95' opacity='.7'/><ellipse cx='36' cy='44' rx='14' ry='7' fill='%23c4b5fd' opacity='.85' transform='rotate(-20 36 44)'/><ellipse cx='64' cy='44' rx='14' ry='7' fill='%23c4b5fd' opacity='.85' transform='rotate(20 64 44)'/><circle cx='43' cy='50' r='2.5' fill='%234c1d95'/><circle cx='57' cy='50' r='2.5' fill='%234c1d95'/></svg>">
+<link rel="stylesheet" href="/static/vendor/phosphor-icons/src/regular/style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/static/vendor/marked/marked.min.js"></script>
+<script src="/static/vendor/dompurify/purify.min.js"></script>
+<script src="/static/vendor/onnxruntime-web/ort.min.js"></script>
+<style>
+  :root {
+    --bg:#0f0f10;--sidebar-bg:#171718;--sidebar-border:#2a2a2e;
+    --card:#1c1c1f;--card-hover:#222227;--surface:#27272b;--border:#333338;
+    --accent:#8b5cf6;--accent-light:#a78bfa;--accent-dim:rgba(139,92,246,.15);
+    --green:#10b981;--yellow:#f59e0b;--red:#ef4444;--blue:#3b82f6;
+    --text:#f0f0f2;--text-2:#a0a0aa;--text-3:#606068;
+    --user-bubble:#1e1e2e;--user-border:#3730a3;--ai-bubble:#1a1a1d;
+    --scrollbar:#333338;--input-bg:#1e1e21;
+    --radius:16px;--radius-sm:10px;
+    --font:-apple-system,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+    --transition:.18s ease;
+  }
+  body.theme-light{
+    --bg:#f6f7fb;--sidebar-bg:#ffffff;--sidebar-border:#e5e7eb;
+    --card:#ffffff;--card-hover:#f3f4f6;--surface:#eef2f7;--border:#d7dbe4;
+    --accent:#6d28d9;--accent-light:#6d28d9;--accent-dim:rgba(109,40,217,.12);
+    --green:#059669;--yellow:#d97706;--red:#dc2626;--blue:#2563eb;
+    --text:#111827;--text-2:#4b5563;--text-3:#6b7280;
+    --user-bubble:#ede9fe;--user-border:#8b5cf6;--ai-bubble:transparent;
+    --scrollbar:#cbd5e1;--input-bg:#ffffff;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;height:100vh}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:4px}
+
+  #sidebar{width:260px;min-width:260px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:width var(--transition),min-width var(--transition);z-index:10}
+  #sidebar.collapsed{width:0;min-width:0}
+  .sidebar-header{padding:20px 18px 16px;border-bottom:1px solid var(--sidebar-border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .logo-icon{width:36px;height:36px;flex-shrink:0}
+  .logo-text{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+  .logo-sub{font-size:11px;color:var(--text-3);margin-top:1px}
+  .new-chat-btn{margin:14px 14px 0;padding:10px 14px;background:var(--accent-dim);border:1px solid rgba(139,92,246,.3);border-radius:var(--radius-sm);color:var(--accent-light);font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background var(--transition),border-color var(--transition);text-align:left}
+  .new-chat-btn:hover{background:rgba(139,92,246,.22);border-color:rgba(139,92,246,.5)}
+  .sidebar-section-label{padding:16px 18px 6px;font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0}
+  #chat-history-list{flex:1;overflow-y:auto;padding:0 8px}
+  .history-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--transition),color var(--transition);display:flex;align-items:center;gap:8px}
+  .history-item:hover{background:var(--surface);color:var(--text)}
+  .history-item.active{background:var(--accent-dim);color:var(--accent-light)}
+  .history-context-menu{
+    position:fixed;display:none;min-width:180px;background:var(--card);border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 12px 34px rgba(0,0,0,.3);padding:6px;z-index:500
+  }
+  .history-context-menu.open{display:block}
+  .history-context-item{
+    width:100%;display:flex;align-items:center;gap:8px;border:none;background:none;color:var(--text-2);padding:10px;border-radius:8px;
+    font-size:12px;cursor:pointer;text-align:left
+  }
+  .history-context-item:hover{background:var(--surface);color:var(--text)}
+
+  #main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative}
+  #topbar{height:56px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 20px;flex-shrink:0;background:var(--bg);position:relative;z-index:5}
+  #sidebar-toggle-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;transition:background var(--transition),color var(--transition)}
+  #sidebar-toggle-btn:hover{background:var(--surface);color:var(--text)}
+  .model-selector{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--card);border:1px solid var(--border);border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text);transition:background var(--transition);user-select:none}
+  .model-selector:hover{background:var(--card-hover);border-color:rgba(139,92,246,.35)}
+  .model-dot{width:8px;height:8px;background:var(--green);border-radius:50%}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .topbar-btn{background:none;border:none;color:var(--text-2);cursor:pointer;padding:7px 10px;border-radius:8px;display:flex;align-items:center;transition:background var(--transition),color var(--transition);font-size:13px;gap:5px}
+  .topbar-btn:hover{background:var(--surface);color:var(--text)}
+  .topbar-btn.icon-only{padding:8px}
+  .profile-wrap{position:relative}
+  .profile-menu{
+    position:absolute;top:calc(100% + 10px);right:0;min-width:260px;background:var(--card);border:1px solid var(--border);
+    border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.35);display:none;flex-direction:column;z-index:250;
+  }
+  .profile-menu.open{display:flex}
+  .profile-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
+  .profile-email{font-size:12px;color:var(--text-2);margin-top:4px;word-break:break-all}
+  .profile-item{
+    width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border:none;background:none;color:var(--text-2);
+    cursor:pointer;text-align:left;font-size:13px;transition:background var(--transition),color var(--transition)
+  }
+  .profile-item:hover{background:var(--surface);color:var(--text)}
+  .profile-item-danger{color:#ef4444}
+  .profile-item-danger:hover{background:rgba(239,68,68,.09);color:#ef4444}
+  .profile-sep{height:1px;background:var(--border)}
+
+  #chat-area{flex:1;overflow-y:auto;padding:0;scroll-behavior:smooth}
+  #messages{max-width:820px;margin:0 auto;padding:28px 24px 16px;display:flex;flex-direction:column;gap:6px}
+  #home{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 20px;text-align:center}
+  .home-logo{margin-bottom:20px;animation:float 3s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .home-title{font-size:32px;font-weight:700;margin-bottom:10px;background:linear-gradient(135deg,var(--accent-light),#f0abfc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .home-subtitle{font-size:15px;color:var(--text-2);max-width:520px;line-height:1.6}
+  .home-cards{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center}
+  .home-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;cursor:pointer;text-align:left;min-width:180px;max-width:220px;transition:border-color var(--transition),background var(--transition),transform var(--transition)}
+  .home-card:hover{border-color:var(--accent);background:var(--card-hover);transform:translateY(-2px)}
+  .home-card-icon{font-size:22px;margin-bottom:8px}
+  .home-card-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+  .home-card-desc{font-size:11px;color:var(--text-3);line-height:1.45}
+
+  .message{display:flex;gap:12px;padding:4px 0;animation:fadeUp .25s ease}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .message.user{flex-direction:row-reverse}
+  .message-column{display:flex;flex-direction:column;max-width:min(80%,720px)}
+  .message.ai .message-column{align-items:flex-start}
+  .message.user .message-column{align-items:flex-end;margin-left:auto}
+  .avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px;overflow:hidden}
+  .avatar.ai{background:linear-gradient(135deg,#7c3aed,#db2777)}
+  .avatar.user{background:linear-gradient(135deg,#1d4ed8,#4f46e5);font-size:15px}
+  .bubble{max-width:100%;width:fit-content;min-width:120px;padding:12px 16px;border-radius:18px;font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+  .bubble.user{background:var(--user-bubble);border:1px solid var(--user-border);border-bottom-right-radius:4px;color:var(--text);white-space:pre-wrap;word-break:keep-all;text-align:left}
+  .bubble.ai{background:transparent;border:none;border-radius:0;color:var(--text);padding:4px 2px 0 2px;max-width:min(100%,760px)}
+  .bubble.ai em{color:var(--text-3);font-style:italic;font-size:12px}
+  .bubble.ai strong{color:var(--accent-light)}
+  .bubble.ai code{background:var(--surface);padding:2px 6px;border-radius:4px;font-family:'Consolas',monospace;font-size:12px;color:#f0abfc}
+  .bubble.ai pre{background:#0d0d0f;border:1px solid var(--border);border-radius:8px;padding:14px;margin:10px 0;overflow-x:auto}
+  .bubble.ai pre code{background:none;padding:0;color:#e2e8f0}
+  .bubble.ai a{color:var(--accent-light)}
+  .bubble.ai hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+  .bubble.ai blockquote{border-left:3px solid var(--accent);padding-left:12px;color:var(--text-2);margin:8px 0}
+  .bubble.ai ul,.bubble.ai ol{padding-left:22px;margin:8px 0}
+  .bubble.ai li{margin:4px 0}
+  .typing-dots{display:flex;gap:4px;padding:4px 2px}
+  .thinking-status{font-size:11px;color:var(--text-3);margin-bottom:4px}
+  .thinking-status strong{color:var(--text-2)}
+  .typing-dots span{width:7px;height:7px;background:var(--text-3);border-radius:50%;animation:bounce 1.2s infinite}
+  .typing-dots span:nth-child(2){animation-delay:.2s}
+  .typing-dots span:nth-child(3){animation-delay:.4s}
+  @keyframes bounce{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}}
+  .msg-actions{display:none;gap:4px;margin-top:6px;align-items:center}
+  .message:hover .msg-actions{display:flex}
+  .msg-action-btn{background:none;border:none;color:var(--text-3);cursor:pointer;padding:4px 6px;border-radius:6px;font-size:11px;display:flex;align-items:center;gap:3px;transition:background var(--transition),color var(--transition)}
+  .msg-action-btn:hover{background:var(--surface);color:var(--text-2)}
+  .message-attachments{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .message-attachment{padding:9px 11px;border:1px solid rgba(139,92,246,.18);background:rgba(139,92,246,.08);border-radius:12px}
+  .message-attachment-name{font-size:12px;font-weight:600;color:var(--text)}
+  .message-attachment-desc{font-size:10px;color:var(--text-2);margin-top:3px;line-height:1.45}
+  .message-attachment-inline{margin-top:6px;font-size:11px;color:var(--text-3);line-height:1.45}
+
+  #compose-area{padding:16px 20px 20px;background:var(--bg);flex-shrink:0}
+  #compose-box{max-width:820px;margin:0 auto;background:var(--input-bg);border:1px solid var(--border);border-radius:22px;display:flex;flex-direction:column;overflow:visible;transition:border-color var(--transition),box-shadow var(--transition);position:relative}
+  #compose-box:focus-within{border-color:rgba(139,92,246,.5);box-shadow:0 0 0 3px rgba(139,92,246,.1)}
+  .attachment-strip{display:none;flex-wrap:wrap;gap:8px;padding:12px 14px 0}
+  .attachment-strip.active{display:flex}
+  .attachment-chip{display:flex;align-items:center;gap:10px;max-width:100%;padding:8px 10px;border-radius:14px;border:1px solid var(--border);background:var(--card)}
+  .attachment-thumb{width:42px;height:42px;border-radius:10px;background:var(--surface);background-size:cover;background-position:center;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-2)}
+  .attachment-meta{min-width:0}
+  .attachment-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+  .attachment-desc{font-size:10px;color:var(--text-3);line-height:1.4}
+  .attachment-remove{width:28px;height:28px;border:none;border-radius:8px;background:transparent;color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--transition),color var(--transition)}
+  .attachment-remove:hover{background:var(--surface);color:var(--text)}
+  #input-field{width:100%;padding:14px 20px 6px;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font);font-size:14px;resize:none;max-height:200px;min-height:44px;line-height:1.55}
+  #input-field::placeholder{color:var(--text-3)}
+  .compose-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 14px 10px;gap:8px}
+  .compose-left{display:flex;align-items:center;gap:4px}
+  .compose-btn{background:none;border:none;color:var(--text-3);cursor:pointer;padding:7px;border-radius:8px;display:flex;align-items:center;transition:background var(--transition),color var(--transition);font-size:12px;position:relative}
+  .compose-btn:hover{background:var(--surface);color:var(--text-2)}
+  .local-mode-badge{font-size:10px;padding:3px 8px;border-radius:12px;background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.28);display:flex;align-items:center;gap:4px}
+  .local-status-line{padding:0 14px 12px;font-size:10px;color:var(--text-3);line-height:1.5}
+  #send-btn{width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--transition),transform var(--transition);flex-shrink:0;color:white}
+  #send-btn:hover{background:#7c3aed;transform:scale(1.05)}
+  #send-btn:disabled{background:var(--surface);cursor:not-allowed;transform:none;color:var(--text-3)}
+  .char-count{font-size:10px;color:var(--text-3);margin-left:auto}
+
+  .attach-menu,.model-menu{
+    position:absolute;bottom:calc(100% + 8px);background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:6px;box-shadow:0 8px 32px rgba(0,0,0,.45);display:none;flex-direction:column;gap:2px;z-index:200;animation:popUp .15s ease;
+  }
+  .attach-menu{left:0;min-width:230px}
+  .model-menu{right:0;min-width:240px}
+  .attach-menu.open,.model-menu.open{display:flex}
+  @keyframes popUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .attach-menu-item,.model-menu-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text-2);transition:background var(--transition),color var(--transition);border:none;background:none;text-align:left;width:100%}
+  .attach-menu-item:hover,.model-menu-item:hover{background:var(--surface);color:var(--text)}
+  .attach-menu-item .item-icon,.model-menu-item .item-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+  .attach-menu-sep{height:1px;background:var(--border);margin:3px 6px}
+  .model-menu-header{padding:10px 12px 6px;font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase}
+  .think-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 10px}
+  .think-label{font-size:13px;color:var(--text-2)}
+  .think-sub{font-size:10px;color:var(--text-3);margin-top:1px}
+  .toggle-sm{position:relative;width:38px;height:20px;cursor:pointer;flex-shrink:0}
+  .toggle-sm input{opacity:0;width:0;height:0}
+  .toggle-sm .track{position:absolute;inset:0;background:var(--surface);border-radius:10px;transition:background var(--transition)}
+  .toggle-sm .thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--text-3);transition:transform var(--transition),background var(--transition)}
+  .toggle-sm input:checked+.track{background:var(--accent)}
+  .toggle-sm input:checked+.track+.thumb{transform:translateX(18px);background:#fff}
+
+  #toast-container{position:fixed;bottom:90px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:1000;pointer-events:none}
+  .toast{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:8px;animation:slideIn .3s ease,fadeOut .3s ease 3.7s forwards;pointer-events:auto;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  @keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes fadeOut{to{opacity:0;transform:translateX(10px)}}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:1200;padding:20px}
+  .modal-backdrop.open{display:flex}
+  .settings-modal{width:min(720px,100%);max-height:min(88vh,860px);overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+  .settings-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:22px 24px 18px;border-bottom:1px solid var(--border)}
+  .settings-title{font-size:22px;font-weight:700;letter-spacing:-.3px}
+  .settings-subtitle{margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.6;max-width:520px}
+  .settings-close{width:36px;height:36px;border:none;border-radius:12px;background:var(--surface);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--transition),color var(--transition)}
+  .settings-close:hover{background:var(--card-hover);color:var(--text)}
+  .settings-body{padding:22px 24px 24px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+  .settings-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px}
+  .settings-card.wide{grid-column:1 / -1}
+  .settings-card h3{font-size:14px;font-weight:700;margin-bottom:6px}
+  .settings-card p{font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:14px}
+  .settings-field{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+  .settings-field:last-child{margin-bottom:0}
+  .settings-label{font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.4px;text-transform:uppercase}
+  .settings-select,.settings-text,.settings-action{width:100%;background:#16161a;border:1px solid var(--border);border-radius:12px;color:var(--text);padding:11px 12px;font-size:13px;font-family:var(--font)}
+  .settings-select:focus,.settings-text:focus{outline:none;border-color:rgba(139,92,246,.55);box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+  .settings-action{cursor:pointer;transition:background var(--transition),border-color var(--transition),color var(--transition);text-align:left}
+  .settings-action:hover{background:var(--card-hover);border-color:rgba(139,92,246,.35)}
+  .settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .settings-help{font-size:11px;color:var(--text-3);line-height:1.55;margin-top:8px}
+  .settings-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .settings-chip{padding:7px 10px;border-radius:999px;border:1px solid var(--border);background:#16161a;color:var(--text-2);font-size:11px}
+  body.theme-light .settings-select,
+  body.theme-light .settings-text,
+  body.theme-light .settings-action,
+  body.theme-light .settings-chip{background:#fff}
+  body.theme-light .modal-backdrop{background:rgba(15,23,42,.24)}
+  body.theme-light .settings-modal{box-shadow:0 24px 80px rgba(15,23,42,.18)}
+  .memory-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto}
+  .memory-item{display:flex;align-items:flex-start;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px}
+  .memory-item-main{flex:1;min-width:0}
+  .memory-item-title{font-size:12px;font-weight:600;color:var(--text)}
+  .memory-item-body{font-size:11px;color:var(--text-2);margin-top:4px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .memory-empty{font-size:11px;color:var(--text-3)}
+
+  @media(max-width:768px){
+    #sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);transition:transform var(--transition);z-index:50}
+    #sidebar.mobile-open{transform:translateX(0)}
+    .bubble{max-width:90%}
+    .home-cards{gap:10px}
+    .home-card{min-width:150px;max-width:100%}
+    .settings-body{grid-template-columns:1fr}
+    .settings-header{padding:20px 18px 16px}
+    .settings-body{padding:18px}
+  }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <svg class="logo-icon" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#db2777"/>
+        </linearGradient>
+        <linearGradient id="wing-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#c4b5fd" stop-opacity=".9"/>
+          <stop offset="100%" stop-color="#818cf8" stop-opacity=".6"/>
+        </linearGradient>
+      </defs>
+      <circle cx="40" cy="40" r="38" fill="url(#bg-g)"/>
+      <ellipse cx="24" cy="30" rx="16" ry="8" fill="url(#wing-g)" transform="rotate(-25 24 30)"/>
+      <ellipse cx="56" cy="30" rx="16" ry="8" fill="url(#wing-g)" transform="rotate(25 56 30)"/>
+      <ellipse cx="40" cy="46" rx="16" ry="18" fill="#f5d76e"/>
+      <rect x="30" y="38" width="20" height="5" rx="2" fill="#4c1d95" opacity=".55"/>
+      <rect x="30" y="47" width="20" height="5" rx="2" fill="#4c1d95" opacity=".55"/>
+      <circle cx="35" cy="34" r="2.5" fill="#1a1a2e"/>
+      <circle cx="45" cy="34" r="2.5" fill="#1a1a2e"/>
+      <circle cx="35.8" cy="33.2" r=".8" fill="white"/>
+      <circle cx="45.8" cy="33.2" r=".8" fill="white"/>
+      <line x1="35" y1="26" x2="30" y2="18" stroke="#f5d76e" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="29" cy="17" r="2.5" fill="#f5d76e"/>
+      <line x1="45" y1="26" x2="50" y2="18" stroke="#f5d76e" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="51" cy="17" r="2.5" fill="#f5d76e"/>
+    </svg>
+    <div>
+      <div class="logo-text">Purple Bee</div>
+      <div class="logo-sub" id="logo-subtitle">온디바이스 런타임</div>
+    </div>
+  </div>
+
+  <button class="new-chat-btn" onclick="newChat()">
+    <i class="ph ph-plus-circle" style="font-size:16px"></i>
+    <span id="new-chat-label">새 대화 시작</span>
+  </button>
+
+  <div class="sidebar-section-label" id="history-section-label">최근 대화</div>
+  <div id="chat-history-list"></div>
+  <div style="height:16px;flex-shrink:0"></div>
+</aside>
+
+<main id="main">
+  <header id="topbar">
+    <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="사이드바">
+      <i class="ph ph-sidebar-simple" style="font-size:20px"></i>
+    </button>
+    <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="모델 목록">
+      <span class="model-dot" id="engine-dot"></span>
+      <span id="engine-label">Purple Bee 1.3</span>
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 준비물 폴더 연결" id="ai-assets-btn">
+        <i class="ph ph-hard-drives" style="font-size:18px"></i>
+        <span id="ai-assets-label">AI 준비물</span>
+      </button>
+      <button class="topbar-btn" onclick="openFilePicker()" title="파일, 문서, 스크린샷 첨부" id="attach-topbar-btn">
+        <i class="ph ph-paperclip" style="font-size:18px"></i>
+        <span id="attach-topbar-label">자료 첨부</span>
+      </button>
+      <button class="topbar-btn" type="button" onclick="loginWithGoogle()" title="Google 로그인" id="google-login-btn">
+        <i class="ph ph-google-logo" style="font-size:18px"></i>
+        <span id="google-login-label">Google 로그인</span>
+      </button>
+      <div class="profile-wrap">
+        <button class="topbar-btn icon-only" type="button" onclick="toggleProfileMenu(event)" title="계정 메뉴" id="profile-menu-btn">
+          <i class="ph ph-gear-six" style="font-size:18px"></i>
+        </button>
+        <div class="profile-menu" id="profile-menu">
+          <div class="profile-head">
+            <div id="profile-head-title">로그인 필요</div>
+            <div class="profile-email" id="profile-email">Google 계정을 연결하면 대화와 메모리를 사용자별로 유지합니다.</div>
+          </div>
+          <button class="profile-item" type="button" onclick="openSettings()">
+            <span><i class="ph ph-gear-six"></i> 설정</span>
+            <i class="ph ph-caret-right"></i>
+          </button>
+          <button class="profile-item" type="button" onclick="openLanguageFromMenu()">
+            <span><i class="ph ph-globe"></i> 언어</span>
+            <i class="ph ph-caret-right"></i>
+          </button>
+          <div class="profile-sep"></div>
+          <button class="profile-item profile-item-danger" id="profile-logout-btn" type="button" onclick="logoutUser()">
+            <span><i class="ph ph-sign-out"></i> 로그아웃</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="chat-area">
+    <div id="home">
+      <div class="home-logo">
+        <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/>
+            </linearGradient>
+            <linearGradient id="hwing" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#c4b5fd" stop-opacity=".9"/>
+              <stop offset="100%" stop-color="#818cf8" stop-opacity=".6"/>
+            </linearGradient>
+          </defs>
+          <circle cx="40" cy="40" r="38" fill="url(#hbg)"/>
+          <ellipse cx="24" cy="30" rx="16" ry="8" fill="url(#hwing)" transform="rotate(-25 24 30)"/>
+          <ellipse cx="56" cy="30" rx="16" ry="8" fill="url(#hwing)" transform="rotate(25 56 30)"/>
+          <ellipse cx="40" cy="46" rx="16" ry="18" fill="#f5d76e"/>
+          <rect x="30" y="38" width="20" height="5" rx="2" fill="#4c1d95" opacity=".55"/>
+          <rect x="30" y="47" width="20" height="5" rx="2" fill="#4c1d95" opacity=".55"/>
+          <circle cx="35" cy="34" r="2.5" fill="#1a1a2e"/>
+          <circle cx="45" cy="34" r="2.5" fill="#1a1a2e"/>
+        </svg>
+      </div>
+      <div class="home-title">Purple Bee</div>
+      <div class="home-subtitle" id="home-subtitle">오늘은 어떤 이야기를 같이 풀어볼까요?</div>
+      <div class="home-cards">
+        <div class="home-card" onclick="quickAction('summarize-doc')">
+          <div class="home-card-icon">📄</div>
+          <div class="home-card-title" id="home-card-1-title">문서 요약</div>
+          <div class="home-card-desc" id="home-card-1-desc">PDF, 텍스트, 코드 파일을 읽고 핵심만 정리</div>
+        </div>
+        <div class="home-card" onclick="quickAction('solve-issue')">
+          <div class="home-card-icon">🛠️</div>
+          <div class="home-card-title" id="home-card-2-title">문제 해결</div>
+          <div class="home-card-desc" id="home-card-2-desc">에러 로그, 설정 파일, 코드 조각을 함께 분석</div>
+        </div>
+        <div class="home-card" onclick="quickAction('review-screenshot')">
+          <div class="home-card-icon">🖼️</div>
+          <div class="home-card-title" id="home-card-3-title">화면 캡처 점검</div>
+          <div class="home-card-desc" id="home-card-3-desc">스크린샷과 설명을 함께 보내고 흐름을 점검</div>
+        </div>
+        <div class="home-card" onclick="quickAction('continue-context')">
+          <div class="home-card-icon">🧭</div>
+          <div class="home-card-title" id="home-card-4-title">대화 이어서</div>
+          <div class="home-card-desc" id="home-card-4-desc">이 웹사이트 세션에 저장된 최근 대화를 이어서 진행</div>
+        </div>
+      </div>
+    </div>
+    <div id="messages" style="display:none"></div>
+  </div>
+
+  <div id="compose-area">
+    <div id="compose-box">
+      <div id="attachment-strip" class="attachment-strip"></div>
+      <textarea id="input-field" placeholder="질문을 입력하고 파일, 문서, 스크린샷을 함께 보내 보세요. (Enter 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
+      <input type="file" id="file-input" hidden multiple accept="image/*,.txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.py,.java,.cpp,.c,.cs,.html,.css,.xml,.yml,.yaml,.ini,.log,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
+      <div class="compose-footer">
+        <div class="compose-left">
+          <div style="position:relative">
+            <button class="compose-btn" id="attach-btn" onclick="toggleAttachMenu(event)" title="첨부 메뉴">
+              <i class="ph ph-plus-circle" style="font-size:20px"></i>
+            </button>
+            <div class="attach-menu" id="attach-menu">
+              <button class="attach-menu-item" onclick="openFilePicker()">
+                <span class="item-icon" style="background:rgba(59,130,246,.15)">
+                  <i class="ph ph-file-arrow-up" style="color:var(--blue)"></i>
+                </span>
+                <span>
+                  <div style="font-size:13px;color:var(--text)">파일/문서 첨부</div>
+                  <div style="font-size:10px;color:var(--text-3)">텍스트, 코드, PDF, 이미지 파일 추가</div>
+                </span>
+              </button>
+              <div class="attach-menu-sep"></div>
+              <button class="attach-menu-item" onclick="pasteClipboardImage()">
+                <span class="item-icon" style="background:rgba(16,185,129,.15)">
+                  <i class="ph ph-image" style="color:var(--green)"></i>
+                </span>
+                <span>
+                  <div style="font-size:13px;color:var(--text)">스크린샷 붙여넣기</div>
+                  <div style="font-size:10px;color:var(--text-3)">클립보드 이미지나 Ctrl+V로 화면 캡처 추가</div>
+                </span>
+              </button>
+              <div class="attach-menu-sep"></div>
+              <button class="attach-menu-item" onclick="clearPendingAttachments()">
+                <span class="item-icon" style="background:rgba(239,68,68,.15)">
+                  <i class="ph ph-trash" style="color:var(--red)"></i>
+                </span>
+                <span>
+                  <div style="font-size:13px;color:var(--text)">첨부 비우기</div>
+                  <div style="font-size:10px;color:var(--text-3)">현재 입력창에 올린 자료를 모두 제거</div>
+                </span>
+              </button>
+            </div>
+          </div>
+
+        <div class="local-mode-badge">
+          <i class="ph ph-cpu" style="font-size:12px"></i>
+          <span id="local-badge-label">내 기기 연산</span>
+        </div>
+        </div>
+
+        <span class="char-count" id="char-count">0 / 2000</span>
+
+        <div style="position:relative">
+          <button class="compose-btn" id="model-opt-btn" onclick="toggleModelMenu(event)" title="엔진 옵션">
+            <i class="ph ph-sliders-horizontal" style="font-size:18px"></i>
+          </button>
+          <div class="model-menu" id="model-menu">
+            <div class="model-menu-header" id="model-menu-header">Purple Bee</div>
+            <button class="model-menu-item active" type="button">
+              <span class="item-icon" style="background:var(--accent-dim)">
+                <i class="ph ph-cpu" style="color:var(--accent-light)"></i>
+              </span>
+              <span>
+                <div id="current-model-name">Purple Bee 1.3</div>
+                <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">현재 접속한 기기에서 직접 계산하는 엔진</div>
+              </span>
+            </button>
+            <div class="attach-menu-sep" id="model-version-sep-top"></div>
+            <div id="model-version-list"></div>
+            <div class="attach-menu-sep" id="model-version-sep-bottom"></div>
+            <div class="think-row">
+              <div>
+                <div class="think-label" id="deep-think-label">정밀 분석</div>
+                <div class="think-sub" id="deep-think-subtitle">첨부 자료와 최근 대화를 더 길게 검토</div>
+              </div>
+              <label class="toggle-sm">
+                <input type="checkbox" id="deep-think-toggle" onchange="toggleDeepThink(this)">
+                <div class="track"></div>
+                <div class="thumb"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <button id="send-btn" onclick="sendMessage()" title="전송 (Enter)">
+          <i class="ph ph-paper-plane-right" style="font-size:16px"></i>
+        </button>
+      </div>
+      <div class="local-status-line" id="local-status" style="display:none"></div>
+    </div>
+    <div style="text-align:center;font-size:10px;color:var(--text-3);margin-top:8px">
+      <span id="footer-note">Purple Bee는 실수를 할 수 있습니다. 잘못된 정보는 해당 답변에 신고를 해주세요.</span>
+    </div>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="settings-backdrop" onclick="closeSettings(event)">
+  <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
+    <div class="settings-header">
+      <div>
+        <div class="settings-title" id="settings-title">설정</div>
+        <div class="settings-subtitle" id="settings-subtitle">Purple Bee의 UI 언어, 답변 톤, 저장 방식을 이 웹사이트 세션 기준으로 조정합니다.</div>
+      </div>
+      <button class="settings-close" type="button" onclick="closeSettings()">
+        <i class="ph ph-x" style="font-size:18px"></i>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-card">
+        <h3 id="settings-ui-title">UI와 표시</h3>
+        <p id="settings-ui-desc">버튼, 안내 문구, 홈 카드 같은 인터페이스 언어와 표시 방식을 조절합니다.</p>
+        <label class="settings-field">
+          <span class="settings-label" id="settings-ui-language-label">UI 언어</span>
+          <select class="settings-select" id="ui-language-select">
+            <option value="auto">자동</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span class="settings-label" id="settings-theme-label">테마</span>
+          <select class="settings-select" id="theme-select">
+            <option value="dark">다크</option>
+            <option value="light">라이트</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span class="settings-label" id="settings-typing-label">응답 애니메이션</span>
+          <select class="settings-select" id="typing-speed-select">
+            <option value="normal">보통</option>
+            <option value="fast">빠르게</option>
+            <option value="instant">즉시 표시</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="settings-card">
+        <h3 id="settings-reply-title">답변 스타일</h3>
+        <p id="settings-reply-desc">질문 언어를 따라가거나, 더 구조적인 형식과 더 일상적인 어투를 고를 수 있습니다.</p>
+        <label class="settings-field">
+          <span class="settings-label" id="settings-reply-language-label">답변 언어</span>
+          <select class="settings-select" id="reply-language-select">
+            <option value="auto">질문 언어 따라가기</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="zh">中文</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span class="settings-label" id="settings-style-label">답변 톤</span>
+          <select class="settings-select" id="reply-style-select">
+            <option value="adaptive">자동 조절</option>
+            <option value="balanced">균형형</option>
+            <option value="structured">구조형</option>
+            <option value="casual">대화형</option>
+            <option value="coach">코치형</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="settings-card wide">
+        <h3 id="settings-memory-title">저장과 프라이버시</h3>
+        <p id="settings-memory-desc">최근 대화와 사용자 설정은 기본적으로 이 웹사이트 세션에 저장됩니다.</p>
+        <div class="settings-row">
+          <div>
+            <div class="think-label" id="remember-chat-label">최근 대화 저장</div>
+            <div class="think-sub" id="remember-chat-subtitle">새로고침 후에도 최근 대화를 다시 불러옵니다.</div>
+          </div>
+          <label class="toggle-sm">
+            <input type="checkbox" id="remember-chat-toggle" checked onchange="toggleRememberChats(this)">
+            <div class="track"></div>
+            <div class="thumb"></div>
+          </label>
+        </div>
+        <div class="settings-help" id="privacy-help">대화 저장을 끄면 새 메시지부터 기록하지 않으며, 원하면 아래 버튼으로 저장된 대화도 바로 지울 수 있습니다.</div>
+        <div class="settings-field" style="margin-top:14px">
+          <button class="settings-action" type="button" onclick="clearStoredChats()" id="clear-chats-btn">이 웹사이트에 저장된 최근 대화 지우기</button>
+        </div>
+      </div>
+
+      <div class="settings-card wide">
+        <h3 id="settings-memory-bank-title">메모리</h3>
+        <p id="settings-memory-bank-desc">저장해줘/기억해줘 요청으로 기록된 사용자 메모리입니다. 필요할 때 답변 참고에 사용됩니다.</p>
+        <div class="memory-list" id="memory-list">
+          <div class="memory-empty">저장된 메모리가 아직 없습니다.</div>
+        </div>
+        <div class="settings-field" style="margin-top:14px">
+          <button class="settings-action" type="button" onclick="clearAllMemories()" id="clear-memories-btn">저장된 메모리 전체 삭제</button>
+        </div>
+        <div class="settings-help" id="memory-help">메모리 삭제는 확인 후 진행됩니다.</div>
+      </div>
+
+      <div class="settings-card wide">
+        <h3 id="settings-language-support-title">언어 지원</h3>
+        <p id="settings-language-support-desc">Purple Bee는 질문에 섞여 있는 언어를 감지해 가능한 한 같은 언어로 답하려고 합니다. UI는 대표 언어 프리셋을 제공하고, 답변은 더 넓은 다국어 입력을 따라갑니다.</p>
+        <div class="settings-chips">
+          <span class="settings-chip">Korean</span>
+          <span class="settings-chip">English</span>
+          <span class="settings-chip">日本語</span>
+          <span class="settings-chip">中文</span>
+          <span class="settings-chip">Español</span>
+          <span class="settings-chip">Français</span>
+          <span class="settings-chip">Deutsch</span>
+          <span class="settings-chip">Auto detect</span>
+        </div>
+        <div class="settings-field" style="margin-top:14px">
+          <button class="settings-action" type="button" onclick="logoutUser()" id="settings-logout-btn">로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="history-context-menu" id="history-context-menu">
+  <button class="history-context-item" type="button" onclick="renameConversationFromMenu()">
+    <i class="ph ph-pencil-simple"></i>
+    <span>채팅방 이름 편집</span>
+  </button>
+  <button class="history-context-item" type="button" onclick="deleteConversationFromMenu()">
+    <i class="ph ph-trash"></i>
+    <span>채팅방 삭제</span>
+  </button>
+</div>
+
+<div id="toast-container"></div>
+
+  <script src="/static/purple-bee-engine.js?v=20260405s"></script>
+  <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
+  <script src="/static/purple-bee-local.js?v=20260405s"></script>
+</body>
+</html>

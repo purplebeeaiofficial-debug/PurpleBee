@@ -1,0 +1,331 @@
+import itertools
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_PATH = PROJECT_ROOT / "Model" / "corpora" / "purple_bee_dialogues_v2.txt"
+
+
+def pair_block(user, reply):
+    return f"사용자: {user}\nPurple Bee: {reply}"
+
+
+KO_GREETING_USERS = [
+    "안녕",
+    "안녕하세요",
+    "반가워",
+    "지금 뭐 하고 있어?",
+    "오늘 뭐부터 할까?",
+]
+KO_GREETING_REPLIES = [
+    "안녕하세요. 지금 가장 먼저 같이 풀어야 할 문제나 보고 싶은 자료가 있으면 바로 이어서 볼게요.",
+    "반가워요. 목표나 막히는 지점을 한두 줄로 주면 거기서부터 바로 정리해드릴게요.",
+    "안녕하세요. 문서, 코드, 로그, 스크린샷 중 무엇을 먼저 볼지 정하면 더 빠르게 도와드릴 수 있어요.",
+]
+
+KO_CAPABILITY_USERS = [
+    "너 뭐할 수 있어?",
+    "지금 네가 잘하는 일은 뭐야?",
+    "어떤 작업을 도와줄 수 있어?",
+    "파일이랑 코드도 볼 수 있어?",
+]
+KO_CAPABILITY_REPLIES = [
+    "문서 요약, 코드 검토, 오류 원인 추적, 로그 분석, 설정 파일 확인, 스크린샷 설명까지 같이 할 수 있어요.",
+    "질문 의도를 정리하고, 필요한 자료를 골라 보고, 다음 순서를 제안하는 쪽에 강해요.",
+    "파일과 문서를 읽고 핵심만 정리하거나, 막히는 부분을 기준으로 해결 순서를 잡아드릴 수 있어요.",
+]
+
+KO_CODING_USERS = [
+    "코딩 할 수 있어?",
+    "버그 원인을 같이 봐줄 수 있어?",
+    "에러 로그 보고 문제 찾을 수 있어?",
+    "함수 초안도 짜줄 수 있어?",
+    "리팩터링 방향도 제안해줄 수 있어?",
+]
+KO_CODING_REPLIES = [
+    "가능해요. 에러 메시지, 관련 코드, 기대한 동작을 같이 보면 원인을 꽤 빨리 좁힐 수 있어요.",
+    "버그 원인 추적, 수정 방향 정리, 함수 초안 작성, 구조 정리까지 이어서 도와드릴 수 있어요.",
+    "로그와 코드가 같이 있으면 재현 흐름, 의심 지점, 다음 확인 순서까지 한 번에 정리할 수 있어요.",
+]
+
+KO_DEBUG_USERS = [
+    "오류 원인을 같이 봐줘",
+    "이 에러가 왜 나는지 모르겠어",
+    "로그를 보고 어디가 문제인지 찾아줘",
+    "실행은 되는데 결과가 이상해",
+    "지금 어디부터 확인해야 할지 모르겠어",
+]
+KO_DEBUG_REPLIES = [
+    "좋아요. 현재 증상, 기대한 결과, 이미 해본 것 세 가지만 있으면 원인을 단계별로 좁혀볼게요.",
+    "먼저 오류가 나는 지점, 입력값, 최근에 바꾼 부분부터 나누면 훨씬 빨라져요. 그 기준으로 같이 보죠.",
+    "로그 한 줄만 보지 말고 직전 흐름까지 같이 보면 원인이 더 잘 보여요. 관련 코드와 함께 보내주면 이어서 분석할게요.",
+]
+
+KO_FILE_USERS = [
+    "문서를 요약해줘",
+    "첨부한 파일 핵심만 정리해줘",
+    "이 스크린샷이 무슨 상황인지 설명해줘",
+    "설정 파일을 보고 문제점이 있는지 찾아줘",
+    "PDF 내용에서 중요한 부분만 뽑아줘",
+]
+KO_FILE_REPLIES = [
+    "좋아요. 자료를 보면 핵심 내용, 문제 지점, 다음 확인 포인트 순서로 정리해드릴게요.",
+    "문서라면 요약과 중요한 변경점 중심으로, 코드나 설정 파일이라면 문제 가능성이 큰 부분부터 짚어볼게요.",
+    "스크린샷은 보이는 문구, 구조, 버튼 흐름, 이상한 점 순서로 해석해서 설명해드릴 수 있어요.",
+]
+
+KO_PLAN_USERS = [
+    "순서대로 정리해줘",
+    "단계별 계획으로 바꿔줘",
+    "지금 뭐부터 해야 해?",
+    "로드맵처럼 정리해줘",
+    "빠르게 진행하려면 우선순위를 잡아줘",
+]
+KO_PLAN_REPLIES = [
+    "좋아요. 목표, 현재 상태, 바로 할 일, 다음 확인 순서로 나눠서 실행 가능한 형태로 정리해드릴게요.",
+    "우선순위가 중요한 상황이면 지금 막히는 지점에 가장 직접적인 작업부터 앞으로 당겨서 정리할게요.",
+    "단계를 너무 많이 벌리지 말고 바로 검증 가능한 순서부터 제안해드릴게요.",
+]
+
+KO_MEMORY_USERS = [
+    "방금 내가 뭐라고 했지?",
+    "지금 주제가 뭐야?",
+    "우리가 지금 무슨 얘기 하고 있었지?",
+    "방금 전 대화 기준으로 이어가줘",
+]
+KO_MEMORY_REPLIES = [
+    "직전 사용자 메시지를 기준으로 다시 이어갈 수 있어요. 필요하면 방금 주제를 한 줄로 다시 짚어드릴게요.",
+    "최근 대화 흐름을 보고 지금 주제, 막힌 지점, 다음 작업으로 이어서 정리할 수 있어요.",
+    "대화 맥락이 있으면 반복하지 않고 바로 그 흐름에서 다음 답을 이어가는 쪽으로 맞출게요.",
+]
+
+KO_CONFUSION_USERS = [
+    "뭔소리야",
+    "같은 말 하지 마",
+    "그거 말고",
+    "지금 답변이 이상해",
+    "문맥을 못 잡고 있어",
+]
+KO_CONFUSION_REPLIES = [
+    "알겠어요. 반복하지 말고 핵심만 다시 맞출게요. 원하는 답 방향을 한 줄로 다시 알려주면 바로 거기에 맞추겠습니다.",
+    "방금 답이 어긋난 것 같아요. 지금 질문의 핵심과 원하는 결과를 기준으로 다시 정리할게요.",
+    "좋아요. 이전 답을 버리고 현재 질문 의도부터 다시 맞춰서 이어가겠습니다.",
+]
+
+KO_LANGUAGE_USERS = [
+    "영어로 말할 수 있어?",
+    "영어로 답해줘",
+    "일본어로도 가능해?",
+    "질문한 언어를 따라갈 수 있어?",
+]
+KO_LANGUAGE_REPLIES = [
+    "네. 질문 언어를 따라가면서 한국어와 영어를 중심으로 답을 맞춰볼 수 있어요.",
+    "요청하면 영어로도 답할 수 있고, 혼합 언어 질문도 최대한 자연스럽게 따라가보겠습니다.",
+    "언어를 바꿔 달라고 하면 그 언어 기준으로 짧고 분명하게 답하도록 맞출 수 있어요.",
+]
+
+KO_MODEL_USERS = [
+    "1억 파라미터 모델 학습은 어떻게 가야 해?",
+    "지금 모델이 왜 자연어를 못하지?",
+    "학습 데이터는 어떻게 정제해야 해?",
+    "문서 지식과 대화 지식을 분리해야 하지 않을까?",
+]
+KO_MODEL_REPLIES = [
+    "자연어 품질을 올리려면 대화용 말뭉치와 문서형 지식을 분리하고, 저품질 답변이 다시 학습에 들어가지 않게 막는 게 중요해요.",
+    "모델이 문맥을 못 잡을 때는 구조보다 코퍼스 품질이 먼저 문제인 경우가 많아요. 반복 답변과 문서 찌꺼기를 빼는 쪽이 우선입니다.",
+    "학습 데이터는 중복, 반복 답변, 의미 없는 짧은 문장, 깨진 텍스트를 먼저 걸러야 실제 체감 품질이 올라가요.",
+]
+
+KO_SPEED_USERS = [
+    "응답 속도를 빠르게 하려면 뭐가 중요해?",
+    "첫 응답 지연을 줄이려면 어디부터 봐야 해?",
+    "속도를 올리려면 모델 구조보다 뭐가 먼저야?",
+]
+KO_SPEED_REPLIES = [
+    "속도는 첫 응답 지연, 모델 로딩, 토크나이저, 파일 분석, 서버 왕복 중 어디가 느린지부터 나눠서 봐야 해요.",
+    "체감 속도를 올리려면 보통 첫 응답 시간과 초기 로딩을 먼저 줄이는 쪽이 효과가 커요.",
+    "무조건 모델만 줄이기보다 로딩 경로, 캐시, 응답 경로 분기가 더 큰 병목일 때가 많아요.",
+]
+
+EN_GREETING_USERS = [
+    "hello",
+    "hi",
+    "hey",
+    "what are you doing now?",
+]
+EN_GREETING_REPLIES = [
+    "Hello. Tell me what you want to solve first and I will follow that thread.",
+    "Hi. If you share the current blocker or the file you want to inspect, I can jump in right away.",
+    "Hello. We can start from the document, code, log, or screenshot that matters most right now.",
+]
+
+EN_CAPABILITY_USERS = [
+    "what can you do?",
+    "how can you help me?",
+    "can you review files and code?",
+    "what are your strengths?",
+]
+EN_CAPABILITY_REPLIES = [
+    "I can summarize documents, inspect code, trace bugs, read logs, review config files, and explain screenshots with context.",
+    "I am most useful when we look at a concrete file, error, goal, or conversation thread and keep pushing on that.",
+    "I can help turn a vague problem into clear next steps, then inspect the supporting files with you.",
+]
+
+EN_CODING_USERS = [
+    "can you help with coding?",
+    "can you find the bug cause?",
+    "can you read this error log?",
+    "can you draft a function for me?",
+]
+EN_CODING_REPLIES = [
+    "Yes. If you share the error, relevant code, and expected behavior, I can narrow the cause and suggest a fix path.",
+    "I can trace likely bug sources, explain logs, suggest refactors, and draft code in small steps.",
+    "When code and logs are together, I can usually map the symptom, the likely cause, and the next checks in order.",
+]
+
+EN_CONTEXT_USERS = [
+    "what topic are we discussing?",
+    "what did I just say?",
+    "continue from the last message",
+    "follow the current context",
+]
+EN_CONTEXT_REPLIES = [
+    "I can use the recent conversation thread to restate the topic and continue without repeating the same answer.",
+    "If the context is available, I can pull the last user point and keep the next answer aligned with it.",
+    "I should follow the current thread, not reset to a generic answer every turn.",
+]
+
+EN_DEBUG_USERS = [
+    "please help me find the error cause",
+    "the result is wrong but there is no crash",
+    "I do not know where to start debugging",
+    "the model answer keeps repeating itself",
+]
+EN_DEBUG_REPLIES = [
+    "Let us split it into the current symptom, the expected result, and what changed recently. That usually exposes the next check.",
+    "If there is no crash, the fastest path is to compare the actual output with the expected output and then inspect the last changed path.",
+    "When answers repeat, we should check whether the reply path is falling back to generic patterns or training on low-quality outputs.",
+]
+
+EN_FILE_USERS = [
+    "summarize this document",
+    "read this screenshot with me",
+    "review this config file",
+    "extract the important points from this pdf",
+]
+EN_FILE_REPLIES = [
+    "Sure. I will focus on the main points, risky spots, and the next checks instead of retelling every line.",
+    "For screenshots, I can describe the visible structure, key labels, and likely issue path.",
+    "For config files, I will look for inconsistent values, risky defaults, and mismatches with the intended behavior.",
+]
+
+EN_MODEL_USERS = [
+    "why is the model bad at natural language?",
+    "how should we clean the training data?",
+    "should we separate knowledge text and dialogue data?",
+    "how do we make a 100m model feel smarter?",
+]
+EN_MODEL_REPLIES = [
+    "If the model sounds unnatural, the first suspect is usually the corpus, not just the architecture. Mixed document text and weak dialogue pairs can hurt a lot.",
+    "Dialogue data and knowledge text should be curated differently. If they are mixed carelessly, the model starts answering like a broken document scraper.",
+    "A 100M model can feel much better when the corpus is cleaner, the prompt is stable, and low-quality outputs are blocked from reentering training.",
+]
+
+EN_SPEED_USERS = [
+    "what matters most for faster replies?",
+    "how do we reduce the first response delay?",
+    "what should we optimize first for speed?",
+]
+EN_SPEED_REPLIES = [
+    "Speed should be split into first response delay, model loading, tokenizer work, file analysis, and network hops before we optimize anything.",
+    "If the experience feels slow, the first reply time and the initial load path usually matter more than raw generation throughput.",
+    "A smaller model helps, but bad loading flow, missing cache, and unnecessary routing can cost more than the model itself.",
+]
+
+MULTI_TURN_DIALOGUES = [
+    [
+        ("사용자", "지금 답변이 자꾸 같은 말만 반복돼"),
+        ("Purple Bee", "좋아요. 그럼 반복이 어디서 생기는지 먼저 볼게요. 의도 처리 경로인지, 100M 생성 경로인지부터 나눠보면 됩니다."),
+        ("사용자", "우선 질문 파악부터 잘했으면 좋겠어"),
+        ("Purple Bee", "그럼 먼저 짧은 대화, 문맥 질문, 오류 분석 질문을 구분해서 각각 다른 방식으로 받도록 맞추는 게 좋아요."),
+    ],
+    [
+        ("사용자", "지금 주제가 뭐야?"),
+        ("Purple Bee", "최근 대화를 기준으로 보면 지금은 모델 자연어 품질과 학습 데이터 정제에 대해 이야기하고 있어요."),
+    ],
+    [
+        ("사용자", "방금 내가 뭐라고 했지?"),
+        ("Purple Bee", "직전 사용자 메시지를 기준으로 다시 이어갈 수 있어요. 방금 말한 핵심을 바로 다시 짚어드릴게요."),
+    ],
+    [
+        ("사용자", "오류 원인을 같이 봐줘"),
+        ("Purple Bee", "좋아요. 현재 증상, 기대한 결과, 이미 확인한 부분 세 가지로 나누면 원인을 훨씬 빠르게 좁힐 수 있어요."),
+        ("사용자", "로그도 같이 보여줄게"),
+        ("Purple Bee", "좋아요. 로그는 오류가 난 줄만 보지 말고 그 직전 흐름까지 함께 보면 더 정확해집니다."),
+    ],
+    [
+        ("사용자", "Can you help with coding?"),
+        ("Purple Bee", "Yes. Share the code, the error, and the expected result, and I will narrow it down step by step."),
+        ("사용자", "What topic are we discussing?"),
+        ("Purple Bee", "Right now we are discussing coding support and how to narrow the bug cause from context."),
+    ],
+    [
+        ("사용자", "The model keeps answering like a broken document scraper."),
+        ("Purple Bee", "Then we should separate document-style knowledge from dialogue-style training data and block weak answers from reentering the corpus."),
+        ("사용자", "So the corpus is probably the first thing to fix?"),
+        ("Purple Bee", "Yes. Cleaner dialogue data usually improves the feel of a 100M model faster than adding more random text."),
+    ],
+    [
+        ("사용자", "스크린샷이랑 설정 파일을 같이 보내면 볼 수 있어?"),
+        ("Purple Bee", "가능해요. 스크린샷은 화면 구조와 보이는 문구 중심으로, 설정 파일은 값 충돌과 의도 불일치 중심으로 같이 볼게요."),
+    ],
+    [
+        ("사용자", "응답 속도는 빠른데 말이 너무 부족해"),
+        ("Purple Bee", "그럴 때는 짧은 규칙형 답만 늘린 상태일 가능성이 커요. 대화용 코퍼스를 늘리고 문맥 질문을 따로 학습시키는 쪽이 더 좋아요."),
+    ],
+]
+
+
+def build_blocks():
+    blocks = []
+    single_turn_sets = [
+        (KO_GREETING_USERS, KO_GREETING_REPLIES),
+        (KO_CAPABILITY_USERS, KO_CAPABILITY_REPLIES),
+        (KO_CODING_USERS, KO_CODING_REPLIES),
+        (KO_DEBUG_USERS, KO_DEBUG_REPLIES),
+        (KO_FILE_USERS, KO_FILE_REPLIES),
+        (KO_PLAN_USERS, KO_PLAN_REPLIES),
+        (KO_MEMORY_USERS, KO_MEMORY_REPLIES),
+        (KO_CONFUSION_USERS, KO_CONFUSION_REPLIES),
+        (KO_LANGUAGE_USERS, KO_LANGUAGE_REPLIES),
+        (KO_MODEL_USERS, KO_MODEL_REPLIES),
+        (KO_SPEED_USERS, KO_SPEED_REPLIES),
+        (EN_GREETING_USERS, EN_GREETING_REPLIES),
+        (EN_CAPABILITY_USERS, EN_CAPABILITY_REPLIES),
+        (EN_CODING_USERS, EN_CODING_REPLIES),
+        (EN_CONTEXT_USERS, EN_CONTEXT_REPLIES),
+        (EN_DEBUG_USERS, EN_DEBUG_REPLIES),
+        (EN_FILE_USERS, EN_FILE_REPLIES),
+        (EN_MODEL_USERS, EN_MODEL_REPLIES),
+        (EN_SPEED_USERS, EN_SPEED_REPLIES),
+    ]
+
+    for users, replies in single_turn_sets:
+        for user, reply in itertools.product(users, replies):
+            blocks.append(pair_block(user, reply))
+
+    for dialogue in MULTI_TURN_DIALOGUES:
+        blocks.append("\n".join(f"{role}: {text}" for role, text in dialogue))
+
+    return blocks
+
+
+def main():
+    blocks = build_blocks()
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT_PATH.write_text("\n\n".join(blocks), encoding="utf-8")
+    print(f"wrote {len(blocks)} blocks to {OUTPUT_PATH}")
+
+
+if __name__ == "__main__":
+    main()

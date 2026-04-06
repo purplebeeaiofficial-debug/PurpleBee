@@ -1,0 +1,19 @@
+{
+  "family_name": "Purple Bee",
+  "current_model_id": "purple-bee-1-3",
+  "latest_model_id": "purple-bee-1-3",
+  "models": [
+    {
+      "id": "purple-bee-1-3",
+      "display_name": "Purple Bee 1.3",
+      "version": "1.3",
+      "current": true,
+      "latest": true,
+      "trainable": false,
+      "architecture_name": "Purple Bee 100M",
+      "pipeline_stage": "training-checkpoint",
+      "pipeline_message": "Main 100M model is still being improved",
+      "backend_status": "Checkpoint available"
+    }
+  ]
+}

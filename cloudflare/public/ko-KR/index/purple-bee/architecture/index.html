@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee | 아키텍처</title>
+<style>
+  :root{--bg:#f5f7fc;--panel:#fff;--text:#0f172a;--sub:#475569;--line:#d9e1ee;--accent:#6d28d9}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Segoe UI",sans-serif}
+  .wrap{width:min(1120px,92vw);margin:0 auto}
+  header{height:74px;border-bottom:1px solid var(--line);display:flex;align-items:center;background:#fff}
+  .nav{display:flex;justify-content:space-between;align-items:center;width:100%}
+  .brand{font-size:22px;font-weight:800}
+  .menu{display:flex;gap:20px}
+  .menu a{text-decoration:none;color:var(--sub);font-size:14px;font-weight:600}
+  .menu a.active,.menu a:hover{color:var(--text)}
+  .hero{margin:24px 0 14px;padding:32px;border:1px solid var(--line);border-radius:18px;background:#fff}
+  .hero h1{font-size:40px;letter-spacing:-1px}
+  .hero p{margin-top:10px;color:var(--sub);font-size:16px;line-height:1.72;max-width:940px}
+  .flow{display:grid;gap:10px}
+  .step{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  .step strong{display:block;font-size:15px}
+  .step span{display:block;margin-top:6px;color:var(--sub);font-size:14px;line-height:1.65}
+  .chips{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:6px 10px;border-radius:999px;border:1px solid #ddd6fe;background:#f5f3ff;color:#5b21b6;font-size:12px;font-weight:700}
+  footer{margin:22px 0 28px;color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand">Purple Bee</div>
+      <nav class="menu">
+        <a href="/ko-KR/index/purple-bee/">소개</a>
+        <a href="/ko-KR/index/purple-bee/features/">기능</a>
+        <a href="/ko-KR/index/purple-bee/safety/">안전</a>
+        <a class="active" href="/ko-KR/index/purple-bee/architecture/">아키텍처</a>
+        <a href="/ko-KR/index/purple-bee/pricing/">요금</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>시스템 아키텍처</h1>
+      <p>Cloudflare 정적 배포 + 사용자 기기 직접 추론 구조를 기본으로 합니다. 사용자 요청이 들어오면 브라우저에서 모델 추론을 수행하고, 서버는 정적 자산/메타 정보 전달에 집중합니다.</p>
+      <div class="chips">
+        <span class="chip">Cloudflare Worker</span>
+        <span class="chip">Browser ONNX Runtime</span>
+        <span class="chip">WebGPU / WASM</span>
+        <span class="chip">Session Memory</span>
+      </div>
+    </section>
+
+    <section class="flow">
+      <article class="step">
+        <strong>1. 사용자 질문 입력</strong>
+        <span>입력 텍스트, 첨부 파일, 최근 대화 문맥을 클라이언트에서 통합합니다.</span>
+      </article>
+      <article class="step">
+        <strong>2. 런타임 매니페스트 조회</strong>
+        <span>브라우저는 `/api/runtime/browser-manifest`로 현재 모델 자산 경로와 런타임 설정을 가져옵니다.</span>
+      </article>
+      <article class="step">
+        <strong>3. 온디바이스 모델 초기화</strong>
+        <span>ONNX Runtime(WebGPU/WASM) 세션을 준비하고 워밍업을 수행합니다.</span>
+      </article>
+      <article class="step">
+        <strong>4. 추론 실행 + 응답 스트리밍</strong>
+        <span>사용자 기기에서 모델을 실행하고, 응답을 타이핑 애니메이션으로 스트리밍 렌더링합니다.</span>
+      </article>
+      <article class="step">
+        <strong>5. 사용자별 저장</strong>
+        <span>Google 로그인 사용자는 대화/메모리를 사용자 키 기준으로 저장하여 새로고침 후에도 복원합니다.</span>
+      </article>
+      <article class="step">
+        <strong>6. 관리용 학습 파이프라인</strong>
+        <span>학습/재학습은 관리 컴퓨터에서 별도로 수행하고, 결과 아티팩트만 배포 경로로 반영합니다.</span>
+      </article>
+    </section>
+  </main>
+
+  <footer class="wrap">© 2026 Purple Bee · Architecture overview</footer>
+</body>
+</html>

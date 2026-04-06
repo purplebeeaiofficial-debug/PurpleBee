@@ -1,0 +1,291 @@
+{
+  "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_step00200.pt",
+  "tokenizer": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\tokenizer.json",
+  "eval_file": "D:\\Purple Bee AI\\Model\\evals\\public_chat_regression_ko.jsonl",
+  "device": "cuda",
+  "evaluated_at": "2026-04-06T08:42:30",
+  "total": 12,
+  "failed": 10,
+  "passed": 2,
+  "pass_rate": 16.67,
+  "categories": [
+    "ability",
+    "definition",
+    "followup",
+    "greeting",
+    "identity"
+  ],
+  "by_category": {
+    "ability": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2
+    },
+    "definition": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "followup": {
+      "total": 4,
+      "passed": 1,
+      "failed": 3
+    },
+    "greeting": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "identity": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "by_tag": {
+    "ability": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2
+    },
+    "coding": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "definition": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "direct-answer": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "emotion": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "empathy": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "followup": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "greeting": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "identity": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "knowledge": {
+      "total": 3,
+      "passed": 0,
+      "failed": 3
+    },
+    "language": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "repair": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1
+    },
+    "self-intro": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "smalltalk": {
+      "total": 3,
+      "passed": 1,
+      "failed": 2
+    },
+    "style": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1
+    }
+  },
+  "results": [
+    {
+      "prompt": "안녕",
+      "expectation": "짧고 자연스러운 인사로 답한다.",
+      "output": "응, 궁금한 거 바로 이어서 말해줘.",
+      "failures": [
+        "missing-anchor"
+      ],
+      "category": "greeting",
+      "tags": [
+        "smalltalk",
+        "greeting"
+      ]
+    },
+    {
+      "prompt": "안녕하세요",
+      "expectation": "정중한 인사로 자연스럽게 답한다.",
+      "output": "응, 문서 같이 이어서 말해줘.",
+      "failures": [],
+      "category": "greeting",
+      "tags": [
+        "smalltalk",
+        "greeting"
+      ]
+    },
+    {
+      "prompt": "너 누구야",
+      "expectation": "Purple Bee라는 이름과 역할을 설명한다.",
+      "output": "있지.",
+      "failures": [
+        "missing-anchor"
+      ],
+      "category": "identity",
+      "tags": [
+        "identity",
+        "self-intro"
+      ]
+    },
+    {
+      "prompt": "뭐 할 수 있어?",
+      "expectation": "도와줄 수 있는 작업을 짧게 설명한다.",
+      "output": "전압은 전압은 전압은 바로 이어서 말해줘.",
+      "failures": [
+        "missing-anchor",
+        "repetition-or-marker"
+      ],
+      "category": "ability",
+      "tags": [
+        "ability",
+        "direct-answer"
+      ]
+    },
+    {
+      "prompt": "영어 할 줄 알아?",
+      "expectation": "영어로도 답할 수 있다고 말한다.",
+      "output": "좋아. 방금 방향은 다시 맞출게.",
+      "failures": [
+        "missing-anchor"
+      ],
+      "category": "ability",
+      "tags": [
+        "ability",
+        "language"
+      ]
+    },
+    {
+      "prompt": "사과가 뭐야",
+      "expectation": "사과를 과일로 자연스럽게 설명한다.",
+      "output": "응, 방금 답이 답이 답이 같이?",
+      "failures": [
+        "missing-anchor",
+        "repetition-or-marker"
+      ],
+      "category": "definition",
+      "tags": [
+        "knowledge",
+        "definition"
+      ]
+    },
+    {
+      "prompt": "강아지가 뭐야",
+      "expectation": "강아지를 개나 반려동물로 설명한다.",
+      "output": "보야보야보야 이어서 말해줘.",
+      "failures": [
+        "missing-anchor",
+        "repetition-or-marker"
+      ],
+      "category": "definition",
+      "tags": [
+        "knowledge",
+        "definition"
+      ]
+    },
+    {
+      "prompt": "파이썬이 뭐야",
+      "expectation": "프로그래밍 언어라고 설명한다.",
+      "output": "응, 방금 답이 답이 답이ctionctionction 있어. 어떤 같이 싫어한다 싫어한다 싫어한다?",
+      "failures": [
+        "missing-anchor",
+        "repetition-or-marker"
+      ],
+      "category": "definition",
+      "tags": [
+        "knowledge",
+        "definition",
+        "coding"
+      ]
+    },
+    {
+      "prompt": "우리 뭐할래?",
+      "expectation": "번호 목록 대신 자연스럽게 다음 방향을 제안한다.",
+      "output": "지금은������ 친근하게 부르는 같이 정리하고 있어. 어떤 사람 사람 사람 바로 이어서 말해줘.",
+      "failures": [
+        "repetition-or-marker"
+      ],
+      "category": "followup",
+      "tags": [
+        "smalltalk",
+        "followup"
+      ]
+    },
+    {
+      "prompt": "아니 그거 말고",
+      "expectation": "방향을 바꾸겠다고 인정하고 다시 맞춘다.",
+      "output": "전압은 전압은 전압은, 방금 방향은 다시 맞출게.",
+      "failures": [],
+      "category": "followup",
+      "tags": [
+        "repair",
+        "followup"
+      ]
+    },
+    {
+      "prompt": "말투가 좀 이상해",
+      "expectation": "톤을 더 자연스럽게 바꾸겠다고 답한다.",
+      "output": "응.",
+      "failures": [
+        "missing-anchor"
+      ],
+      "category": "followup",
+      "tags": [
+        "repair",
+        "style"
+      ]
+    },
+    {
+      "prompt": "좀 힘들어",
+      "expectation": "공감하고 한 가지부터 정리하자고 제안한다.",
+      "output": "응, 방금 답이 답이 답이 같이 정리하고 정리하고 있어. 어떤 바로 이어서 말해줘.",
+      "failures": [
+        "repetition-or-marker"
+      ],
+      "category": "followup",
+      "tags": [
+        "emotion",
+        "empathy"
+      ]
+    }
+  ],
+  "tokenizer_vocab_size": 4109,
+  "model_params": 100000000,
+  "generation": {
+    "temperature": 0.82,
+    "top_k": 40,
+    "top_p": 0.92,
+    "repetition_penalty": 1.08,
+    "frequency_penalty": 0.2,
+    "no_repeat_ngram_size": 3
+  }
+}

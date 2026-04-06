@@ -1,0 +1,243 @@
+{
+  "running": false,
+  "stage": "complete",
+  "message": "100M bootstrap training completed",
+  "model_id": "purple-bee-1-3",
+  "estimated_params": 111204864,
+  "backend": {
+    "torch_available": true,
+    "device": "cuda",
+    "cuda_available": true
+  },
+  "progress": 100,
+  "corpus_path": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_v2.txt",
+  "output_dir": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5",
+  "dry_run": false,
+  "eval_schedule": [
+    100,
+    200,
+    300
+  ],
+  "eval_file": "D:\\Purple Bee AI\\Model\\evals\\public_chat_regression_ko.jsonl",
+  "eval_latest_output": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\evaluations\\eval_step_00300.json",
+  "evaluation_history": [
+    {
+      "step": 100,
+      "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_step00100.pt",
+      "output_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\evaluations\\eval_step_00100.json",
+      "total": 12,
+      "passed": 0,
+      "failed": 12,
+      "pass_rate": 0.0,
+      "device": "cuda",
+      "categories": [
+        "ability",
+        "definition",
+        "followup",
+        "greeting",
+        "identity"
+      ],
+      "by_category": {
+        "ability": {
+          "total": 2,
+          "passed": 0,
+          "failed": 2
+        },
+        "definition": {
+          "total": 3,
+          "passed": 0,
+          "failed": 3
+        },
+        "followup": {
+          "total": 4,
+          "passed": 0,
+          "failed": 4
+        },
+        "greeting": {
+          "total": 2,
+          "passed": 0,
+          "failed": 2
+        },
+        "identity": {
+          "total": 1,
+          "passed": 0,
+          "failed": 1
+        }
+      },
+      "evaluated_at": "2026-04-06T08:41:31",
+      "reward_score": 0.0
+    },
+    {
+      "step": 200,
+      "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_step00200.pt",
+      "output_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\evaluations\\eval_step_00200.json",
+      "total": 12,
+      "passed": 2,
+      "failed": 10,
+      "pass_rate": 16.67,
+      "device": "cuda",
+      "categories": [
+        "ability",
+        "definition",
+        "followup",
+        "greeting",
+        "identity"
+      ],
+      "by_category": {
+        "ability": {
+          "total": 2,
+          "passed": 0,
+          "failed": 2
+        },
+        "definition": {
+          "total": 3,
+          "passed": 0,
+          "failed": 3
+        },
+        "followup": {
+          "total": 4,
+          "passed": 1,
+          "failed": 3
+        },
+        "greeting": {
+          "total": 2,
+          "passed": 1,
+          "failed": 1
+        },
+        "identity": {
+          "total": 1,
+          "passed": 0,
+          "failed": 1
+        }
+      },
+      "evaluated_at": "2026-04-06T08:42:30",
+      "reward_score": 24.1667
+    },
+    {
+      "step": 300,
+      "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_step00300.pt",
+      "output_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\evaluations\\eval_step_00300.json",
+      "total": 12,
+      "passed": 1,
+      "failed": 11,
+      "pass_rate": 8.33,
+      "device": "cuda",
+      "categories": [
+        "ability",
+        "definition",
+        "followup",
+        "greeting",
+        "identity"
+      ],
+      "by_category": {
+        "ability": {
+          "total": 2,
+          "passed": 0,
+          "failed": 2
+        },
+        "definition": {
+          "total": 3,
+          "passed": 0,
+          "failed": 3
+        },
+        "followup": {
+          "total": 4,
+          "passed": 1,
+          "failed": 3
+        },
+        "greeting": {
+          "total": 2,
+          "passed": 0,
+          "failed": 2
+        },
+        "identity": {
+          "total": 1,
+          "passed": 0,
+          "failed": 1
+        }
+      },
+      "evaluated_at": "2026-04-06T08:43:29",
+      "reward_score": 10.8333
+    }
+  ],
+  "latest_evaluation": {
+    "step": 300,
+    "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_step00300.pt",
+    "output_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\evaluations\\eval_step_00300.json",
+    "total": 12,
+    "passed": 1,
+    "failed": 11,
+    "pass_rate": 8.33,
+    "device": "cuda",
+    "categories": [
+      "ability",
+      "definition",
+      "followup",
+      "greeting",
+      "identity"
+    ],
+    "by_category": {
+      "ability": {
+        "total": 2,
+        "passed": 0,
+        "failed": 2
+      },
+      "definition": {
+        "total": 3,
+        "passed": 0,
+        "failed": 3
+      },
+      "followup": {
+        "total": 4,
+        "passed": 1,
+        "failed": 3
+      },
+      "greeting": {
+        "total": 2,
+        "passed": 0,
+        "failed": 2
+      },
+      "identity": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1
+      }
+    },
+    "evaluated_at": "2026-04-06T08:43:29",
+    "reward_score": 10.8333
+  },
+  "evaluation_running": false,
+  "updated_at": "2026-04-06T08:43:29",
+  "corpus_characters": 125767,
+  "tokenizer_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\tokenizer.json",
+  "tokenizer_report_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\tokenizer_report.json",
+  "tokenizer_vocab_size": 4109,
+  "tokenizer_coverage": 1.0,
+  "reward_profile": {
+    "category_boosts": {},
+    "tag_boosts": {}
+  },
+  "resume_checkpoint_rejected": false,
+  "actual_params": 111204864,
+  "device": "cuda",
+  "resume_checkpoint": "",
+  "resume_step": 0,
+  "last_loss": 18.771462,
+  "avg_loss": 16.373172,
+  "learning_rate": 1e-05,
+  "gradient_accumulation_steps": 12,
+  "training_mode": "supervised-dialogue-sft",
+  "sft_dataset": {
+    "rows": 497,
+    "usable_examples": 497,
+    "total_weight": 5760,
+    "dataset_path": "D:\\Purple Bee AI\\Model\\corpora\\dialogue_sft\\purple_bee_sft_dataset_clean.jsonl"
+  },
+  "lm_corpus_characters": 276974,
+  "lm_warmup_steps": 0,
+  "checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_bootstrap.pt",
+  "best_reward_score": 24.1667,
+  "best_reward_step": 200,
+  "best_reward_checkpoint": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\checkpoints\\purple_bee_100m_reward_best.pt",
+  "summary_path": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\training_repair_v5\\training_summary.json"
+}

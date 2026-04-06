@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: purple-bee-api
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r app/requirements.txt
+    startCommand: gunicorn --chdir app --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /api/health
+    autoDeploy: true

@@ -1,0 +1,24 @@
+{
+  "tokenizer_type": "purple-bee-bytelevel-bpe",
+  "effective_vocab_size": 4109,
+  "total_pieces": 83007,
+  "full_piece_coverage": 1.0,
+  "languages": {
+    "ko": {
+      "samples": 400,
+      "avg_tokens_per_sample": 10.29
+    },
+    "en": {
+      "samples": 400,
+      "avg_tokens_per_sample": 10.23
+    },
+    "ja": {
+      "samples": 0,
+      "avg_tokens_per_sample": 0.0
+    },
+    "zh": {
+      "samples": 0,
+      "avg_tokens_per_sample": 0.0
+    }
+  }
+}

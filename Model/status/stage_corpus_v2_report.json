@@ -1,0 +1,124 @@
+{
+  "jsonl_sources": {
+    "basic_dialogue_variants_ko.jsonl": {
+      "kept": 43,
+      "weighted": 180
+    },
+    "chat_quality_pack_ko.jsonl": {
+      "kept": 25,
+      "weighted": 200
+    },
+    "conversation_core_ko.jsonl": {
+      "kept": 35,
+      "weighted": 164
+    },
+    "conversation_natural_ko.jsonl": {
+      "kept": 16,
+      "weighted": 47
+    },
+    "curriculum_chat_ko.jsonl": {
+      "kept": 120,
+      "weighted": 360
+    },
+    "curriculum_knowledge_ko.jsonl": {
+      "kept": 120,
+      "weighted": 300
+    },
+    "dialogue_followup_repair_ko.jsonl": {
+      "kept": 20,
+      "weighted": 52
+    },
+    "dialogue_rebuild_core_ko.jsonl": {
+      "kept": 18,
+      "weighted": 76
+    },
+    "everyday_chat_ko.jsonl": {
+      "kept": 23,
+      "weighted": 66
+    },
+    "foundation_chat_ko.jsonl": {
+      "kept": 47,
+      "weighted": 208
+    },
+    "instruction_seed_ko.jsonl": {
+      "kept": 10,
+      "weighted": 29
+    },
+    "instruction_social_ko.jsonl": {
+      "kept": 15,
+      "weighted": 42
+    },
+    "reasoning_seed_ko.jsonl": {
+      "kept": 7,
+      "weighted": 37
+    },
+    "regression_anchor_ko.jsonl": {
+      "kept": 18,
+      "weighted": 77
+    }
+  },
+  "text_sources": {},
+  "raw_blocks": 517,
+  "weighted_blocks": 1838,
+  "manual_text": {
+    "weighted": 0,
+    "characters": 0
+  },
+  "output": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_v2.txt",
+  "characters": 132319,
+  "paragraphs": 1838,
+  "tag_counts": {
+    "ability": 100,
+    "ai": 3,
+    "alternative": 4,
+    "analysis": 4,
+    "animal": 5,
+    "clarification": 1,
+    "clarity": 1,
+    "coding": 14,
+    "concise": 121,
+    "confusion": 1,
+    "conversation": 68,
+    "correction": 9,
+    "debug": 1,
+    "definition": 101,
+    "detailed": 120,
+    "dialogue": 20,
+    "direct": 1,
+    "direct-answer": 55,
+    "directness": 1,
+    "document": 3,
+    "emotion": 9,
+    "empathy": 6,
+    "followup": 58,
+    "fruit": 7,
+    "greeting": 28,
+    "hesitation": 5,
+    "howto": 3,
+    "identity": 28,
+    "knowledge": 94,
+    "language": 70,
+    "link": 8,
+    "links": 1,
+    "math": 2,
+    "memory": 1,
+    "minimal": 1,
+    "natural": 271,
+    "planning": 21,
+    "preference": 37,
+    "programming": 3,
+    "python": 3,
+    "reasoning": 8,
+    "repair": 134,
+    "science": 1,
+    "search": 61,
+    "self-intro": 9,
+    "short": 2,
+    "smalltalk": 151,
+    "status": 9,
+    "style": 111,
+    "tone": 61,
+    "tool": 97,
+    "weather": 5
+  }
+}
