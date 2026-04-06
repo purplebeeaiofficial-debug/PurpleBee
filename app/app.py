@@ -16,6 +16,7 @@ import sqlite3
 import shutil
 import importlib.util
 import secrets
+from types import SimpleNamespace
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
@@ -84,6 +85,13 @@ except Exception:
     large_torch = None
     encode_large_text = None
     decode_large_ids = None
+
+try:
+    import onnxruntime as ort
+    import numpy as np
+except Exception:
+    ort = None
+    np = None
 
 @app.before_request
 def require_admin_key_for_panel():
@@ -464,11 +472,15 @@ training_status = {
 large_runtime_lock = threading.Lock()
 large_runtime_cache = {
     "model_id": None,
+    "kind": None,
     "checkpoint_path": None,
     "tokenizer_path": None,
     "device": None,
     "model": None,
     "tokenizer": None,
+    "session": None,
+    "input_name": None,
+    "output_name": None,
 }
 dialogue_example_cache = {
     "stamp": None,
@@ -663,7 +675,7 @@ def preferred_checkpoint_path_for(model_id):
         return bootstrap
     return latest_checkpoint_path_for(model_id)
 
-def large_model_available(model_id=None):
+def large_model_torch_available(model_id=None):
     model_id = model_id or ensure_model_registry().get("current_model_id")
     return (
         load_large_checkpoint is not None
@@ -672,6 +684,115 @@ def large_model_available(model_id=None):
         and tokenizer_path_for(model_id).exists()
         and preferred_checkpoint_path_for(model_id) is not None
     )
+
+def runtime_asset_cache_dir_for(model_id):
+    path = BASE_DIR / "data" / "runtime_assets" / str(model_id or "purple-bee-1-3")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+def ensure_remote_runtime_asset(url, target_path):
+    if target_path.exists() and target_path.stat().st_size > 0:
+        return target_path
+    response = requests.get(url, stream=True, timeout=120, headers=HEADERS)
+    response.raise_for_status()
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(target_path, "wb") as handle:
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                handle.write(chunk)
+    return target_path
+
+def resolve_server_onnx_assets(model_id=None):
+    model_id = model_id or ensure_model_registry().get("current_model_id")
+    package_dir = browser_package_dir_for(model_id)
+    local_onnx = next(iter(sorted(package_dir.glob("*.onnx"))), None)
+    local_data = next(iter(sorted(package_dir.glob("*.onnx.data"))), None)
+    local_tokenizer = package_dir / "tokenizer.json"
+    if local_onnx and local_tokenizer.exists():
+        return local_onnx, local_tokenizer, local_data
+
+    deployment_manifest = load_json_if_exists(deployment_manifest_path_for(model_id))
+    artifacts = deployment_manifest.get("artifacts") or {}
+    onnx_name = Path(str(artifacts.get("onnx") or "purple-bee-1-3.onnx")).name
+    onnx_data_name = Path(str(artifacts.get("onnx_data") or "purple-bee-1-3.onnx.data")).name
+    tokenizer_name = Path(str(artifacts.get("tokenizer") or "tokenizer.json")).name
+
+    deployment_cfg = load_deployment_config()
+    public_base_url = str(deployment_cfg.get("public_base_url") or deployment_manifest.get("public_base_url") or "").rstrip("/")
+    if not public_base_url:
+        return None, None, None
+
+    cache_dir = runtime_asset_cache_dir_for(model_id)
+    onnx_path = cache_dir / onnx_name
+    tokenizer_path = cache_dir / tokenizer_name
+    onnx_data_path = cache_dir / onnx_data_name
+    try:
+        ensure_remote_runtime_asset(f"{public_base_url}/{onnx_name}", onnx_path)
+        ensure_remote_runtime_asset(f"{public_base_url}/{tokenizer_name}", tokenizer_path)
+        if onnx_data_name:
+            ensure_remote_runtime_asset(f"{public_base_url}/{onnx_data_name}", onnx_data_path)
+    except Exception:
+        return None, None, None
+    return onnx_path if onnx_path.exists() else None, tokenizer_path if tokenizer_path.exists() else None, onnx_data_path if onnx_data_path.exists() else None
+
+def large_model_onnx_available(model_id=None):
+    model_id = model_id or ensure_model_registry().get("current_model_id")
+    if ort is None or np is None or encode_large_text is None or decode_large_ids is None:
+        return False
+    onnx_path, tokenizer_path, _onnx_data = resolve_server_onnx_assets(model_id)
+    return bool(onnx_path and tokenizer_path)
+
+def large_model_available(model_id=None):
+    model_id = model_id or ensure_model_registry().get("current_model_id")
+    return large_model_torch_available(model_id) or large_model_onnx_available(model_id)
+
+def load_100m_onnx_runtime(model_id=None):
+    model_id = model_id or ensure_model_registry().get("current_model_id")
+    if not large_model_onnx_available(model_id):
+        return None
+
+    onnx_path, tok_path, _onnx_data_path = resolve_server_onnx_assets(model_id)
+    if not onnx_path or not tok_path:
+        return None
+    deployment_manifest = load_json_if_exists(deployment_manifest_path_for(model_id))
+    max_context = int((((deployment_manifest.get("runtime") or {}).get("max_context")) or 2048))
+
+    with large_runtime_lock:
+        if (
+            large_runtime_cache["model_id"] == model_id
+            and large_runtime_cache["kind"] == "onnx"
+            and large_runtime_cache["checkpoint_path"] == str(onnx_path)
+            and large_runtime_cache["tokenizer_path"] == str(tok_path)
+            and large_runtime_cache["session"] is not None
+            and large_runtime_cache["tokenizer"] is not None
+        ):
+            return large_runtime_cache
+
+        sess_options = ort.SessionOptions()
+        sess_options.intra_op_num_threads = 1
+        sess_options.inter_op_num_threads = 1
+        session = ort.InferenceSession(
+            str(onnx_path),
+            sess_options=sess_options,
+            providers=["CPUExecutionProvider"],
+        )
+        input_name = session.get_inputs()[0].name
+        output_name = session.get_outputs()[0].name
+        tokenizer = json.loads(tok_path.read_text(encoding="utf-8"))
+        large_runtime_cache.update({
+            "model_id": model_id,
+            "kind": "onnx",
+            "checkpoint_path": str(onnx_path),
+            "tokenizer_path": str(tok_path),
+            "device": "cpu-onnx",
+            "config": SimpleNamespace(max_position_embeddings=max_context),
+            "model": None,
+            "session": session,
+            "input_name": input_name,
+            "output_name": output_name,
+            "tokenizer": tokenizer,
+        })
+        return large_runtime_cache
 
 def sample_large_token(logits, temperature=0.55, top_k=12, top_p=0.92):
     if large_torch is None:
@@ -704,8 +825,13 @@ def sample_large_token(logits, temperature=0.55, top_k=12, top_p=0.92):
 
 def load_100m_runtime(model_id=None):
     model_id = model_id or ensure_model_registry().get("current_model_id")
-    if not large_model_available(model_id):
-        return None
+    force_onnx = str(os.environ.get("PB_FORCE_ONNX_RUNTIME") or "").strip().lower() in {"1", "true", "yes", "onnx"}
+    if force_onnx:
+        runtime = load_100m_onnx_runtime(model_id)
+        if runtime is not None:
+            return runtime
+    if not large_model_torch_available(model_id):
+        return load_100m_onnx_runtime(model_id)
 
     checkpoint_path = preferred_checkpoint_path_for(model_id)
     tok_path = tokenizer_path_for(model_id)
@@ -728,12 +854,16 @@ def load_100m_runtime(model_id=None):
         loaded_model.eval()
         large_runtime_cache.update({
             "model_id": model_id,
+            "kind": "torch",
             "checkpoint_path": str(checkpoint_path),
             "tokenizer_path": str(tok_path),
             "device": device,
             "config": config,
             "model": loaded_model,
             "tokenizer": tokenizer,
+            "session": None,
+            "input_name": None,
+            "output_name": None,
         })
         return large_runtime_cache
 
@@ -2176,6 +2306,57 @@ def candidate_generation_profiles(query):
         deduped.append(profile)
     return deduped
 
+def apply_numpy_generation_penalties(logits, generated, prompt_length):
+    adjusted = np.array(logits, dtype=np.float64, copy=True)
+    completion_ids = generated[prompt_length:]
+    if not completion_ids:
+        return adjusted
+    counts = {}
+    for token_id in completion_ids:
+        counts[token_id] = counts.get(token_id, 0) + 1
+    for token_id, count in counts.items():
+        penalty = min(2.5, 0.12 * count)
+        adjusted[int(token_id)] -= penalty
+    return adjusted
+
+def sample_numpy_token(logits, temperature=0.55, top_k=12, top_p=0.92):
+    values = np.asarray(logits, dtype=np.float64).reshape(-1)
+    if values.size == 0:
+        return 0
+    if temperature <= 0:
+        return int(np.argmax(values))
+    values = values / max(float(temperature), 1e-5)
+    if top_k and top_k > 0 and top_k < values.size:
+        top_indices = np.argpartition(values, -int(top_k))[-int(top_k):]
+        top_values = values[top_indices]
+    else:
+        top_indices = np.arange(values.size)
+        top_values = values
+
+    top_values = top_values - np.max(top_values)
+    probs = np.exp(top_values)
+    probs_sum = probs.sum()
+    if probs_sum <= 0 or not np.isfinite(probs_sum):
+        return int(top_indices[int(np.argmax(top_values))])
+    probs = probs / probs_sum
+
+    if top_p and 0 < float(top_p) < 1:
+        order = np.argsort(probs)[::-1]
+        sorted_probs = probs[order]
+        cumulative = np.cumsum(sorted_probs)
+        cutoff_mask = cumulative > float(top_p)
+        if cutoff_mask.size:
+            cutoff_mask[0] = False
+        sorted_probs[cutoff_mask] = 0.0
+        total = sorted_probs.sum()
+        if total > 0:
+            sorted_probs = sorted_probs / total
+            choice = np.random.choice(len(sorted_probs), p=sorted_probs)
+            return int(top_indices[order[choice]])
+
+    choice = np.random.choice(len(top_indices), p=probs)
+    return int(top_indices[choice])
+
 def reply_quality_score(text, query=""):
     cleaned = clean_generated_reply(text)
     if not cleaned:
@@ -2997,6 +3178,39 @@ def generate_100m_chat_reply(query, history=None, max_new_tokens=96):
     prompt_text = decode_large_ids(prompt_ids, tokenizer)
     best_reply = None
     best_score = -1000
+
+    if runtime.get("kind") == "onnx":
+        session = runtime["session"]
+        input_name = runtime["input_name"]
+        output_name = runtime["output_name"]
+        max_context = int(getattr(config, "max_position_embeddings", 2048))
+        for profile in candidate_generation_profiles(query):
+            generated = list(prompt_ids)
+            for _ in range(max(8, max_new_tokens)):
+                window = np.array([generated[-max_context:]], dtype=np.int64)
+                outputs = session.run([output_name], {input_name: window})
+                next_logits = np.asarray(outputs[0][0, -1, :], dtype=np.float64)
+                next_logits = apply_numpy_generation_penalties(next_logits, generated, prompt_length)
+                next_id = sample_numpy_token(
+                    next_logits,
+                    temperature=profile["temperature"],
+                    top_k=profile["top_k"],
+                    top_p=profile["top_p"],
+                )
+                generated.append(next_id)
+                if next_id == eos_id:
+                    break
+
+            full_text = decode_large_ids(generated, tokenizer)
+            completion = full_text[len(prompt_text):]
+            cleaned = clean_generated_reply(completion)
+            if cleaned and not looks_unusable_reply(cleaned, query=query):
+                return cleaned
+            score = reply_quality_score(cleaned, query=query)
+            if score > best_score:
+                best_score = score
+                best_reply = cleaned
+        return best_reply
 
     with large_runtime_lock:
         with large_torch.no_grad():
@@ -4518,7 +4732,8 @@ def local_runtime_status():
 @app.route("/api/health")
 @app.route("/api/status")
 def status():
-    stats = model.get_stats()
+    current_model_id = ensure_model_registry().get("current_model_id")
+    stats = stats_for_version(current_model_id) or model.get_stats()
     kb_count = 0
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -4528,9 +4743,23 @@ def status():
         conn.close()
     except:
         pass
+    deployment = load_deployment_config()
+    runtime_diag = {
+        "model_id": current_model_id,
+        "torch_runtime_available": large_model_torch_available(current_model_id),
+        "onnx_runtime_available": large_model_onnx_available(current_model_id),
+        "large_model_available": large_model_available(current_model_id),
+        "preferred_checkpoint": str(preferred_checkpoint_path_for(current_model_id) or ""),
+        "tokenizer_path": str(tokenizer_path_for(current_model_id)),
+        "backend": detect_100m_backend(),
+        "public_base_url": str(deployment.get("public_base_url") or ""),
+        "public_backend_url": str(deployment.get("public_backend_url") or ""),
+        "force_onnx_runtime": str(os.environ.get("PB_FORCE_ONNX_RUNTIME") or "").strip(),
+    }
     return jsonify({
         "ok": True,
         "model": stats,
+        "llm_runtime": runtime_diag,
         "training": training_status,
         "knowledge_count": kb_count,
         "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
