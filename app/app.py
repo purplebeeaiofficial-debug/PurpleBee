@@ -776,6 +776,10 @@ def load_100m_onnx_runtime(model_id=None):
         sess_options = ort.SessionOptions()
         sess_options.intra_op_num_threads = 1
         sess_options.inter_op_num_threads = 1
+        sess_options.enable_mem_pattern = False
+        sess_options.enable_cpu_mem_arena = False
+        if hasattr(ort, "GraphOptimizationLevel"):
+            sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
         session = ort.InferenceSession(
             str(onnx_path),
             sess_options=sess_options,
@@ -2226,30 +2230,17 @@ def build_100m_chat_prompt(query, history=None):
         "먼저 직접 답하고, 필요한 경우에만 짧게 보충한다."
     )
     sections = [
-        "Instruction: 너는 Purple Bee다.",
-        f"Instruction: 답변 언어는 {language_label}로 유지한다.",
-        "Instruction: 실제 대화처럼 자연스럽고 분명하게 답한다.",
-        "Instruction: 질문을 길게 되받아치지 않는다.",
-        "Instruction: 직전 맥락을 따라가고, 같은 말을 반복하지 않는다.",
-        "Instruction: 훈련 마크업, 시스템 문구, 출처 흉내를 출력하지 않는다.",
-        f"Instruction: {style_hint}",
-        "Instruction: 모르면 모른다고 짧게 말하고 필요한 정보만 요청한다.",
-        "",
-        "Recent conversation:",
+        "System: 너는 Purple Bee다.",
+        f"System: 답변 언어는 {language_label}로 유지한다.",
+        f"System: {style_hint}",
+        "System: 반복, 메타 설명, 장황한 서론 없이 바로 답한다.",
     ]
-    for role, content in recent_history_pairs(history):
+    trimmed_history = recent_history_pairs(history)[-2:]
+    if trimmed_history:
+        sections.append("Context:")
+    for role, content in trimmed_history:
         sections.append(f"{role}: {content}")
-    examples = retrieve_dialogue_seed_examples(query, limit=3)
-    if examples:
-        sections.extend([
-            "",
-            "Reference examples:",
-        ])
-        for example in examples:
-            sections.append(f"사용자: {example['user']}")
-            sections.append(f"Assistant: {example['reply']}")
     sections.extend([
-        "",
         f"사용자: {normalize_corpus_text(query)}",
         "Assistant:",
     ])
@@ -3220,7 +3211,7 @@ def generate_100m_chat_reply(query, history=None, max_new_tokens=40):
         session = runtime["session"]
         input_name = runtime["input_name"]
         output_name = runtime["output_name"]
-        max_context = int(getattr(config, "max_position_embeddings", 2048))
+        max_context = min(256, int(getattr(config, "max_position_embeddings", 2048)))
         for profile in candidate_generation_profiles_for_onnx(query):
             generated = list(prompt_ids)
             for _ in range(max(6, max_new_tokens)):
