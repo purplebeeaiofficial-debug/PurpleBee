@@ -7846,7 +7846,6 @@ async function generateReasonedChatReply(prompt, language) {
   async function buildReply(userEntry) {
     const prompt = trim(userEntry.content) || (getActiveUiLanguage() === "ko" ? "질문을 입력해 주세요." : "Please enter a message.");
     const language = getReplyLanguage(prompt, []);
-    const loweredPrompt = lower(prompt);
 
     const memoryRequest = pbxExtractMemoryRequest(prompt);
     if (memoryRequest) {
@@ -8498,7 +8497,6 @@ async function generateReasonedChatReply(prompt, language) {
     }
 
     const previousPrompt = trim(previousUserPrompt(userEntry.id));
-    const loweredPrompt = lower(prompt);
     const isCorrectionTurn = isNegativeCorrectionPrompt(loweredPrompt) || isConfusionPrompt(loweredPrompt);
     const modelPrompt = isCorrectionTurn && previousPrompt
       ? `${previousPrompt}\n\nThe previous answer missed the user's intent. Now answer this follow-up directly.\n\n${prompt}`
