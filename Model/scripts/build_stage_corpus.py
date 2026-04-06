@@ -22,11 +22,13 @@ SAFE_DIALOGUE_SOURCE_NAMES = {
     "foundation_chat_ko.jsonl",
     "instruction_seed_ko.jsonl",
     "instruction_social_ko.jsonl",
+    "knowledge_grounded_ko.jsonl",
     "krdict_augmented_ko.jsonl",
     "reasoning_seed_ko.jsonl",
     "regression_anchor_ko.jsonl",
 }
-SAFE_TEXT_SOURCE_PATHS = ()
+KNOWLEDGE_TEXT_ROOT = MODEL_ROOT / "corpora" / "knowledge_text"
+SAFE_TEXT_SUFFIXES = {".txt", ".md"}
 SEED = 20260405
 
 
@@ -76,7 +78,18 @@ def signature(text: str) -> str:
 
 
 def discover_text_sources():
-    return [path for path in SAFE_TEXT_SOURCE_PATHS if path.exists()]
+    discovered = []
+    if not KNOWLEDGE_TEXT_ROOT.exists():
+        return discovered
+    for path in sorted(KNOWLEDGE_TEXT_ROOT.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in SAFE_TEXT_SUFFIXES:
+            continue
+        if path.name.lower().startswith("readme"):
+            continue
+        discovered.append(path)
+    return discovered
 
 
 def read_jsonl(path: Path):
@@ -141,6 +154,7 @@ def source_weight(path: Path, row: dict | None = None) -> int:
 
 def text_source_weight(path: Path, block: str) -> int:
     name = path.name.lower()
+    parent_path = str(path.parent).lower()
     weight = 1
     if "purple_bee_public_dialogues" in name:
         weight += 2
@@ -150,6 +164,12 @@ def text_source_weight(path: Path, block: str) -> int:
         weight += 1
     if "wikipedia_random_ko" in name:
         weight += 1
+    if "dictionary" in parent_path or "krdict" in name:
+        weight += 3
+    if "literature" in parent_path or "novel" in name or "poem" in name:
+        weight += 2
+    if "paper" in parent_path or "research" in parent_path or "arxiv" in name:
+        weight += 2
     if len(block) > 300:
         weight += 1
     return max(1, min(weight, 4))

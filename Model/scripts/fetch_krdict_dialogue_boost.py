@@ -1,6 +1,5 @@
 import argparse
 import json
-import sys
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -83,9 +82,9 @@ def render_row(entry: dict) -> dict:
     if definition:
         response = f"{word}는 {definition}"
     else:
-        response = f"{word}는 국어사전에서 정의를 아직 찾지 못한 단어야."
+        response = f"{word}는 국어사전에서 정의를 아직 찾지 못한 단어예요."
     if example:
-        response += f" 예문으로는 '{example}' 같은 표현이 있어."
+        response += f" 예문으로는 '{example}' 같은 표현이 있어요."
     return {
         "instruction": "국어사전 정의를 바탕으로 짧고 자연스럽게 설명한다.",
         "input": f"{word}가 뭐야",
@@ -112,7 +111,9 @@ def main():
     if args.terms_file:
         term_file = Path(args.terms_file)
         if term_file.exists():
-            terms.extend([line.strip() for line in term_file.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()])
+            terms.extend(
+                [line.strip() for line in term_file.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+            )
     if not terms:
         terms = list(DEFAULT_TERMS)
 

@@ -8854,10 +8854,646 @@ async function generateReasonedChatReply(prompt, language) {
     return cleaned;
   }
 
+  const PBX_INSTALL_DB_NAME = "pb_install_db_v1";
+  const PBX_INSTALL_STORE = "handles";
+  const PBX_INSTALL_KEY = "purple_bee_assets_dir";
+
+  function pbxOpenInstallDb() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(PBX_INSTALL_DB_NAME, 1);
+      request.onupgradeneeded = function () {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(PBX_INSTALL_STORE)) {
+          db.createObjectStore(PBX_INSTALL_STORE);
+        }
+      };
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = function () { reject(request.error || new Error("install-db-open-failed")); };
+    });
+  }
+
+  async function pbxInstallStoreGet(key) {
+    const db = await pbxOpenInstallDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PBX_INSTALL_STORE, "readonly");
+      const store = tx.objectStore(PBX_INSTALL_STORE);
+      const request = store.get(key);
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = function () { reject(request.error || new Error("install-db-get-failed")); };
+    });
+  }
+
+  async function pbxInstallStoreSet(key, value) {
+    const db = await pbxOpenInstallDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PBX_INSTALL_STORE, "readwrite");
+      const store = tx.objectStore(PBX_INSTALL_STORE);
+      const request = store.put(value, key);
+      request.onsuccess = function () { resolve(true); };
+      request.onerror = function () { reject(request.error || new Error("install-db-set-failed")); };
+    });
+  }
+
+  async function pbxLoadAssetsDirectoryHandle() {
+    try {
+      return await pbxInstallStoreGet(PBX_INSTALL_KEY);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function pbxSaveAssetsDirectoryHandle(handle) {
+    try {
+      await pbxInstallStoreSet(PBX_INSTALL_KEY, handle);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async function pbxCheckHandlePermission(handle, writable = false) {
+    if (!handle || typeof handle.queryPermission !== "function") return "denied";
+    const options = { mode: writable ? "readwrite" : "read" };
+    try {
+      return await handle.queryPermission(options);
+    } catch (_error) {
+      return "denied";
+    }
+  }
+
+  async function pbxWriteInstallManifest(handle) {
+    const fileHandle = await handle.getFileHandle("purple-bee-package.json", { create: true });
+    const writable = await fileHandle.createWritable();
+    const payload = {
+      family_name: "Purple Bee",
+      model_id: getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3",
+      display_name: getRuntimeModelLabel ? getRuntimeModelLabel() : "Purple Bee 1.3",
+      runtime_mode: "public-server-runtime",
+      linked_at: new Date().toISOString(),
+      website_origin: window.location.origin,
+      note: "This folder is linked as the Purple Bee AI assets folder for this browser.",
+    };
+    await writable.write(JSON.stringify(payload, null, 2));
+    await writable.close();
+  }
+
+  async function pbxReadJsonFile(handle, filename) {
+    try {
+      const fileHandle = await handle.getFileHandle(filename);
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      return JSON.parse(text || "{}");
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function pbxNormalizeVersionTag(value) {
+    return String(value || "").trim();
+  }
+
+  async function pbxVerifyAssetsFolder(handle, repairPermission = false) {
+    if (!handle) return { installed: false, reason: "missing-handle" };
+    let permission = await pbxCheckHandlePermission(handle, false);
+    if (permission !== "granted") {
+      if (repairPermission && typeof handle.requestPermission === "function") {
+        try {
+          permission = await handle.requestPermission({ mode: "readwrite" });
+        } catch (_error) {
+          permission = "denied";
+        }
+      }
+      if (permission !== "granted") {
+        return { installed: false, reason: "permission-needed" };
+      }
+    }
+    try {
+      const manifestHandle = await handle.getFileHandle("purple-bee-package.json");
+      const file = await manifestHandle.getFile();
+      const text = await file.text();
+      const payload = JSON.parse(text || "{}");
+      if (String(payload.family_name || "").trim() !== "Purple Bee") {
+        return { installed: false, reason: "invalid-manifest" };
+      }
+      const assetsIndex = await pbxReadJsonFile(handle, "purple-bee-assets-index.json");
+      return {
+        installed: true,
+        manifest: payload,
+        assetsIndex,
+        assetVersion: pbxNormalizeVersionTag(payload.asset_version || assetsIndex?.asset_version),
+      };
+    } catch (_error) {
+      return { installed: false, reason: "manifest-missing" };
+    }
+  }
+
+  function pbxInstallGuideText(reason) {
+    const ko = {
+      unsupported: "이 브라우저에서는 AI 준비물 폴더 확인 기능을 지원하지 않아요. 최신 Edge에서 접속해 주세요.",
+      "no-folder-linked": "AI 준비물 폴더가 아직 연결되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 폴더를 연결해 주세요.",
+      "permission-needed": "AI 준비물 폴더 권한이 끊어졌어요. 상단의 'AI 준비물' 버튼을 눌러 다시 연결해 주세요.",
+      "manifest-missing": "선택한 폴더에 Purple Bee 설치 마커가 없어요. 상단의 'AI 준비물' 버튼으로 다시 연결해 주세요.",
+      "invalid-manifest": "연결된 폴더가 Purple Bee 준비물 폴더가 아니에요. 올바른 폴더를 다시 연결해 주세요.",
+      default: "AI 준비물 상태를 확인하지 못했어요. 상단의 'AI 준비물' 버튼을 눌러 확인해 주세요.",
+    };
+    return ko[reason] || ko.default;
+  }
+
+  function pbxResolveInstallState(plan, verify) {
+    const latestVersion = pbxNormalizeVersionTag(plan?.asset_version);
+    if (!verify || !verify.installed) {
+      return {
+        kind: "warn",
+        title: "아직 준비가 끝나지 않았어요",
+        body: pbxInstallGuideText(verify?.reason || "no-folder-linked"),
+        cta: "설치 필요",
+        needsUpdate: false,
+      };
+    }
+
+    const installedVersion = pbxNormalizeVersionTag(verify.assetVersion || verify.manifest?.asset_version);
+    if (latestVersion && installedVersion && latestVersion !== installedVersion) {
+      return {
+        kind: "warn",
+        title: "업데이트가 준비되어 있어요",
+        body: `현재 폴더는 ${installedVersion} 버전 기준이고, 사이트 최신 준비물은 ${latestVersion} 버전이에요. 아래의 업데이트 버튼을 누르면 필요한 파일만 최신 상태로 다시 맞출 수 있어요.`,
+        cta: "업데이트 필요",
+        needsUpdate: true,
+      };
+    }
+
+    return {
+      kind: "ok",
+      title: "지금 바로 써도 괜찮아요",
+      body: "준비물 폴더가 정상적으로 연결되어 있고, 현재 사이트 버전과도 맞아요. 필요할 때만 다시 열어서 업데이트를 확인하면 됩니다.",
+      cta: "최신 상태",
+      needsUpdate: false,
+    };
+  }
+
+  async function pbxEnsureAiAssetsInstalled(repairPermission = false) {
+    if (!("indexedDB" in window) || !("showDirectoryPicker" in window)) {
+      return { installed: false, reason: "unsupported" };
+    }
+    const handle = await pbxLoadAssetsDirectoryHandle();
+    if (!handle) return { installed: false, reason: "no-folder-linked" };
+    return pbxVerifyAssetsFolder(handle, repairPermission);
+  }
+
+  async function linkAiAssetsFolder() {
+    if (!("showDirectoryPicker" in window)) {
+      showToast(getActiveUiLanguage() === "ko"
+        ? "이 브라우저에서는 폴더 연결 기능을 지원하지 않아요."
+        : "This browser does not support folder linking.");
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "purple-bee-assets-folder" });
+      const writePermission = await pbxCheckHandlePermission(handle, true);
+      if (writePermission !== "granted" && typeof handle.requestPermission === "function") {
+        const requested = await handle.requestPermission({ mode: "readwrite" });
+        if (requested !== "granted") {
+          showToast(getActiveUiLanguage() === "ko" ? "폴더 권한이 필요해요." : "Folder permission is required.");
+          return;
+        }
+      }
+      await pbxWriteInstallManifest(handle);
+      await pbxSaveAssetsDirectoryHandle(handle);
+      showToast(getActiveUiLanguage() === "ko"
+        ? "AI 준비물 폴더를 연결했어요."
+        : "The AI assets folder is now linked.");
+    } catch (_error) {
+      showToast(getActiveUiLanguage() === "ko"
+        ? "AI 준비물 폴더 연결을 취소했어요."
+        : "AI assets folder linking was cancelled.");
+    }
+  }
+
+  async function pbxFetchPackagePlan() {
+    const modelId = getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3";
+    const response = await fetch(`/api/runtime/package-plan?model_id=${encodeURIComponent(modelId)}`, {
+      cache: "no-store",
+      headers: { "accept": "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`package-plan-${response.status}`);
+    }
+    return await response.json();
+  }
+
+  async function pbxWriteTextFile(handle, filename, content) {
+    const fileHandle = await handle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(String(content || ""));
+    await writable.close();
+  }
+
+  async function pbxWriteJsonFile(handle, filename, payload) {
+    await pbxWriteTextFile(handle, filename, JSON.stringify(payload, null, 2));
+  }
+
+  async function pbxFetchTextAsset(url) {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`asset-fetch-${response.status}`);
+    }
+    return await response.text();
+  }
+
+  async function pbxInstallAssetsToFolder(handle, plan) {
+    const installedAt = new Date().toISOString();
+    const modelId = String(plan?.model_id || (getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3"));
+    const displayName = String(plan?.display_name || (getRuntimeModelLabel ? getRuntimeModelLabel() : "Purple Bee 1.3"));
+    const manifest = {
+      family_name: "Purple Bee",
+      model_id: modelId,
+      display_name: displayName,
+      runtime_mode: "public-server-runtime",
+      linked_at: installedAt,
+      installed_at: installedAt,
+      asset_version: String(plan?.asset_version || "current"),
+      website_origin: window.location.origin,
+      backend_mode: plan?.backend?.configured ? "public-purple-bee-backend" : "worker-server-runtime",
+      note: "This folder stores the Purple Bee website install/update metadata for this browser.",
+    };
+    await pbxWriteJsonFile(handle, "purple-bee-package.json", manifest);
+
+    const generatedAssets = (plan && typeof plan.generated_assets === "object" && plan.generated_assets) || {};
+    for (const [filename, payload] of Object.entries(generatedAssets)) {
+      if (typeof payload === "string") {
+        await pbxWriteTextFile(handle, filename, payload);
+      } else {
+        await pbxWriteJsonFile(handle, filename, payload);
+      }
+    }
+
+    const written = [];
+    const assets = Array.isArray(plan?.assets) ? plan.assets : [];
+    for (const asset of assets) {
+      if (!asset || !asset.filename || String(asset.filename) === "purple-bee-package.json") continue;
+      if (String(asset.kind || "").startsWith("download-") && asset.url) {
+        const text = await pbxFetchTextAsset(asset.url);
+        await pbxWriteTextFile(handle, asset.filename, text);
+        written.push({ filename: asset.filename, kind: asset.kind, url: asset.url });
+      } else if (String(asset.kind || "").startsWith("generated-")) {
+        written.push({ filename: asset.filename, kind: asset.kind, generated: true });
+      }
+    }
+
+    await pbxWriteJsonFile(handle, "purple-bee-assets-index.json", {
+      family_name: "Purple Bee",
+      model_id: modelId,
+      display_name: displayName,
+      installed_at: installedAt,
+      asset_version: String(plan?.asset_version || "current"),
+      install_mode: String(plan?.install_mode || "public-server-runtime"),
+      backend: plan?.backend || {},
+      files: written,
+    });
+
+    return manifest;
+  }
+
+  function pbxEnsureAssetsModal() {
+    let modal = document.getElementById("pbx-assets-modal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "pbx-assets-modal";
+    modal.className = "pbx-assets-backdrop";
+    modal.innerHTML = `
+      <div class="pbx-assets-dialog">
+        <div class="pbx-assets-header">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%">
+            <div>
+              <div class="pbx-assets-title">AI 준비물</div>
+              <div id="pbx-assets-modal-subtitle" class="pbx-assets-subtitle">질문하기 전에 준비 상태를 가볍게 확인하고, 필요한 파일이 있으면 한 번에 설치하거나 업데이트할 수 있어요.</div>
+            </div>
+            <button type="button" id="pbx-assets-modal-close" class="pbx-assets-close">×</button>
+          </div>
+        </div>
+        <div class="pbx-assets-content">
+          <div class="pbx-assets-status-card">
+            <div class="pbx-assets-status-top">
+              <div>
+                <div id="pbx-assets-status-pill" class="pbx-assets-pill">상태 확인 중...</div>
+                <div id="pbx-assets-status-title" class="pbx-assets-status-title" style="margin-top:12px">준비 상태를 확인하는 중이에요</div>
+                <div id="pbx-assets-status-text" class="pbx-assets-status-body">잠시만 기다려 주세요.</div>
+              </div>
+            </div>
+            <div class="pbx-assets-mini-grid">
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">현재 모델</div>
+                <div id="pbx-assets-model-name" class="pbx-assets-mini-value">Purple Bee 1.3</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">설치 상태</div>
+                <div id="pbx-assets-install-state" class="pbx-assets-mini-value">확인 중</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">자산 버전</div>
+                <div id="pbx-assets-version-state" class="pbx-assets-mini-value">확인 중</div>
+              </div>
+            </div>
+          </div>
+          <div class="pbx-assets-files-card">
+            <div class="pbx-assets-files-head">
+              <div>
+                <div class="pbx-assets-files-title">이번에 준비되는 파일</div>
+                <div id="pbx-assets-model-summary" class="pbx-assets-files-sub"></div>
+              </div>
+              <div class="pbx-assets-help">설치가 끝나면 이 폴더를 다시 열어보지 않아도 사이트가 연결 상태를 기억합니다.</div>
+            </div>
+            <div id="pbx-assets-list" class="pbx-assets-list"></div>
+          </div>
+        </div>
+        <div class="pbx-assets-actions" style="padding:0 24px 24px">
+          <button type="button" id="pbx-assets-choose-btn" class="pbx-assets-btn">폴더 연결</button>
+          <button type="button" id="pbx-assets-install-btn" class="pbx-assets-btn primary">준비물 설치</button>
+        </div>
+      </div>
+    `;
+    modal.addEventListener("click", function (event) {
+      if (event.target === modal) {
+        pbxCloseAssetsSetupModal();
+      }
+    });
+    document.body.appendChild(modal);
+    document.getElementById("pbx-assets-modal-close").onclick = function () { pbxCloseAssetsSetupModal(); };
+    document.getElementById("pbx-assets-choose-btn").onclick = async function () { await pbxChooseAssetsFolderFromModal(); };
+    document.getElementById("pbx-assets-install-btn").onclick = async function () { await pbxInstallAssetsFromModal(); };
+    return modal;
+  }
+
+  function pbxCloseAssetsSetupModal() {
+    const modal = document.getElementById("pbx-assets-modal");
+    if (modal) modal.classList.remove("open");
+  }
+
+  function pbxSetAssetsModalStatus(kind, title, text) {
+    const pill = document.getElementById("pbx-assets-status-pill");
+    const heading = document.getElementById("pbx-assets-status-title");
+    const body = document.getElementById("pbx-assets-status-text");
+    if (!pill || !body || !heading) return;
+    const palette = {
+      loading: { bg: "rgba(124,92,255,.12)", color: "var(--accent-light)" },
+      ok: { bg: "rgba(16,185,129,.12)", color: "var(--green)" },
+      warn: { bg: "rgba(245,158,11,.12)", color: "var(--yellow)" },
+      error: { bg: "rgba(239,68,68,.12)", color: "var(--red)" },
+    };
+    const chosen = palette[kind] || palette.loading;
+    pill.style.background = chosen.bg;
+    pill.style.color = chosen.color;
+    pill.textContent = kind === "ok" ? "준비 완료" : kind === "warn" ? "확인 필요" : kind === "error" ? "문제 발생" : "확인 중";
+    heading.textContent = title || "";
+    body.textContent = text;
+  }
+
+  function pbxRenderAssetsList(plan) {
+    const list = document.getElementById("pbx-assets-list");
+    const summary = document.getElementById("pbx-assets-model-summary");
+    const modelName = document.getElementById("pbx-assets-model-name");
+    if (!list || !summary) return;
+    const assets = Array.isArray(plan?.assets) ? plan.assets : [];
+    if (modelName) modelName.textContent = String(plan?.display_name || "Purple Bee 1.3");
+    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} 기준으로 ${assets.length}개 파일을 준비해요. 연결 후 설치를 누르면 필요한 파일만 덮어써서 맞춰줍니다.`;
+    list.innerHTML = assets.map((asset) => `
+      <div class="pbx-assets-item">
+        <div class="pbx-assets-item-icon"><i class="ph ph-file-text"></i></div>
+        <div class="pbx-assets-item-main">
+          <div class="pbx-assets-item-name">${String(asset.filename || "")}</div>
+          <div class="pbx-assets-item-desc">${String(asset.description || "")}</div>
+          <div class="pbx-assets-item-kind">${String(asset.kind || "")}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function pbxRefreshAssetsButtonState() {
+    const button = document.getElementById("ai-assets-btn");
+    const label = document.getElementById("ai-assets-label");
+    if (!button) return;
+    try {
+      const plan = await pbxFetchPackagePlan();
+      const status = await pbxEnsureAiAssetsInstalled(false);
+      const resolved = pbxResolveInstallState(plan, status);
+      button.style.opacity = "1";
+      button.title = resolved.body;
+      if (label) {
+        label.textContent = resolved.needsUpdate ? "업데이트 필요" : status.installed ? "AI 준비물 연결됨" : "AI 준비물";
+      }
+    } catch (_error) {
+      button.style.opacity = ".92";
+      if (label) label.textContent = "AI 준비물";
+    }
+  }
+
+  async function pbxOpenAssetsSetupModal(reason = "") {
+    const modal = pbxEnsureAssetsModal();
+    modal.classList.add("open");
+    pbxSetAssetsModalStatus("loading", "준비 상태를 확인하고 있어요", "잠시만 기다려 주세요.");
+    try {
+      const [plan, handle] = await Promise.all([
+        pbxFetchPackagePlan(),
+        pbxLoadAssetsDirectoryHandle(),
+      ]);
+      modal._pbxPlan = plan;
+      pbxRenderAssetsList(plan);
+      const verify = handle ? await pbxVerifyAssetsFolder(handle, false) : { installed: false, reason: "no-folder-linked" };
+      const resolved = pbxResolveInstallState(plan, verify.installed ? verify : { installed: false, reason: reason || verify.reason });
+      pbxSetAssetsModalStatus(resolved.kind, resolved.title, resolved.body);
+      const installState = document.getElementById("pbx-assets-install-state");
+      const versionState = document.getElementById("pbx-assets-version-state");
+      const installBtn = document.getElementById("pbx-assets-install-btn");
+      if (installState) installState.textContent = verify.installed ? "연결 완료" : "설치 필요";
+      if (versionState) {
+        versionState.textContent = verify.installed
+          ? `${pbxNormalizeVersionTag(verify.assetVersion || "-")} → ${pbxNormalizeVersionTag(plan?.asset_version || "-")}`
+          : pbxNormalizeVersionTag(plan?.asset_version || "확인 중");
+      }
+      if (installBtn) {
+        installBtn.textContent = resolved.needsUpdate ? "준비물 업데이트" : verify.installed ? "다시 설치/점검" : "준비물 설치";
+      }
+    } catch (_error) {
+      pbxSetAssetsModalStatus("error", "준비 목록을 불러오지 못했어요", "사이트에서 최신 준비물 목록을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  }
+
+  async function pbxChooseAssetsFolderFromModal() {
+    if (!("showDirectoryPicker" in window)) {
+      pbxSetAssetsModalStatus("error", "이 브라우저에서는 지원되지 않아요", "폴더 연결 기능은 최신 Edge에서 가장 안정적으로 동작해요. 가능하면 Edge에서 다시 열어 주세요.");
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite", id: "purple-bee-assets-folder" });
+      const writePermission = await pbxCheckHandlePermission(handle, true);
+      if (writePermission !== "granted" && typeof handle.requestPermission === "function") {
+        const requested = await handle.requestPermission({ mode: "readwrite" });
+        if (requested !== "granted") {
+          pbxSetAssetsModalStatus("warn", "폴더 권한이 필요해요", "준비물 파일을 폴더에 넣으려면 읽기/쓰기 권한이 필요해요.");
+          return;
+        }
+      }
+      await pbxSaveAssetsDirectoryHandle(handle);
+      pbxSetAssetsModalStatus("ok", "폴더를 연결했어요", "좋아요. 이제 아래 버튼으로 준비물 설치나 업데이트를 진행하면 돼요.");
+      await pbxRefreshAssetsButtonState();
+      await pbxOpenAssetsSetupModal();
+    } catch (_error) {
+      pbxSetAssetsModalStatus("warn", "폴더 연결을 취소했어요", "괜찮아요. 다시 시도할 때는 빈 폴더나 Purple Bee 전용 폴더를 추천해요.");
+    }
+  }
+
+  async function pbxInstallAssetsFromModal() {
+    try {
+      let handle = await pbxLoadAssetsDirectoryHandle();
+      if (!handle) {
+        await pbxChooseAssetsFolderFromModal();
+        handle = await pbxLoadAssetsDirectoryHandle();
+      }
+      if (!handle) {
+        pbxSetAssetsModalStatus("warn", "먼저 폴더를 연결해 주세요", "설치나 업데이트를 시작하려면 준비물 폴더가 먼저 연결되어 있어야 해요.");
+        return;
+      }
+      const plan = document.getElementById("pbx-assets-modal")?._pbxPlan || await pbxFetchPackagePlan();
+      pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "필요한 파일을 확인해서 설치하거나 업데이트하고 있어요.");
+      await pbxInstallAssetsToFolder(handle, plan);
+      pbxSetAssetsModalStatus("ok", "설치/업데이트가 끝났어요", "이제 현재 사이트 기준으로 준비물이 맞춰졌어요. 바로 질문을 이어가면 됩니다.");
+      await pbxRefreshAssetsButtonState();
+      showToast(getActiveUiLanguage() === "ko" ? "AI 준비물 설치가 완료됐어요." : "AI assets are ready.");
+      await pbxOpenAssetsSetupModal();
+    } catch (_error) {
+      pbxSetAssetsModalStatus("error", "설치/업데이트 중 문제가 생겼어요", "폴더에 파일을 쓰는 과정에서 오류가 났어요. 잠시 후 다시 시도해 주세요.");
+    }
+  }
+
+  async function linkAiAssetsFolder() {
+    await pbxOpenAssetsSetupModal();
+  }
+
+  async function sendMessage() {
+    const field = document.getElementById("input-field");
+    if (!field || state.isStreaming) return;
+    const raw = field.value || "";
+    const attachments = Array.isArray(state.pendingAttachments) ? [...state.pendingAttachments] : [];
+    if (!trim(raw) && !attachments.length) return;
+
+    const isFirstUserQuestion = !state.history.some((entry) => entry.role === "user");
+    if (isFirstUserQuestion) {
+      showToast(getActiveUiLanguage() === "ko" ? "첫 질문은 모델 준비 때문에 조금 더 느릴 수 있어요." : "The first reply can take a little longer while the model is loading.");
+    }
+
+    state.pendingAttachments = [];
+    updateAttachmentStrip();
+    field.value = "";
+    field.style.height = "auto";
+    const counter = document.getElementById("char-count");
+    if (counter) counter.textContent = "0 / 2000";
+
+    const userEntry = {
+      id: `msg_${Date.now()}`,
+      role: "user",
+      content: trim(raw) || (getActiveUiLanguage() === "ko" ? "질문을 입력해 주세요." : "Please enter a message."),
+      attachments,
+      meta: "",
+    };
+
+    showChat();
+    appendMessage("user", userEntry.content, userEntry);
+    state.history.push(userEntry);
+    if (state.history.filter((entry) => entry.role === "user").length === 1) {
+      const active = state.conversations.find((conversation) => conversation.id === state.sessionId);
+      if (active) active.title = pbxInferConversationTitle(userEntry.content);
+    }
+
+    state.isStreaming = true;
+    const sendBtn = document.getElementById("send-btn");
+    if (sendBtn) sendBtn.disabled = true;
+    const typingId = appendTyping();
+
+    try {
+      const installStatus = await pbxEnsureAiAssetsInstalled(true);
+      if (!installStatus.installed) {
+        pbxOpenAssetsSetupModal(installStatus.reason).catch(() => {});
+        const failureEntry = {
+          id: `msg_${Date.now()}_install`,
+          role: "assistant",
+          content: pbxInstallGuideText(installStatus.reason),
+          attachments: [],
+          meta: "",
+        };
+        const bubble = appendMessage("ai", "", failureEntry);
+        await streamToBubble(bubble, failureEntry.content);
+        return;
+      }
+      const latestPlan = await pbxFetchPackagePlan().catch(() => null);
+      const resolvedInstall = pbxResolveInstallState(latestPlan, installStatus);
+      if (resolvedInstall.needsUpdate) {
+        showToast("AI 준비물 업데이트가 있어요. 지금 답변은 가능하지만, 상단 버튼에서 최신 상태로 맞출 수 있어요.");
+      }
+
+      const reply = await Promise.race([
+        buildReply(userEntry),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("reply-timeout")), pbxRuntimeTimeouts().replyMs)),
+      ]);
+
+      const replyCode = trim(reply && reply.code ? reply.code : "");
+      const safeText = shorten(trim(reply && reply.text ? reply.text : ""), 1400);
+      const isFailureReply = !safeText || replyCode === "PB-ANSWER-FAILED";
+
+      if (isFailureReply) {
+        const failureEntry = {
+          id: `msg_${Date.now()}_fail`,
+          role: "assistant",
+          content: getActiveUiLanguage() === "ko"
+            ? "답변 생성에 실패했어요. 잠시 후 다시 시도해 주세요."
+            : "Reply generation failed. Please try again in a moment.",
+          attachments: [],
+          meta: "",
+        };
+        const bubble = appendMessage("ai", "", failureEntry);
+        await streamToBubble(bubble, failureEntry.content);
+      } else {
+        const aiEntry = {
+          id: `msg_${Date.now()}_ai`,
+          role: "assistant",
+          content: safeText,
+          attachments: [],
+          meta: (reply && reply.meta) || "",
+        };
+        const bubble = appendMessage("ai", "", aiEntry);
+        await streamToBubble(bubble, aiEntry.meta ? `${aiEntry.content}\n\n> ${aiEntry.meta}` : aiEntry.content);
+        state.history.push(aiEntry);
+      }
+    } catch (_error) {
+      const failureEntry = {
+        id: `msg_${Date.now()}_err`,
+        role: "assistant",
+        content: getActiveUiLanguage() === "ko"
+          ? "답변 생성에 실패했어요. 잠시 후 다시 시도해 주세요."
+          : "Reply generation failed. Please try again in a moment.",
+        attachments: [],
+        meta: "",
+      };
+      const bubble = appendMessage("ai", "", failureEntry);
+      await streamToBubble(bubble, failureEntry.content);
+    } finally {
+      removeTyping(typingId);
+      pbxClearAllTyping();
+      state.isStreaming = false;
+      if (sendBtn) sendBtn.disabled = false;
+      field.focus();
+      saveConversation();
+      loadConversationList();
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", pbxEnhanceUiBindings);
+    document.addEventListener("DOMContentLoaded", function () {
+      pbxEnhanceUiBindings();
+      pbxRefreshAssetsButtonState().catch(() => {});
+    });
   } else {
     pbxEnhanceUiBindings();
+    pbxRefreshAssetsButtonState().catch(() => {});
   }
 
   Object.assign(window, {
@@ -8885,6 +9521,7 @@ async function generateReasonedChatReply(prompt, language) {
     openLanguageFromMenu,
     loginWithGoogle,
     logoutUser,
+    linkAiAssetsFolder,
     renameConversationFromMenu,
     deleteConversationFromMenu,
   });

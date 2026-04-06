@@ -49,7 +49,8 @@ DEFAULT_PUBLIC_EVAL_PATH = MODEL_EVALS_DIR / "public_chat_regression_ko.jsonl"
 DEFAULT_SFT_DATASET_PATH = MODEL_CORPORA_DIR / "dialogue_sft" / "chat_quality_pack_ko.jsonl"
 DEFAULT_EVAL_STEPS = [500, 1000, 2000, 5000]
 RUNTIME_DIALOGUE_SEED_PATHS = [
-    MODEL_CORPORA_DIR / "dialogue_sft" / "chat_quality_pack_ko.jsonl",
+    MODEL_CORPORA_DIR / "dialogue_sft" / "purple_bee_sft_dataset_clean.jsonl",
+    MODEL_CORPORA_DIR / "dialogue_sft" / "regression_anchor_ko.jsonl",
 ]
 LOCAL_RUNTIME_MANAGED_DIR = PROJECT_ROOT / "Data" / "Runtime_Managed"
 LOCAL_RUNTIME_MANIFEST_PATH = LOCAL_RUNTIME_MANAGED_DIR / "runtime-manifest.json"
@@ -2365,6 +2366,40 @@ def extract_meaningful_keywords(text, limit=4):
             break
     return keywords
 
+def canonicalize_match_text(text):
+    normalized = normalize_corpus_text(text).lower().strip()
+    if not normalized:
+        return {"text": "", "compact": "", "keywords": []}
+
+    tokens = re.findall(r"[A-Za-z][A-Za-z0-9_+-]*|[가-힣]+|[\u3040-\u30ff]+|[\u4e00-\u9fff]+", normalized)
+    particle_suffixes = (
+        "으로부터", "에서부터", "이라서", "라서", "에서의", "으로의",
+        "이랑", "랑", "하고", "이며", "이고", "에서", "에게", "께서",
+        "께", "한테", "으로", "로", "와", "과", "은", "는", "이", "가",
+        "을", "를", "도", "만", "에", "의", "야", "아",
+    )
+    normalized_tokens = []
+    for token in tokens:
+        current = token
+        if current in particle_suffixes:
+            continue
+        if re.fullmatch(r"[가-힣]+", current):
+            for suffix in particle_suffixes:
+                if len(current) > len(suffix) + 1 and current.endswith(suffix):
+                    current = current[: -len(suffix)]
+                    break
+        current = current.strip()
+        if current:
+            normalized_tokens.append(current)
+
+    canonical_text = " ".join(normalized_tokens)
+    compact = "".join(normalized_tokens)
+    return {
+        "text": canonical_text,
+        "compact": compact,
+        "keywords": extract_meaningful_keywords(canonical_text, limit=8),
+    }
+
 def contains_phrase(text, phrases):
     return any(phrase in text for phrase in phrases)
 
@@ -2405,6 +2440,8 @@ def load_dialogue_examples():
 def example_similarity_score(query, candidate_prompt):
     query_norm = normalize_corpus_text(query).lower()
     prompt_norm = normalize_corpus_text(candidate_prompt).lower()
+    query_canonical = canonicalize_match_text(query)
+    prompt_canonical = canonicalize_match_text(candidate_prompt)
     query_keywords = extract_meaningful_keywords(query_norm, limit=6)
     prompt_keywords = set(extract_meaningful_keywords(prompt_norm, limit=8))
     score = 0.0
@@ -2419,6 +2456,18 @@ def example_similarity_score(query, candidate_prompt):
         score += 6.0
     elif query_norm in prompt_norm or prompt_norm in query_norm:
         score += 2.5
+    if query_canonical["text"] and query_canonical["text"] == prompt_canonical["text"]:
+        score += 8.0
+    elif query_canonical["compact"] and (
+        query_canonical["compact"] == prompt_canonical["compact"]
+        or query_canonical["compact"] in prompt_canonical["compact"]
+        or prompt_canonical["compact"] in query_canonical["compact"]
+    ):
+        score += 5.0
+    prompt_canonical_keywords = set(prompt_canonical["keywords"])
+    for keyword in query_canonical["keywords"]:
+        if keyword in prompt_canonical_keywords:
+            score += 1.8
     if detect_reply_language(query) == detect_reply_language(candidate_prompt):
         score += 0.5
     return score
@@ -2435,10 +2484,63 @@ def retrieve_dialogue_seed_examples(query, limit=2):
     scored.sort(key=lambda item: item[0], reverse=True)
     return [example for _, example in scored[:max(0, limit)]]
 
+
+def retrieve_dialogue_seed_reply(query):
+    query_norm = normalize_corpus_text(query).strip().lower()
+    query_canonical = canonicalize_match_text(query)
+    if not query_norm:
+        return None
+    best_score = 0.0
+    best_reply = None
+    for example in load_dialogue_examples():
+        prompt_norm = normalize_corpus_text(example.get("user", "")).strip().lower()
+        prompt_canonical = canonicalize_match_text(example.get("user", ""))
+        if not prompt_norm:
+            continue
+        if query_norm == prompt_norm:
+            return example.get("reply")
+        if query_canonical["text"] and (
+            query_canonical["text"] == prompt_canonical["text"]
+            or (
+                query_canonical["compact"]
+                and query_canonical["compact"] == prompt_canonical["compact"]
+            )
+        ):
+            return example.get("reply")
+        score = example_similarity_score(query_norm, prompt_norm)
+        if score > best_score:
+            best_score = score
+            best_reply = example.get("reply")
+    if best_score >= 5.5:
+        return best_reply
+    return None
+
+
+def retrieve_exact_dialogue_seed_reply(query):
+    query_norm = normalize_corpus_text(query).strip().lower()
+    query_canonical = canonicalize_match_text(query)
+    if not query_norm:
+        return None
+    for example in load_dialogue_examples():
+        prompt_norm = normalize_corpus_text(example.get("user", "")).strip().lower()
+        prompt_canonical = canonicalize_match_text(example.get("user", ""))
+        if query_norm == prompt_norm:
+            return example.get("reply")
+        if query_canonical["text"] and (
+            query_canonical["text"] == prompt_canonical["text"]
+            or (
+                query_canonical["compact"]
+                and query_canonical["compact"] == prompt_canonical["compact"]
+            )
+        ):
+            return example.get("reply")
+    return None
+
 def intent_natural_reply(query, history=None):
     """
-    자연어 인텐트 처리 — 인사/감정/일상 대화/자기소개 등을 즉시 자연스럽게 처리.
-    나머지는 None 반환 → fallback/웹검색으로 넘김.
+    최소한의 사회적 응답만 처리한다.
+    일반 지식/정의/능력/방법 질문은 여기서 하드코딩하지 않고
+    모델 또는 데이터 기반 시드/지식 합성 단계로 넘긴다.
     """
     import random as _rnd
     history = history or []
@@ -2541,23 +2643,6 @@ def intent_natural_reply(query, history=None):
             "그럴 만한 이유가 있으셨겠죠. 어떤 상황인지 얘기해 주실래요?",
         ])
 
-    # ── 자기소개 ────────────────────────────────────────────────
-    INTRO_KO = ["너 누구야", "누구야", "자기소개", "네가 뭐야", "뭐하는 ai",
-                 "뭐할 수 있어", "뭘 할 수 있어", "어떤 ai야", "어떤 인공지능"]
-    INTRO_EN = ["who are you", "what are you", "introduce yourself", "what can you do"]
-    if any(p in lowered for p in INTRO_KO):
-        return (
-            "저는 Purple Bee예요 🐝\n"
-            "질문에 답하고, 웹에서 정보를 찾아드리고, 코드·문서를 분석하거나 작성하는 것도 도와드릴 수 있어요.\n"
-            "감정적인 얘기도 들을 수 있고, 창의적인 아이디어를 같이 고민하는 것도 좋아해요.\n"
-            "무엇이든 편하게 물어보세요!"
-        )
-    if any(p in lowered for p in INTRO_EN):
-        return (
-            "I'm Purple Bee 🐝 — an AI assistant that can answer questions, search the web, "
-            "analyze documents and code, and brainstorm ideas with you. Feel free to ask anything!"
-        )
-
     # ── 칭찬/격려 ────────────────────────────────────────────────
     PRAISE_KO = ["잘했어", "대단해", "최고야", "짱이야", "훌륭해", "멋지다", "굉장해"]
     PRAISE_EN = ["great job", "well done", "awesome", "amazing", "brilliant"]
@@ -2565,23 +2650,6 @@ def intent_natural_reply(query, history=None):
         return _rnd.choice(["감사해요 😊 더 잘 도와드릴 수 있도록 노력할게요!", "고마워요! 힘이 나네요 💛"])
     if any(p in lowered for p in PRAISE_EN):
         return _rnd.choice(["Thanks! That really means a lot 😊", "Appreciate it! Let me know if you need anything."])
-
-    # ── 현재 상태 묻기 ────────────────────────────────────────────
-    ASK_STATUS_KO = ["뭐해", "뭐 하고 있어", "어때", "어떻게 지내", "잘 지내", "요즘 어때"]
-    if any(p in lowered for p in ASK_STATUS_KO) and is_short:
-        return _rnd.choice([
-            "저는 항상 여기서 대기 중이에요! 궁금한 게 있으면 바로 말씀해 주세요 😊",
-            "잘 지내고 있어요~ 어떤 도움이 필요하세요?",
-        ])
-
-    # ── 짧은 능력 질문 ────────────────────────────────────────────
-    if contains_phrase(lowered, ["뭐할수있어", "뭘 할 수 있어", "뭐 할 수 있어", "가능해", "할줄알아", "무엇을 할 수"]):
-        if lang == "ko":
-            return (
-                "대화, 설명, 요약, 코드/문서 분석, 아이디어 정리 같은 걸 도와드릴 수 있어요. "
-                "원하는 걸 한 줄로 말해주시면 바로 그 방향으로 이어갈게요."
-            )
-        return "I can help with conversation, explanations, summaries, code or document analysis, and brainstorming. Tell me what you want to do."
 
     # ── 말투/이모지 선호 ─────────────────────────────────────────
     if contains_phrase(lowered, ["이모지 쓰지마", "이모지 사용하지마", "이모지 빼", "이모지 없이", "emoji 없이", "no emoji"]):
@@ -2608,9 +2676,8 @@ def intent_natural_reply(query, history=None):
             return "죄송해요, 제가 엉뚱한 답을 드렸군요. 원하시는 내용을 다시 말씀해 주시면 다시 제대로 도와드릴게요."
         return "Sorry about that! Could you rephrase? I'll give you a much better answer."
 
-    # ── 짧은 입력 차단 ───────────────────────────────────────────
-    if len(q_norm.replace(" ", "")) <= 1:
-        return "조금 더 말씀해 주세요!" if lang == "ko" else "Could you say a bit more?"
+    if len(q_norm.replace(" ", "")) <= 1 and q_norm in {"?", "!", ".", "ㅇ", "음", "흠"}:
+        return "한 줄만 더 이어주시면 바로 맞춰서 답할게요." if lang == "ko" else "Give me one more line and I will answer more clearly."
 
     # 나머지는 모두 None → 웹검색+자연어 합성으로 넘김
     return None
@@ -2831,10 +2898,11 @@ def _compose_natural_answer(query, snippets, history, lang):
 def fallback_natural_reply(query, history=None):
     """
     100M 모델 실패 시 동작하는 자연어 응답 생성기.
-    1) intent 매칭 (인사/감사 등)
-    2) 로컬 KB 검색
-    3) 웹 검색 (필요시)
-    4) 자연어 합성
+    1) 최소 intent 매칭 (인사/감사/감정/선호)
+    2) 정제된 대화 시드 검색
+    3) 로컬 KB 검색
+    4) 웹 검색 (필요시)
+    5) 자연어 합성
     """
     history = history or []
     lang = detect_reply_language(query, history=history)
@@ -2844,6 +2912,10 @@ def fallback_natural_reply(query, history=None):
     intent_reply = intent_natural_reply(query, history=history)
     if intent_reply is not None:
         return intent_reply
+
+    seed_reply = retrieve_dialogue_seed_reply(query)
+    if seed_reply:
+        return seed_reply
 
     # 날씨 질문 → 바로 처리 (웹 검색 불필요)
     if contains_phrase(lowered, ["날씨", "기온", "weather"]):
@@ -3545,6 +3617,7 @@ def generate_response(query, history=None, use_web=True):
     3. fallback_natural_reply — 마지막 안전망
     """
     history = history or []
+    direct_seed_reply = retrieve_exact_dialogue_seed_reply(query)
 
     # ── 0단계: 멀티 도구 자동 감지 및 실행 ─────────────────────────
     detected_tool = detect_tool_intent(query)
@@ -3578,55 +3651,62 @@ def generate_response(query, history=None, use_web=True):
         full_response = result.get("message", "")
 
     else:
-        # ── 1단계: 100M 모델 우선 시도 ─────────────────────────────────
-        model_reply = None
-        if large_model_available():
-            try:
-                model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=96)
-            except Exception:
-                model_reply = None
-
-        if model_reply and not looks_unusable_reply(model_reply, query=query):
-            full_response = model_reply
-
+        if direct_seed_reply:
+            full_response = direct_seed_reply
         else:
-            # ── 2단계: 자연어 인텐트 보조 ───────────────────────────────
-            preferred_reply = intent_natural_reply(query, history=history)
-            if preferred_reply is not None:
-                full_response = preferred_reply
+        # ── 1단계: 100M 모델 우선 시도 ─────────────────────────────────
+            model_reply = None
+            if large_model_available():
+                try:
+                    model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=96)
+                except Exception:
+                    model_reply = None
+
+            if model_reply and not looks_unusable_reply(model_reply, query=query):
+                full_response = model_reply
 
             else:
-                # ── 3단계: 자연어 합성 fallback ───────────────────────
-                snippets = _local_kb_snippets(query)
+                seed_reply = retrieve_dialogue_seed_reply(query)
+                if seed_reply:
+                    full_response = seed_reply
 
-                if use_web and len(snippets) < 2:
-                    try:
-                        web_snips = _search_web_snippets(query, max_results=5)
-                        snippets = web_snips + snippets
-                        if web_snips:
-                            def _bg_save(q=query, snips=web_snips):
-                                try:
-                                    conn = sqlite3.connect(DB_PATH)
-                                    c = conn.cursor()
-                                    combined = " ".join(snips)
-                                    c.execute(
-                                        "INSERT OR IGNORE INTO knowledge (url, title, content, category, fetched_at) VALUES (?,?,?,?,?)",
-                                        ("web:" + __import__("hashlib").md5(q.encode()).hexdigest(), q[:80], combined[:4000], "web", __import__("datetime").datetime.now().isoformat())
-                                    )
-                                    conn.commit()
-                                    conn.close()
-                                except Exception:
-                                    pass
-                            threading.Thread(target=_bg_save, daemon=True).start()
-                    except Exception:
-                        pass
-
-                lang = detect_reply_language(query, history=history)
-                composed = _compose_natural_answer(query, snippets, history, lang)
-                if composed:
-                    full_response = composed
                 else:
-                    full_response = fallback_natural_reply(query, history=history)
+                    # ── 2단계: 최소 사회적 인텐트 보조 ─────────────────────
+                    preferred_reply = intent_natural_reply(query, history=history)
+                    if preferred_reply is not None:
+                        full_response = preferred_reply
+                    else:
+                        # ── 3단계: 자연어 합성 fallback ───────────────────
+                        snippets = _local_kb_snippets(query)
+
+                        if use_web and len(snippets) < 2:
+                            try:
+                                web_snips = _search_web_snippets(query, max_results=5)
+                                snippets = web_snips + snippets
+                                if web_snips:
+                                    def _bg_save(q=query, snips=web_snips):
+                                        try:
+                                            conn = sqlite3.connect(DB_PATH)
+                                            c = conn.cursor()
+                                            combined = " ".join(snips)
+                                            c.execute(
+                                                "INSERT OR IGNORE INTO knowledge (url, title, content, category, fetched_at) VALUES (?,?,?,?,?)",
+                                                ("web:" + __import__("hashlib").md5(q.encode()).hexdigest(), q[:80], combined[:4000], "web", __import__("datetime").datetime.now().isoformat())
+                                            )
+                                            conn.commit()
+                                            conn.close()
+                                        except Exception:
+                                            pass
+                                    threading.Thread(target=_bg_save, daemon=True).start()
+                            except Exception:
+                                pass
+
+                        lang = detect_reply_language(query, history=history)
+                        composed = _compose_natural_answer(query, snippets, history, lang)
+                        if composed:
+                            full_response = composed
+                        else:
+                            full_response = fallback_natural_reply(query, history=history)
 
     # ── 스트리밍 출력 ────────────────────────────────────────────
     # 단어 단위 스트리밍 (자연스러운 타이핑 효과)

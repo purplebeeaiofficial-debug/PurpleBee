@@ -19,6 +19,7 @@ SAFE_SOURCE_NAMES = {
     "foundation_chat_ko.jsonl",
     "instruction_seed_ko.jsonl",
     "instruction_social_ko.jsonl",
+    "knowledge_grounded_ko.jsonl",
     "krdict_augmented_ko.jsonl",
     "reasoning_seed_ko.jsonl",
     "regression_anchor_ko.jsonl",

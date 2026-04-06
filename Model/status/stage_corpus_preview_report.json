@@ -1,0 +1,164 @@
+{
+  "jsonl_sources": {
+    "basic_dialogue_variants_ko.jsonl": {
+      "kept": 43,
+      "weighted": 180
+    },
+    "chat_quality_pack_ko.jsonl": {
+      "kept": 25,
+      "weighted": 200
+    },
+    "conversation_core_ko.jsonl": {
+      "kept": 35,
+      "weighted": 164
+    },
+    "conversation_natural_ko.jsonl": {
+      "kept": 16,
+      "weighted": 47
+    },
+    "curriculum_chat_ko.jsonl": {
+      "kept": 120,
+      "weighted": 360
+    },
+    "curriculum_knowledge_ko.jsonl": {
+      "kept": 120,
+      "weighted": 300
+    },
+    "dialogue_followup_repair_ko.jsonl": {
+      "kept": 20,
+      "weighted": 52
+    },
+    "dialogue_rebuild_core_ko.jsonl": {
+      "kept": 18,
+      "weighted": 76
+    },
+    "everyday_chat_ko.jsonl": {
+      "kept": 23,
+      "weighted": 66
+    },
+    "foundation_chat_ko.jsonl": {
+      "kept": 47,
+      "weighted": 208
+    },
+    "instruction_seed_ko.jsonl": {
+      "kept": 10,
+      "weighted": 29
+    },
+    "instruction_social_ko.jsonl": {
+      "kept": 15,
+      "weighted": 42
+    },
+    "knowledge_grounded_ko.jsonl": {
+      "kept": 76,
+      "weighted": 152
+    },
+    "reasoning_seed_ko.jsonl": {
+      "kept": 7,
+      "weighted": 37
+    },
+    "regression_anchor_ko.jsonl": {
+      "kept": 23,
+      "weighted": 99
+    }
+  },
+  "text_sources": {
+    "deep-research-report.md": {
+      "kept": 77,
+      "weighted": 178
+    },
+    "DEEP_RESEARCH_INTEGRATION.md": {
+      "kept": 43,
+      "weighted": 45
+    },
+    "core_terms_ko.md": {
+      "kept": 3,
+      "weighted": 12
+    },
+    "honggildongjeon_summary_ko.md": {
+      "kept": 2,
+      "weighted": 6
+    },
+    "simcheongjeon_summary_ko.md": {
+      "kept": 2,
+      "weighted": 6
+    },
+    "retrieval_augmented_generation_ko.md": {
+      "kept": 2,
+      "weighted": 6
+    },
+    "transformer_attention_summary_ko.md": {
+      "kept": 2,
+      "weighted": 6
+    },
+    "wikipedia_random_ko.txt": {
+      "kept": 999,
+      "weighted": 2126
+    }
+  },
+  "raw_blocks": 1728,
+  "weighted_blocks": 4397,
+  "manual_text": {
+    "weighted": 0,
+    "characters": 0
+  },
+  "output": "D:\\Purple Bee AI\\Model\\status\\stage_corpus_preview.txt",
+  "characters": 678627,
+  "paragraphs": 4397,
+  "tag_counts": {
+    "ability": 102,
+    "ai": 3,
+    "alternative": 4,
+    "analysis": 4,
+    "animal": 5,
+    "clarification": 1,
+    "clarity": 1,
+    "coding": 14,
+    "concise": 121,
+    "confusion": 1,
+    "conversation": 68,
+    "correction": 9,
+    "debug": 1,
+    "definition": 140,
+    "detailed": 120,
+    "dialogue": 20,
+    "direct": 1,
+    "direct-answer": 55,
+    "directness": 1,
+    "document": 3,
+    "emotion": 9,
+    "empathy": 6,
+    "explanation": 19,
+    "followup": 58,
+    "fruit": 7,
+    "greeting": 28,
+    "grounded": 76,
+    "hesitation": 5,
+    "howto": 3,
+    "identity": 28,
+    "knowledge": 171,
+    "language": 70,
+    "link": 8,
+    "links": 1,
+    "math": 2,
+    "memory": 1,
+    "minimal": 1,
+    "natural": 276,
+    "planning": 21,
+    "preference": 39,
+    "programming": 3,
+    "python": 3,
+    "reasoning": 8,
+    "repair": 134,
+    "science": 1,
+    "search": 61,
+    "self-intro": 11,
+    "short": 2,
+    "smalltalk": 151,
+    "status": 9,
+    "style": 113,
+    "summary": 19,
+    "tone": 61,
+    "tool": 97,
+    "weather": 5
+  }
+}

@@ -8,7 +8,11 @@
       "sources": [
         "Model/corpora/dialogue_sft/chat_quality_pack_ko.jsonl",
         "Model/corpora/dialogue_sft/reasoning_seed_ko.jsonl",
-        "Model/corpora/dialogue_sft/dialogue_followup_repair_ko.jsonl"
+        "Model/corpora/dialogue_sft/dialogue_followup_repair_ko.jsonl",
+        "Model/corpora/knowledge_text/dictionary",
+        "Model/corpora/knowledge_text/literature",
+        "Model/corpora/knowledge_text/papers",
+        "Model/corpora/knowledge_text/general"
       ]
     },
     {

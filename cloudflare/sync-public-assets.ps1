@@ -121,8 +121,7 @@ if (Test-Path $dialogueSource) {
 }
 
 $dialoguePackSourceFiles = @(
-  (Join-Path $root "Model\corpora\dialogue_sft\chat_quality_pack_ko.jsonl"),
-  (Join-Path $root "Model\corpora\dialogue_sft\dialogue_followup_repair_ko.jsonl")
+  (Join-Path $root "Model\corpora\dialogue_sft\purple_bee_sft_dataset_clean.jsonl")
 )
 $dialoguePackItems = @()
 foreach ($sourceFile in $dialoguePackSourceFiles) {
@@ -136,6 +135,7 @@ foreach ($sourceFile in $dialoguePackSourceFiles) {
       $inputValue = [string]$row.input
       $responseValue = [string]$row.response
       if (-not $inputValue -or -not $responseValue) { continue }
+      if ($responseValue -match "\uFFFD" -or $responseValue -match "^\?") { continue }
       $dialoguePackItems += [ordered]@{
         input = $inputValue
         response = $responseValue
@@ -148,6 +148,7 @@ foreach ($sourceFile in $dialoguePackSourceFiles) {
     }
   }
 }
+$dialoguePackItems = @($dialoguePackItems | Select-Object -First 160)
 if ($dialoguePackItems.Count -gt 0) {
   Write-JsonFile -Path (Join-Path $publicStaticDir "purple-bee-dialogues.json") -Payload ([ordered]@{
     family_name = "Purple Bee"
