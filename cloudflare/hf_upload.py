@@ -129,7 +129,10 @@ def main() -> None:
     api.create_repo(repo_id, repo_type="model", private=False, exist_ok=True)
     upload_browser_package(api, repo_id, onnx_file, tokenizer_file, onnx_data_file)
 
-    deploy_cfg = {"public_base_url": base_url, "storage": "hf-hub"}
+    existing_cfg = load_json(CF_DIR / "model-deploy.local.json")
+    deploy_cfg = dict(existing_cfg)
+    deploy_cfg["public_base_url"] = base_url
+    deploy_cfg["storage"] = "hf-hub"
     (CF_DIR / "model-deploy.local.json").write_text(
         json.dumps(deploy_cfg, ensure_ascii=False, indent=2),
         encoding="utf-8",

@@ -1018,20 +1018,33 @@ def load_json_if_exists(path):
 
 def load_deployment_config():
     payload = load_json_if_exists(deployment_config_path())
-    if isinstance(payload, dict):
-        provider_preference = payload.get("provider_preference")
-        normalized = normalize_provider_preference(provider_preference)
-        payload["provider_preference"] = normalized or ["wasm"]
-        payload["storage"] = str(payload.get("storage") or "auto").strip() or "auto"
-        payload["public_base_url"] = str(payload.get("public_base_url") or "").strip()
-        payload["public_backend_url"] = str(payload.get("public_backend_url") or "").strip()
-        return payload
-    return {
-        "public_base_url": "",
-        "public_backend_url": "",
-        "storage": "auto",
-        "provider_preference": ["wasm"],
-    }
+    if not isinstance(payload, dict):
+        payload = {}
+
+    if not payload.get("public_base_url") or not payload.get("public_backend_url"):
+        current_model_id = ensure_model_registry().get("current_model_id")
+        manifest = load_json_if_exists(deployment_manifest_path_for(current_model_id))
+        if not payload.get("public_base_url"):
+            payload["public_base_url"] = (
+                os.environ.get("PURPLE_BEE_MODEL_PUBLIC_BASE_URL")
+                or manifest.get("public_base_url")
+                or ""
+            )
+        if not payload.get("public_backend_url"):
+            payload["public_backend_url"] = (
+                os.environ.get("PURPLE_BEE_PUBLIC_BACKEND_URL")
+                or ""
+            )
+        if not payload.get("storage"):
+            payload["storage"] = manifest.get("selected_storage") or manifest.get("storage") or "auto"
+
+    provider_preference = payload.get("provider_preference")
+    normalized = normalize_provider_preference(provider_preference)
+    payload["provider_preference"] = normalized or ["wasm"]
+    payload["storage"] = str(payload.get("storage") or "auto").strip() or "auto"
+    payload["public_base_url"] = str(payload.get("public_base_url") or "").strip()
+    payload["public_backend_url"] = str(payload.get("public_backend_url") or "").strip()
+    return payload
 
 def normalize_provider_preference(value):
     if isinstance(value, str):
@@ -4749,6 +4762,8 @@ def status():
         "torch_runtime_available": large_model_torch_available(current_model_id),
         "onnx_runtime_available": large_model_onnx_available(current_model_id),
         "large_model_available": large_model_available(current_model_id),
+        "onnxruntime_imported": ort is not None,
+        "numpy_imported": np is not None,
         "preferred_checkpoint": str(preferred_checkpoint_path_for(current_model_id) or ""),
         "tokenizer_path": str(tokenizer_path_for(current_model_id)),
         "backend": detect_100m_backend(),
