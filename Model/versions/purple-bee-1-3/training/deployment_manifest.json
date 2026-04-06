@@ -4,18 +4,18 @@
   "browser_dir": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package",
   "browser_bundle_mode": "browser-package",
   "artifacts": {
-    "onnx": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx",
-    "onnx_data": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3.onnx.data",
+    "onnx": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\purple-bee-1-3-int8.onnx",
+    "onnx_data": "",
     "tokenizer": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\tokenizer.json",
     "manifest": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\browser-manifest.json",
     "package_report": "D:\\Purple Bee AI\\Model\\versions\\purple-bee-1-3\\browser_package\\package-report.json"
   },
   "remote_asset_urls": {},
   "sizes": {
-    "onnx": 68144,
-    "onnx_data": 444858368,
-    "tokenizer": 1859990,
-    "largest_file": 444858368
+    "onnx": 112072646,
+    "onnx_data": 0,
+    "tokenizer": 389579,
+    "largest_file": 112072646
   },
   "static_asset_safe_limit": 26214400,
   "static_assets_ready": true,

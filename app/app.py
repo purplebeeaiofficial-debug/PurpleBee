@@ -712,10 +712,15 @@ def resolve_server_onnx_assets(model_id=None):
         return local_onnx, local_tokenizer, local_data
 
     deployment_manifest = load_json_if_exists(deployment_manifest_path_for(model_id))
+    browser_manifest = load_json_if_exists(package_dir / "browser-manifest.json")
+    browser_assets = browser_manifest.get("browser_assets") or {}
     artifacts = deployment_manifest.get("artifacts") or {}
-    onnx_name = Path(str(artifacts.get("onnx") or "purple-bee-1-3.onnx")).name
-    onnx_data_name = Path(str(artifacts.get("onnx_data") or "purple-bee-1-3.onnx.data")).name
-    tokenizer_name = Path(str(artifacts.get("tokenizer") or "tokenizer.json")).name
+    onnx_name = Path(str(browser_assets.get("onnx") or artifacts.get("onnx") or "purple-bee-1-3.onnx")).name
+    onnx_data_raw = browser_assets.get("onnx_data")
+    if onnx_data_raw is None:
+        onnx_data_raw = artifacts.get("onnx_data") or ""
+    onnx_data_name = Path(str(onnx_data_raw)).name if str(onnx_data_raw).strip() else ""
+    tokenizer_name = Path(str(browser_assets.get("tokenizer") or artifacts.get("tokenizer") or "tokenizer.json")).name
 
     deployment_cfg = load_deployment_config()
     public_base_url = str(deployment_cfg.get("public_base_url") or deployment_manifest.get("public_base_url") or "").rstrip("/")

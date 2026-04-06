@@ -3,9 +3,9 @@
   "model_id": "purple-bee-1-3",
   "display_name": "Purple Bee 1.3",
   "browser_assets": {
-    "onnx": "purple-bee-1-3.onnx",
+    "onnx": "purple-bee-1-3-int8.onnx",
     "tokenizer": "tokenizer.json",
-    "onnx_data": "purple-bee-1-3.onnx.data"
+    "onnx_data": null
   },
   "runtime": {
     "provider_preference": [

@@ -45,9 +45,21 @@ def load_hf_auth() -> tuple[str, str]:
 
 
 def find_browser_artifacts() -> tuple[Path, Path, Path | None]:
-    onnx_file = next(iter(sorted(PKG_DIR.glob("*.onnx"))), None)
-    onnx_data_file = next(iter(sorted(PKG_DIR.glob("*.onnx.data"))), None)
+    browser_manifest = load_json(PKG_DIR / "browser-manifest.json")
+    browser_assets = browser_manifest.get("browser_assets") or {}
+    onnx_name = str(browser_assets.get("onnx") or "").strip()
+    tokenizer_name = str(browser_assets.get("tokenizer") or "tokenizer.json").strip()
+    onnx_data_name = str(browser_assets.get("onnx_data") or "").strip()
+
+    onnx_file = (PKG_DIR / onnx_name) if onnx_name else None
+    onnx_data_file = (PKG_DIR / onnx_data_name) if onnx_data_name else None
     tokenizer_file = PKG_DIR / "tokenizer.json"
+    if onnx_file is None or not onnx_file.exists():
+        onnx_file = next(iter(sorted(PKG_DIR.glob("*.onnx"))), None)
+    if tokenizer_name:
+        tokenizer_file = PKG_DIR / tokenizer_name
+    if not onnx_data_name:
+        onnx_data_file = None
     if onnx_file is None or not onnx_file.exists():
         raise RuntimeError(f"No ONNX file found in {PKG_DIR}")
     if not tokenizer_file.exists():
