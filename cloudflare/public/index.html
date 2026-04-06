@@ -234,6 +234,62 @@
   .memory-item-body{font-size:11px;color:var(--text-2);margin-top:4px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
   .memory-empty{font-size:11px;color:var(--text-3)}
 
+  .pbx-assets-backdrop{
+    position:fixed;inset:0;background:rgba(9,10,16,.58);backdrop-filter:blur(10px);display:none;
+    align-items:center;justify-content:center;padding:20px;z-index:1200;
+  }
+  .pbx-assets-backdrop.open{display:flex}
+  .pbx-assets-dialog{
+    width:min(920px,calc(100vw - 32px));max-height:min(88vh,900px);overflow:auto;background:var(--card);
+    border:1px solid var(--border);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.35)
+  }
+  .pbx-assets-header{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 24px 18px;border-bottom:1px solid var(--border)
+  }
+  .pbx-assets-title{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-.3px}
+  .pbx-assets-subtitle{margin-top:8px;font-size:13px;line-height:1.65;color:var(--text-2);max-width:620px}
+  .pbx-assets-close{
+    width:40px;height:40px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0
+  }
+  .pbx-assets-content{padding:20px 24px 24px;display:grid;gap:16px}
+  .pbx-assets-status-card,.pbx-assets-files-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:16px
+  }
+  .pbx-assets-status-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .pbx-assets-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700}
+  .pbx-assets-status-title{font-size:17px;font-weight:800;color:var(--text)}
+  .pbx-assets-status-body{margin-top:8px;font-size:13px;line-height:1.7;color:var(--text-2)}
+  .pbx-assets-mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+  .pbx-assets-mini{
+    padding:12px;border-radius:16px;background:var(--card);border:1px solid var(--border)
+  }
+  .pbx-assets-mini-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+  .pbx-assets-mini-value{margin-top:6px;font-size:13px;font-weight:700;color:var(--text)}
+  .pbx-assets-files-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .pbx-assets-files-title{font-size:15px;font-weight:800;color:var(--text)}
+  .pbx-assets-files-sub{margin-top:6px;font-size:12px;color:var(--text-2);line-height:1.6}
+  .pbx-assets-list{margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .pbx-assets-item{
+    display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border);min-width:0
+  }
+  .pbx-assets-item-icon{
+    width:36px;height:36px;border-radius:12px;background:rgba(139,92,246,.12);color:var(--accent-light);display:flex;align-items:center;justify-content:center;flex-shrink:0
+  }
+  .pbx-assets-item-main{min-width:0;flex:1}
+  .pbx-assets-item-name{font-size:13px;font-weight:700;color:var(--text);word-break:break-word}
+  .pbx-assets-item-desc{margin-top:5px;font-size:11px;line-height:1.55;color:var(--text-2)}
+  .pbx-assets-item-kind{margin-top:8px;font-size:10px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase}
+  .pbx-assets-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}
+  .pbx-assets-btn{
+    min-height:44px;padding:11px 16px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:13px;font-weight:700
+  }
+  .pbx-assets-btn:hover{background:var(--card-hover)}
+  .pbx-assets-btn.primary{border:none;background:linear-gradient(135deg,var(--accent),#a855f7);color:#fff}
+  .pbx-assets-btn.primary:hover{filter:brightness(1.03)}
+  .pbx-assets-help{font-size:11px;color:var(--text-3);line-height:1.6}
+  body.theme-light .pbx-assets-backdrop{background:rgba(15,23,42,.24)}
+  body.theme-light .pbx-assets-dialog{box-shadow:0 24px 80px rgba(15,23,42,.18)}
+
   @media(max-width:768px){
     #sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);transition:transform var(--transition);z-index:50}
     #sidebar.mobile-open{transform:translateX(0)}
@@ -243,6 +299,11 @@
     .settings-body{grid-template-columns:1fr}
     .settings-header{padding:20px 18px 16px}
     .settings-body{padding:18px}
+    .pbx-assets-header{padding:18px 18px 14px}
+    .pbx-assets-content{padding:16px}
+    .pbx-assets-mini-grid,.pbx-assets-list{grid-template-columns:1fr}
+    .pbx-assets-actions{justify-content:stretch}
+    .pbx-assets-btn{width:100%}
   }
 </style>
 </head>
