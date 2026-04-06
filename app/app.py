@@ -3628,101 +3628,24 @@ def needs_web_search(query):
 def generate_response(query, history=None, use_web=True):
     """
     응답 생성 파이프라인 (스트리밍 제너레이터)
-    1. 100M 모델 추론         — 체크포인트가 정상일 때 우선 시도
-    2. intent_natural_reply   — 모델 실패 시 가벼운 자연어 보조
-    3. fallback_natural_reply — 마지막 안전망
+    Purple Bee 1.3 본체만 응답하도록 유지한다.
+    시드/하드코딩/지식 합성 fallback은 여기서 사용하지 않는다.
     """
     history = history or []
-    direct_seed_reply = retrieve_exact_dialogue_seed_reply(query)
+    full_response = ""
 
-    # ── 0단계: 멀티 도구 자동 감지 및 실행 ─────────────────────────
-    detected_tool = detect_tool_intent(query)
-    if detected_tool == "image_generate":
-        result = tool_image_generate(query)
-        if result.get("type") == "image_url":
-            img_url = result["url"]
-            full_response = (
-                result["message"] + "\n\n"
-                + "이미지 URL: " + img_url + "\n"
-                + "(위 URL을 브라우저에서 열면 이미지를 확인할 수 있어요)"
-            )
-        else:
-            full_response = result.get("message", "이미지 생성 중 오류가 발생했어요.")
-    elif detected_tool == "image_analyze":
-        result = tool_image_analyze()
-        full_response = result.get("message", "이미지 분석을 시작하려면 이미지 파일이나 URL이 필요해요.")
-    elif detected_tool == "document_analyze":
-        result = tool_document_analyze(text_content=query)
-        full_response = result.get("message", "문서 분석 중 오류가 발생했어요.")
-    elif detected_tool == "file_generate":
-        full_response = (
-            "파일 생성을 도와드릴 수 있어요. 다만 지금 메시지에는 저장할 파일명이나 내용이 부족해요.\n"
-            "예를 들어 'test.py 파일로 hello world 코드 저장해줘'처럼 파일명과 내용을 함께 적어주시면 바로 이어서 처리할게요."
-        )
-    elif detected_tool == "creative":
-        result = tool_creative_brainstorm(query)
-        full_response = result.get("message", "아이디어 생성 중 오류가 발생했어요.")
-    elif detected_tool == "empathy":
-        result = tool_empathy_response(query)
-        full_response = result.get("message", "")
-
-    else:
-        if direct_seed_reply:
-            full_response = direct_seed_reply
-        else:
-        # ── 1단계: 100M 모델 우선 시도 ─────────────────────────────────
+    model_reply = None
+    if large_model_available():
+        try:
+            model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=96)
+        except Exception:
             model_reply = None
-            if large_model_available():
-                try:
-                    model_reply = generate_100m_chat_reply(query, history=history, max_new_tokens=96)
-                except Exception:
-                    model_reply = None
 
-            if model_reply and not looks_unusable_reply(model_reply, query=query):
-                full_response = model_reply
+    if model_reply and not looks_unusable_reply(model_reply, query=query):
+        full_response = normalize_corpus_text(model_reply).strip()
 
-            else:
-                seed_reply = retrieve_dialogue_seed_reply(query)
-                if seed_reply:
-                    full_response = seed_reply
-
-                else:
-                    # ── 2단계: 최소 사회적 인텐트 보조 ─────────────────────
-                    preferred_reply = intent_natural_reply(query, history=history)
-                    if preferred_reply is not None:
-                        full_response = preferred_reply
-                    else:
-                        # ── 3단계: 자연어 합성 fallback ───────────────────
-                        snippets = _local_kb_snippets(query)
-
-                        if use_web and len(snippets) < 2:
-                            try:
-                                web_snips = _search_web_snippets(query, max_results=5)
-                                snippets = web_snips + snippets
-                                if web_snips:
-                                    def _bg_save(q=query, snips=web_snips):
-                                        try:
-                                            conn = sqlite3.connect(DB_PATH)
-                                            c = conn.cursor()
-                                            combined = " ".join(snips)
-                                            c.execute(
-                                                "INSERT OR IGNORE INTO knowledge (url, title, content, category, fetched_at) VALUES (?,?,?,?,?)",
-                                                ("web:" + __import__("hashlib").md5(q.encode()).hexdigest(), q[:80], combined[:4000], "web", __import__("datetime").datetime.now().isoformat())
-                                            )
-                                            conn.commit()
-                                            conn.close()
-                                        except Exception:
-                                            pass
-                                    threading.Thread(target=_bg_save, daemon=True).start()
-                            except Exception:
-                                pass
-
-                        lang = detect_reply_language(query, history=history)
-                        composed = _compose_natural_answer(query, snippets, history, lang)
-                        if composed:
-                            full_response = composed
-                        else:
-                            full_response = fallback_natural_reply(query, history=history)
+    if not full_response:
+        return
 
     # ── 스트리밍 출력 ────────────────────────────────────────────
     # 단어 단위 스트리밍 (자연스러운 타이핑 효과)
@@ -4523,8 +4446,11 @@ def pbx_chat():
         for chunk in generate_response(query, history, use_web):
             full.append(chunk)
             yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
-        final_text = "".join(full)
-        yield f"data: {json.dumps({'done': True, 'full': final_text}, ensure_ascii=False)}\n\n"
+        final_text = "".join(full).strip()
+        if not final_text:
+            yield f"data: {json.dumps({'done': True, 'full': '', 'ok': False, 'code': 'PB-ANSWER-FAILED'}, ensure_ascii=False)}\n\n"
+            return
+        yield f"data: {json.dumps({'done': True, 'full': final_text, 'ok': True}, ensure_ascii=False)}\n\n"
         try:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
@@ -4564,7 +4490,14 @@ def pbx_chat_sync():
         return jsonify({"error": "메시지가 비어 있어요."}), 400
 
     chunks = list(generate_response(query, history, use_web))
-    full = "".join(chunks)
+    full = "".join(chunks).strip()
+    if not full:
+        return local_runtime_corsify(jsonify({
+            "reply": "",
+            "ok": False,
+            "code": "PB-ANSWER-FAILED",
+            "error": "model_generation_failed",
+        })), 503
     return local_runtime_corsify(jsonify({"reply": full, "ok": True}))
 
 @app.route("/api/local_runtime/status", methods=["GET", "OPTIONS"])

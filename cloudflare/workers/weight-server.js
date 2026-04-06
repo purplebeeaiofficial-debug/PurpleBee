@@ -148,18 +148,16 @@ async function handlePbxChat(request, env, streaming) {
   const publicBackend = await resolvePublicBackendConfig(request, env);
   const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
   if (!upstreamBase) {
-    const fallback = await buildWebsiteRuntimeReplyV3(userMessage, body.history || [], env);
     if (streaming) {
       const enc = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: fallback })}\n\n`));
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: fallback })}\n\n`));
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "public_backend_not_configured" })}\n\n`));
           controller.close();
         },
       });
       return new Response(stream, {
-        status: 200,
+        status: 503,
         headers: {
           ...corsH,
           "Content-Type": "text/event-stream",
@@ -169,12 +167,12 @@ async function handlePbxChat(request, env, streaming) {
       });
     }
     return new Response(JSON.stringify({
-      ok: true,
-      reply: fallback,
-      mode: "worker-server-runtime",
-      note: "Public Purple Bee backend is not configured yet, so the built-in website runtime answered instead.",
+      ok: false,
+      reply: "",
+      code: "PB-ANSWER-FAILED",
+      error: "public_backend_not_configured",
     }), {
-      status: 200,
+      status: 503,
       headers: { ...corsH, "Content-Type": "application/json" },
     });
   }
@@ -186,11 +184,42 @@ async function handlePbxChat(request, env, streaming) {
     upstreamHeaders.set("X-Api-Key", upstreamApiKey);
   }
 
-  const upstreamResponse = await fetch(upstreamUrl, {
-    method: "POST",
-    headers: upstreamHeaders,
-    body: JSON.stringify(body),
-  });
+  let upstreamResponse;
+  try {
+    upstreamResponse = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: upstreamHeaders,
+      body: JSON.stringify(body),
+    });
+  } catch (_error) {
+    if (streaming) {
+      const enc = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "public_backend_unreachable" })}\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 502,
+        headers: {
+          ...corsH,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+    return new Response(JSON.stringify({
+      ok: false,
+      reply: "",
+      code: "PB-ANSWER-FAILED",
+      error: "public_backend_unreachable",
+    }), {
+      status: 502,
+      headers: { ...corsH, "Content-Type": "application/json" },
+    });
+  }
 
   const headers = new Headers({
     ...corsH,

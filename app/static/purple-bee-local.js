@@ -7487,7 +7487,6 @@ async function generateReasonedChatReply(prompt, language) {
   async function buildReply(userEntry) {
     const prompt = trim(userEntry.content) || (getActiveUiLanguage() === "ko" ? "질문을 입력해 주세요." : "Please enter a message.");
     const language = getReplyLanguage(prompt, []);
-    const loweredPrompt = lower(prompt);
 
     const memoryRequest = pbxExtractMemoryRequest(prompt);
     if (memoryRequest) {
@@ -8498,28 +8497,8 @@ async function generateReasonedChatReply(prompt, language) {
       return { text: pbxMemorySummary(language), meta: "" };
     }
 
-    const currentDocs = attachmentsToDocuments(userEntry.attachments);
-    if (currentDocs.length) {
-      const docReply = replyFromDocuments(prompt, currentDocs, {
-        metaPrefix: getAttachmentMetaPrefix(language),
-        language,
-        style: getReplyStyle(prompt, "general"),
-      });
-      if (docReply) return docReply;
-    }
-
-    if (!currentDocs.length && isWeatherQuestion(loweredPrompt)) {
-      const weatherReply = await buildWeatherReply(prompt, language);
-      if (weatherReply) return weatherReply;
-      return { text: buildWeatherMissingLocationReply(language), meta: "" };
-    }
-
-    if (!currentDocs.length && isWebsiteSearchPrompt(loweredPrompt)) {
-      const searchReply = buildWebsiteSearchReply(prompt, language);
-      if (searchReply) return searchReply;
-    }
-
     const previousPrompt = trim(previousUserPrompt(userEntry.id));
+    const loweredPrompt = lower(prompt);
     const isCorrectionTurn = isNegativeCorrectionPrompt(loweredPrompt) || isConfusionPrompt(loweredPrompt);
     const modelPrompt = isCorrectionTurn && previousPrompt
       ? `${previousPrompt}\n\nThe previous answer missed the user's intent. Now answer this follow-up directly.\n\n${prompt}`
