@@ -177,7 +177,7 @@ async function handlePbxChat(request, env, streaming) {
     });
   }
 
-  const upstreamUrl = `${upstreamBase}${streaming ? "/api/pbx_chat" : "/api/pbx_chat_sync"}`;
+  const upstreamUrl = `${upstreamBase}/api/pbx_chat_sync`;
   const upstreamHeaders = new Headers({ "Content-Type": "application/json" });
   const upstreamApiKey = String(env.PURPLE_BEE_PUBLIC_API_KEY || "").trim();
   if (upstreamApiKey) {
@@ -221,18 +221,82 @@ async function handlePbxChat(request, env, streaming) {
     });
   }
 
-  const headers = new Headers({
-    ...corsH,
-    "Cache-Control": streaming ? "no-cache" : "no-store",
-    "Content-Type": upstreamResponse.headers.get("content-type") || (streaming ? "text/event-stream" : "application/json"),
-  });
-  if (streaming) {
-    headers.set("X-Accel-Buffering", "no");
+  let upstreamPayload = null;
+  try {
+    upstreamPayload = await upstreamResponse.clone().json();
+  } catch (_error) {
+    upstreamPayload = null;
   }
 
-  return new Response(upstreamResponse.body, {
-    status: upstreamResponse.status,
-    headers,
+  const upstreamReply = String(upstreamPayload?.reply || "").trim();
+  const upstreamOk = Boolean(upstreamPayload?.ok) && !!upstreamReply;
+  if (!upstreamResponse.ok || !upstreamOk || looksLikeFixedWebsiteReply(upstreamReply)) {
+    if (streaming) {
+      const enc = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "model_generation_failed" })}\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 503,
+        headers: {
+          ...corsH,
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+    return new Response(JSON.stringify({
+      ok: false,
+      reply: "",
+      code: "PB-ANSWER-FAILED",
+      error: "model_generation_failed",
+    }), {
+      status: 503,
+      headers: { ...corsH, "Content-Type": "application/json" },
+    });
+  }
+
+  if (streaming) {
+    const enc = new TextEncoder();
+    const words = upstreamReply.split(/\s+/).filter(Boolean);
+    const stream = new ReadableStream({
+      start(controller) {
+        let chunk = [];
+        for (const word of words) {
+          chunk.push(word);
+          if (chunk.length >= 5) {
+            controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: `${chunk.join(" ")} ` })}\n\n`));
+            chunk = [];
+          }
+        }
+        if (chunk.length) {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: chunk.join(" ") })}\n\n`));
+        }
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: upstreamReply, ok: true })}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        ...corsH,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+
+  return new Response(JSON.stringify({
+    ok: true,
+    reply: upstreamReply,
+  }), {
+    status: 200,
+    headers: { ...corsH, "Content-Type": "application/json" },
   });
 }
 
@@ -287,6 +351,23 @@ function buildRuleBasedReply(query) {
     return "강아지는 사람과 오래 함께해 온 대표적인 반려동물이에요.";
   }
   return "지금은 Purple Bee 공개 백엔드 연결이 준비되지 않아 간단 응답만 제공 중이에요.";
+}
+
+function looksLikeFixedWebsiteReply(reply) {
+  const text = String(reply || "").trim();
+  if (!text) return true;
+  const lowered = text.toLowerCase();
+  const rigidMarkers = [
+    "조금 더 자세하게 설명해 주시면",
+    "어떤 부분이 궁금하신지 조금 더 말씀해 주세요",
+    "안녕하세요! 오늘도 좋은 하루 되세요",
+    "반갑습니다! 무엇이든 물어보세요",
+    "최대한 도와드릴게요",
+    "궁금한 게 있으면 편하게 말씀해 주세요",
+    "what part would you like to know more about",
+    "tell me a bit more",
+  ];
+  return rigidMarkers.some((marker) => lowered.includes(marker.toLowerCase()));
 }
 
 async function buildWebsiteRuntimeReplyV2(query, history) {
