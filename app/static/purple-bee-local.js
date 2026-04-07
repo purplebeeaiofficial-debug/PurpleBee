@@ -6113,14 +6113,51 @@ async function generateReasonedChatReply(prompt, language) {
 
   function pbxOpenUpgradePage(event) {
     if (event && typeof event.preventDefault === "function") event.preventDefault();
-    pbxOpenContributorHub();
+    pbxOpenContributorHub("plans");
   }
 
-  function pbxOpenContributorHub() {
+  function pbxOpenContributorHub(mode = "status") {
     const backdrop = document.getElementById("contributor-hub-backdrop");
     const frame = document.getElementById("contributor-hub-frame");
+    const titleNode = document.getElementById("contributor-hub-title");
+    const subtitleNode = document.getElementById("contributor-hub-subtitle");
+    const footLeftNode = document.getElementById("contributor-hub-foot-left");
+    const footRightNode = document.getElementById("contributor-hub-foot-right");
     if (!backdrop || !frame) return;
-    frame.src = `/${pbxContributorLocalePrefix()}/index/purple-bee/pricing/`;
+    const safeMode = mode === "plans" ? "plans" : "status";
+    if (titleNode) {
+      titleNode.textContent = safeMode === "plans"
+        ? (getActiveUiLanguage() === "ko" ? "플랜 업그레이드" : "Upgrade plans")
+        : (getActiveUiLanguage() === "ko" ? "기여 구독 상태" : "Contributor status");
+    }
+    if (subtitleNode) {
+      subtitleNode.textContent = safeMode === "plans"
+        ? (getActiveUiLanguage() === "ko"
+          ? "Free, Basic, Plus, Pro 플랜 차이와 혜택만 한눈에 볼 수 있어요."
+          : "See only the Free, Basic, Plus, and Pro plan differences in one place.")
+        : (getActiveUiLanguage() === "ko"
+          ? "기여 앱 연결, 예약 시간, 연결 기기 상태를 한 화면에서 관리할 수 있어요."
+          : "Manage contributor app sync, reservations, and device status in one place.");
+    }
+    if (footLeftNode) {
+      footLeftNode.textContent = safeMode === "plans"
+        ? (getActiveUiLanguage() === "ko"
+          ? "Free에서는 내 기기 연산만 사용하고, Basic 이상부터 분산 보조 연산 모드를 선택할 수 있어요."
+          : "Free uses local compute only. Basic and above can choose distributed assist modes.")
+        : (getActiveUiLanguage() === "ko"
+          ? "기여 예약은 기여 앱 설치와 사이트 동기화가 확인된 뒤에만 활성화됩니다."
+          : "Contributor reservations unlock only after the app is installed and synced.")
+    }
+    if (footRightNode) {
+      footRightNode.textContent = safeMode === "plans"
+        ? (getActiveUiLanguage() === "ko"
+          ? "정확한 기기 판정과 예약 기여 실행은 기여 앱에서 처리됩니다."
+          : "Exact hardware checks and scheduled contribution run inside the contributor app.")
+        : (getActiveUiLanguage() === "ko"
+          ? "연결 기기가 끊기면 예약 저장이 잠기고, 다시 동기화하면 바로 복구됩니다."
+          : "If the linked device disconnects, reservations lock until sync is restored.");
+    }
+    frame.src = `/${pbxContributorLocalePrefix()}/index/purple-bee/pricing/?embed=${safeMode}`;
     backdrop.classList.add("open");
   }
 
