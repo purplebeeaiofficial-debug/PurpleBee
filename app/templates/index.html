@@ -275,6 +275,18 @@
   .pbx-assets-spec-check{font-weight:800}
   .pbx-assets-spec-check.ok{color:var(--green)}
   .pbx-assets-spec-check.no{color:var(--red)}
+  .pbx-assets-model-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .pbx-assets-model-option{
+    display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border);cursor:pointer
+  }
+  .pbx-assets-model-option.selected{border-color:rgba(139,92,246,.55);box-shadow:0 0 0 1px rgba(139,92,246,.18) inset}
+  .pbx-assets-model-option input{margin-top:2px;accent-color:var(--accent)}
+  .pbx-assets-model-option-main{min-width:0;flex:1}
+  .pbx-assets-model-option-title{font-size:13px;font-weight:800;color:var(--text)}
+  .pbx-assets-model-option-sub{margin-top:5px;font-size:11px;line-height:1.5;color:var(--text-2)}
+  .pbx-assets-model-option-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+  .pbx-assets-model-badge{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:rgba(139,92,246,.12);color:var(--accent-light);font-size:10px;font-weight:700}
+  .pbx-assets-model-badge.active{background:rgba(16,185,129,.12);color:var(--green)}
   .pbx-assets-progress{margin-top:14px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border)}
   .pbx-assets-progress-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .pbx-assets-progress-title{font-size:13px;font-weight:800;color:var(--text)}
@@ -306,6 +318,7 @@
   @media(max-width:980px){
     .pbx-assets-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
     .pbx-assets-spec-grid{grid-template-columns:1fr}
+    .pbx-assets-model-picker{grid-template-columns:1fr}
     .pbx-assets-list{grid-template-columns:1fr}
   }
 
@@ -321,7 +334,7 @@
     .pbx-assets-header{padding:18px 18px 14px}
     .pbx-assets-content{padding:16px}
     .pbx-assets-dialog{width:min(100vw - 16px,980px);max-height:min(92vh,900px);border-radius:20px}
-    .pbx-assets-mini-grid,.pbx-assets-list{grid-template-columns:1fr}
+    .pbx-assets-mini-grid,.pbx-assets-list,.pbx-assets-model-picker{grid-template-columns:1fr}
     .pbx-assets-actions{justify-content:stretch}
     .pbx-assets-btn{width:100%}
   }
@@ -705,6 +718,6 @@
 
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260407b"></script>
+  <script src="/static/purple-bee-local.js?v=20260407c"></script>
 </body>
 </html>
