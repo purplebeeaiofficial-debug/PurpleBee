@@ -5296,8 +5296,9 @@ def render_site_marketing(page_key: str, locale: str):
     locale = normalize_site_locale(locale)
     bundle = SITE_COPY.get(locale, SITE_COPY["en-US"])
     path_suffix = "/" if page_key == "home" else f"/{page_key}/"
+    template_name = "purplebee-pricing-page.html" if page_key == "pricing" else "purplebee-site-page.html"
     return render_template(
-        "purplebee-site-page.html",
+        template_name,
         site_locale=locale,
         site_lang=SUPPORTED_SITE_LOCALES.get(locale, "en"),
         base_prefix=build_site_prefix(locale),

@@ -68,6 +68,11 @@
   .contributor-card-stat-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
   .contributor-card-stat-value{margin-top:5px;font-size:13px;font-weight:800;color:var(--text);line-height:1.4}
   .contributor-card-note{font-size:11px;color:var(--text-2);line-height:1.55}
+  .contributor-card-device{
+    padding:10px 11px;border-radius:12px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.14)
+  }
+  .contributor-card-device-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+  .contributor-card-device-value{margin-top:6px;font-size:12px;font-weight:700;color:var(--text);line-height:1.55;overflow-wrap:anywhere}
   .contributor-card-actions{display:flex;gap:8px;flex-wrap:wrap}
   .contributor-card-btn{
     flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);
@@ -472,8 +477,13 @@
       </div>
     </div>
     <div class="contributor-card-note" id="contributor-card-note">Reserve contribution time to unlock higher plans and priority routing.</div>
+    <div class="contributor-card-device">
+      <div class="contributor-card-device-label" id="contributor-device-label">Linked device</div>
+      <div class="contributor-card-device-value" id="contributor-device-value">No device linked yet.</div>
+    </div>
     <div class="contributor-card-actions">
       <button class="contributor-card-btn primary" type="button" id="contributor-upgrade-btn" onclick="openUpgradePage()">Open plans</button>
+      <button class="contributor-card-btn" type="button" id="contributor-download-btn" onclick="downloadContributorApp()">Download app</button>
       <button class="contributor-card-btn" type="button" id="contributor-refresh-btn" onclick="refreshContributorSidebar()">Refresh</button>
     </div>
   </section>

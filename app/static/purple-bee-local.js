@@ -5990,10 +5990,13 @@ async function generateReasonedChatReply(prompt, language) {
         cardSub: "예약한 기여 시간과 현재 활성 플랜을 한눈에 확인할 수 있어요.",
         labels: { plan: "플랜", premium: "프리미엄", queue: "큐", next: "다음 기여" },
         values: { inactive: "비활성", active: "활성", standard: "표준", none: "없음", free: "Free" },
+        deviceLabel: "연결된 기기",
+        deviceCount: "{count}대 연결됨",
         noteAnon: "Google 로그인 후 사용자별 기여 일정과 구독 상태를 관리할 수 있어요.",
         noteFree: "기여 시간을 예약하면 Basic, Plus, Pro 혜택을 바로 활성화할 수 있어요.",
         noteActive: "현재 기여 기반 구독이 활성화되어 있어요. 예약을 추가하면 혜택 기간을 이어갈 수 있어요.",
         openPlans: "플랜 보기",
+        downloadApp: "기여 앱 다운로드",
         refresh: "상태 새로고침",
       };
     }
@@ -6019,10 +6022,13 @@ async function generateReasonedChatReply(prompt, language) {
       cardSub: "Check your reserved contribution windows and active plan in one place.",
       labels: { plan: "Plan", premium: "Premium", queue: "Queue", next: "Next window" },
       values: { inactive: "Inactive", active: "Active", standard: "Standard", none: "None", free: "Free" },
+      deviceLabel: "Linked device",
+      deviceCount: "{count} linked",
       noteAnon: "Sign in with Google to manage contributor windows and plan status per account.",
       noteFree: "Reserve contribution time to unlock Basic, Plus, and Pro benefits.",
       noteActive: "A contributor subscription is active. Add another reservation to extend access.",
       openPlans: "Open plans",
+      downloadApp: "Download app",
       refresh: "Refresh",
     };
   }
@@ -6034,6 +6040,32 @@ async function generateReasonedChatReply(prompt, language) {
         ? "ja-JP"
         : "en-US";
     window.location.href = `/${locale}/index/purple-bee/pricing/`;
+  }
+
+  async function pbxDownloadContributorApp() {
+    const user = pbxCurrentUser();
+    if (!user) {
+      showToast(getActiveUiLanguage() === "ko" ? "Google 로그인 후 기여 앱을 내려받을 수 있어요." : "Sign in with Google before downloading the contributor app.");
+      return;
+    }
+    const userId = pbxContributorUserId();
+    const displayName = trim(user?.name || user?.email || "");
+    try {
+      const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(userId)}&display_name=${encodeURIComponent(displayName)}`);
+      if (!response.ok) throw new Error(`download-${response.status}`);
+      const blob = await response.blob();
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = `purple-bee-contributor-${userId.slice(0, 12)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(href), 1500);
+      showToast(getActiveUiLanguage() === "ko" ? "기여 앱 다운로드를 시작했어요." : "Contributor app download started.");
+    } catch (_error) {
+      showToast(getActiveUiLanguage() === "ko" ? "기여 앱 다운로드를 시작할 수 없어요." : "Unable to start the contributor app download.");
+    }
   }
 
   function pbxContributorUserId() {
@@ -6078,9 +6110,13 @@ async function generateReasonedChatReply(prompt, language) {
     const nextNode = document.getElementById("contributor-next-value");
     const pillNode = document.getElementById("contributor-card-pill");
     const noteNode = document.getElementById("contributor-card-note");
-    if (!planNode || !premiumNode || !queueNode || !nextNode || !pillNode || !noteNode) return;
+    const deviceLabelNode = document.getElementById("contributor-device-label");
+    const deviceNode = document.getElementById("contributor-device-value");
+    if (!planNode || !premiumNode || !queueNode || !nextNode || !pillNode || !noteNode || !deviceNode || !deviceLabelNode) return;
 
     const user = pbxCurrentUser();
+    setText("contributor-download-btn", copy.downloadApp);
+    deviceLabelNode.textContent = copy.deviceLabel;
     if (!user) {
       planNode.textContent = copy.values.free;
       premiumNode.textContent = copy.values.inactive;
@@ -6088,6 +6124,7 @@ async function generateReasonedChatReply(prompt, language) {
       nextNode.textContent = copy.values.none;
       pillNode.textContent = copy.values.free;
       noteNode.textContent = copy.noteAnon;
+      deviceNode.textContent = copy.values.none;
       return;
     }
 
@@ -6097,6 +6134,7 @@ async function generateReasonedChatReply(prompt, language) {
       if (!payload || !payload.ok) throw new Error("status-unavailable");
       const account = payload.account || {};
       const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+      const devices = Array.isArray(payload.devices) ? payload.devices : [];
       const nextReservation = reservations.find((item) => String(item.status || "").toLowerCase() === "scheduled") || reservations[0] || null;
       const plan = trim(account.plan || "Free");
       const premiumActive = !!payload.premium_active;
@@ -6106,6 +6144,7 @@ async function generateReasonedChatReply(prompt, language) {
       nextNode.textContent = nextReservation ? pbxFormatContributorDate(nextReservation.starts_at) : copy.values.none;
       pillNode.textContent = premiumActive ? `${plan} Active` : plan;
       noteNode.textContent = premiumActive ? copy.noteActive : copy.noteFree;
+      deviceNode.textContent = trim(payload.exact_device_summary || "") || (devices.length ? copy.deviceCount.replace("{count}", String(devices.length)) : copy.values.none);
     } catch (_error) {
       planNode.textContent = copy.values.free;
       premiumNode.textContent = copy.values.inactive;
@@ -6113,6 +6152,7 @@ async function generateReasonedChatReply(prompt, language) {
       nextNode.textContent = copy.values.none;
       pillNode.textContent = copy.values.free;
       noteNode.textContent = copy.noteFree;
+      deviceNode.textContent = copy.values.none;
     }
   }
 
@@ -10485,6 +10525,7 @@ async function generateReasonedChatReply(prompt, language) {
     logoutUser,
     linkAiAssetsFolder,
     openUpgradePage: pbxOpenUpgradePage,
+    downloadContributorApp: pbxDownloadContributorApp,
     refreshContributorSidebar: pbxRefreshContributorSidebar,
     renameConversationFromMenu,
     deleteConversationFromMenu,

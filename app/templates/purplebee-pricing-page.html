@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="{{ site_lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee Pricing</title>
+<style>
+  :root{
+    --bg:#f6f7fb;--panel:#fff;--text:#111827;--sub:#4b5563;--line:#d8e0ec;
+    --accent:#6d28d9;--accent2:#ec4899;--shadow:0 20px 70px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans KR","Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+  a{text-decoration:none;color:inherit}
+  .wrap{width:min(1200px,calc(100% - 32px));margin:0 auto}
+  header{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.9);backdrop-filter:blur(18px);border-bottom:1px solid rgba(216,224,236,.9)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:900}
+  .brand-mark{width:16px;height:16px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .menu{display:flex;gap:16px;flex-wrap:wrap;color:var(--sub);font-size:14px}
+  .menu a.active{color:var(--text);font-weight:800}
+  .locale-switch{display:flex;gap:8px;flex-wrap:wrap}
+  .locale-chip,.cta,.ghost{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:800}
+  .locale-chip.active,.cta{background:#111827;color:#fff;border-color:#111827}
+  main{padding:38px 0 44px}
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}
+  .hero-card,.section,.plan,.contrib-card{background:#fff;border:1px solid var(--line);border-radius:28px;box-shadow:var(--shadow)}
+  .hero-card{padding:34px}
+  .eyebrow{display:inline-flex;padding:8px 12px;border-radius:999px;background:rgba(109,40,217,.08);color:#5b21b6;font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+  h1{margin-top:18px;font-size:54px;line-height:1;letter-spacing:-.07em}
+  .hero-copy{margin-top:18px;font-size:18px;line-height:1.78;color:var(--sub)}
+  .hero-badges{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .hero-badges span{padding:10px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800}
+  .hero-side{padding:22px;display:grid;gap:14px;background:linear-gradient(135deg,rgba(109,40,217,.08),rgba(236,72,153,.08))}
+  .hero-side-card{padding:18px;border-radius:22px;background:rgba(255,255,255,.92);border:1px solid rgba(216,224,236,.95)}
+  .hero-side-card h3{font-size:18px}
+  .hero-side-card p{margin-top:8px;font-size:14px;color:var(--sub);line-height:1.7}
+  .plans{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:26px 0}
+  .plan{padding:22px;display:flex;flex-direction:column;min-height:420px}
+  .plan.recommended{border-color:rgba(109,40,217,.32);box-shadow:0 20px 60px rgba(109,40,217,.12)}
+  .plan-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .plan-name{font-size:24px;font-weight:900}
+  .plan-badge{padding:5px 9px;border-radius:999px;background:rgba(109,40,217,.1);color:#5b21b6;font-size:11px;font-weight:900}
+  .plan-price{margin-top:16px;font-size:36px;font-weight:900;letter-spacing:-.06em}
+  .plan-meta{margin-top:8px;font-size:13px;color:var(--sub)}
+  .plan ul{margin-top:14px;display:grid;gap:9px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.65}
+  .plan-actions{margin-top:auto;padding-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .plan-btn{padding:11px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:900;cursor:pointer}
+  .plan-btn.primary{background:#111827;color:#fff;border-color:#111827}
+  .contrib-shell{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin:10px 0 30px}
+  .contrib-card{padding:24px}
+  .contrib-card h3{font-size:24px;letter-spacing:-.04em}
+  .contrib-card p{margin-top:8px;color:var(--sub);font-size:14px;line-height:1.7}
+  .contrib-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:12px;font-weight:800;color:var(--sub)}
+  .field input,.field select{width:100%;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:14px}
+  .contrib-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .inline-note{margin-top:10px;font-size:13px;color:var(--sub);line-height:1.7}
+  .contrib-status{display:grid;gap:10px}
+  .status-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid rgba(216,224,236,.7);font-size:14px}
+  .mini-list{display:grid;gap:12px;margin-top:18px}
+  .mini-item{padding:16px;border-radius:18px;background:#f8fafc;border:1px solid var(--line)}
+  .mini-item-title{font-size:12px;font-weight:900;color:var(--sub)}
+  .mini-item-sub{margin-top:8px;font-size:14px;line-height:1.7}
+  .policy-links{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 30px}
+  .policy-link{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
+  footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 34px;color:var(--sub);font-size:13px}
+  @media (max-width:1120px){.hero,.contrib-shell{grid-template-columns:1fr}.plans{grid-template-columns:1fr 1fr}}
+  @media (max-width:760px){.menu{display:none}.plans,.contrib-grid{grid-template-columns:1fr}h1{font-size:40px}.hero-copy{font-size:16px}}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <div class="brand"><span class="brand-mark"></span><span>Purple Bee</span></div>
+      <nav class="menu">
+        <a href="{{ base_prefix }}/">{{ nav.home }}</a>
+        <a href="{{ base_prefix }}/features/">{{ nav.features }}</a>
+        <a href="{{ base_prefix }}/safety/">{{ nav.safety }}</a>
+        <a href="{{ base_prefix }}/architecture/">{{ nav.architecture }}</a>
+        <a class="active" href="{{ base_prefix }}/pricing/">{{ nav.pricing }}</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="locale-switch">
+          {% for item in locale_links %}
+          <a class="locale-chip {{ 'active' if item.locale == site_locale else '' }}" href="{{ item.href }}">{{ item.label }}</a>
+          {% endfor %}
+        </div>
+        <a class="cta" href="/">{{ nav.open_chat }}</a>
+      </div>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="hero">
+      <article class="hero-card">
+        <span class="eyebrow">{{ page.eyebrow }}</span>
+        <h1>{{ page.title }}</h1>
+        <p class="hero-copy">{{ page.description }}</p>
+        <div class="hero-badges">
+          {% for badge in page.badges %}
+          <span>{{ badge }}</span>
+          {% endfor %}
+        </div>
+      </article>
+      <aside class="hero-side">
+        {% for card in page.sections[:2] %}
+        <div class="hero-side-card">
+          <h3>{{ card.title }}</h3>
+          <p>{{ card.text }}</p>
+        </div>
+        {% endfor %}
+      </aside>
+    </section>
+
+    <section class="plans">
+      {% for plan in page.plans %}
+      <article class="plan {{ 'recommended' if plan.recommended else '' }}">
+        <div class="plan-top">
+          <div class="plan-name">{{ plan.name }}</div>
+          <span class="plan-badge">{{ plan.badge }}</span>
+        </div>
+        <div class="plan-price">{{ plan.price }}</div>
+        <div class="plan-meta">{{ plan.meta }}</div>
+        <ul>
+          {% for feature in plan.features %}
+          <li>{{ feature }}</li>
+          {% endfor %}
+        </ul>
+        <div class="plan-actions">
+          <button class="plan-btn primary" type="button" onclick="openContributorReservation('{{ plan.name }}')">{{ contributor_ui.submit }}</button>
+          <a class="plan-btn" href="/">{{ nav.open_chat }}</a>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+
+    <section class="contrib-shell">
+      <article class="contrib-card">
+        <h3>{{ contributor_ui.title }}</h3>
+        <p>{{ contributor_ui.subtitle }}</p>
+        <div class="contrib-grid">
+          <div class="field">
+            <label for="contrib-plan">{{ contributor_ui.plan }}</label>
+            <select id="contrib-plan">
+              {% for plan in page.plans %}
+              <option value="{{ plan.name }}" {% if plan.recommended %}selected{% endif %}>{{ plan.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="contrib-hours">{{ contributor_ui.hours }}</label>
+            <input id="contrib-hours" type="number" min="1" step="1" value="5">
+          </div>
+          <div class="field full">
+            <label for="contrib-start">{{ contributor_ui.starts_at }}</label>
+            <input id="contrib-start" type="datetime-local">
+          </div>
+          <div class="field">
+            <label for="contrib-cpu">{{ contributor_ui.cpu_cap }}</label>
+            <input id="contrib-cpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
+          <div class="field">
+            <label for="contrib-gpu">{{ contributor_ui.gpu_cap }}</label>
+            <input id="contrib-gpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
+        </div>
+        <div class="contrib-actions">
+          <button class="plan-btn primary" type="button" onclick="reserveContributorPlan()">{{ contributor_ui.submit }}</button>
+          <button class="plan-btn" type="button" onclick="downloadContributorApp()">{{ contributor_ui.download_app }}</button>
+          <button class="plan-btn" type="button" onclick="refreshContributorStatus()">{{ contributor_ui.refresh }}</button>
+        </div>
+        <div class="inline-note">{{ contributor_ui.download_hint }}</div>
+        <div class="inline-note" id="contrib-note"></div>
+      </article>
+
+      <article class="contrib-card">
+        <div class="contrib-status">
+          <div class="status-row"><strong>{{ contributor_ui.status_title }}</strong><span id="contrib-plan-status">{{ contributor_ui.status_free }}</span></div>
+          <div class="status-row"><strong>{{ contributor_ui.estimated }}</strong><span id="contrib-estimate">-</span></div>
+          <div class="status-row"><strong>{{ contributor_ui.queue_summary }}</strong><span id="contrib-queue">standard</span></div>
+          <div class="status-row"><strong>{{ contributor_ui.multiplier }}</strong><span id="contrib-multiplier">x1.0</span></div>
+        </div>
+        <div class="mini-list">
+          <div class="mini-item"><div class="mini-item-title">{{ contributor_ui.device_title }}</div><div class="mini-item-sub" id="contrib-device-summary">{{ contributor_ui.device_summary }}</div></div>
+          <div class="mini-item"><div class="mini-item-title">{{ contributor_ui.device_linked }}</div><div class="mini-item-sub" id="contrib-linked-device">{{ contributor_ui.device_missing }}</div></div>
+          <div class="mini-item"><div class="mini-item-title">{{ contributor_ui.device_last_seen }}</div><div class="mini-item-sub" id="contrib-last-seen">-</div></div>
+          <div class="mini-item"><div class="mini-item-title">{{ contributor_ui.history_title }}</div><div class="mini-item-sub" id="contrib-history">{{ contributor_ui.empty_history }}</div></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="policy-links">
+      <a class="policy-link" href="{{ base_prefix }}/legal/terms/">{{ policy_labels.terms }}</a>
+      <a class="policy-link" href="{{ base_prefix }}/legal/privacy/">{{ policy_labels.privacy }}</a>
+      <a class="policy-link" href="{{ base_prefix }}/legal/resource-use/">{{ policy_labels["resource-use"] }}</a>
+    </section>
+  </main>
+  <footer class="wrap">
+    <div>{{ footer_copy }}</div>
+    <div>{{ site_locale }}</div>
+  </footer>
+  <script>
+    const contributorUi = {{ contributor_ui|tojson }};
+    const contributorState = {
+      userId: localStorage.getItem("pb_contributor_user_id") || `pb_${Math.random().toString(36).slice(2, 10)}`,
+      displayName: localStorage.getItem("pb_google_display_name") || "",
+    };
+    localStorage.setItem("pb_contributor_user_id", contributorState.userId);
+
+    function formatContributorDate(value) {
+      if (!value) return "-";
+      try { return new Date(value).toLocaleString(); } catch (_) { return value; }
+    }
+    function describeExactDevice(device) {
+      if (!device) return contributorUi.device_missing;
+      const hardware = device.hardware || {};
+      const parts = [];
+      if (device.device_name) parts.push(device.device_name);
+      if (hardware.cpu_model) parts.push(hardware.cpu_model);
+      if (hardware.memory_gb) parts.push(`RAM ${hardware.memory_gb}GB`);
+      if (hardware.cpu_threads) parts.push(`CPU ${hardware.cpu_threads} threads`);
+      if (hardware.gpu_model) parts.push(hardware.gpu_model);
+      return parts.filter(Boolean).join(" · ") || contributorUi.device_missing;
+    }
+    function setDefaultContributorStart() {
+      const start = document.getElementById("contrib-start");
+      if (!start || start.value) return;
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 30);
+      start.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    async function getDeviceProfile() {
+      let storageGb = 0;
+      if (navigator.storage && navigator.storage.estimate) {
+        try {
+          const estimate = await navigator.storage.estimate();
+          storageGb = Number(((estimate.quota || 0) / 1024 / 1024 / 1024).toFixed(1));
+        } catch (_) {}
+      }
+      return {
+        memory_gb: Number(navigator.deviceMemory || 0),
+        cpu_threads: Number(navigator.hardwareConcurrency || 0),
+        storage_gb: storageGb,
+      };
+    }
+    function openContributorReservation(planName) {
+      const plan = document.getElementById("contrib-plan");
+      const hours = document.getElementById("contrib-hours");
+      if (plan && planName) plan.value = planName;
+      if (hours) {
+        const defaults = { Free: 0, Basic: 1, Plus: 5, Pro: 12 };
+        hours.value = defaults[planName] ?? hours.value;
+      }
+      window.scrollTo({ top: document.body.scrollHeight * 0.45, behavior: "smooth" });
+      refreshContributorQuote();
+    }
+    async function downloadContributorApp() {
+      const note = document.getElementById("contrib-note");
+      contributorState.displayName = localStorage.getItem("pb_google_display_name") || contributorState.displayName || "";
+      note.textContent = "";
+      try {
+        const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(contributorState.userId)}&display_name=${encodeURIComponent(contributorState.displayName || "")}`);
+        if (!response.ok) { note.textContent = "Unable to download contributor app."; return; }
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = `purple-bee-contributor-${contributorState.userId.slice(0, 12)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 1500);
+        note.textContent = contributorUi.download_ready;
+      } catch (_) {
+        note.textContent = "Unable to download contributor app.";
+      }
+    }
+    async function refreshContributorQuote() {
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const deviceProfile = await getDeviceProfile();
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (summaryNode && !summaryNode.dataset.exactDevice) {
+          summaryNode.textContent = `RAM ${deviceProfile.memory_gb || "?"}GB · CPU ${deviceProfile.cpu_threads || "?"} threads · Storage ${deviceProfile.storage_gb || "?"}GB`;
+        }
+        const response = await fetch("/api/contributor/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            device_profile: deviceProfile,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const quote = payload.quote || {};
+        document.getElementById("contrib-estimate").textContent = `${quote.plan} · ${quote.premium_days || 0} day(s) premium`;
+        document.getElementById("contrib-queue").textContent = quote.queue_mode || "standard";
+        document.getElementById("contrib-multiplier").textContent = `x${quote.hardware_multiplier || 1}`;
+      } catch (_) {}
+    }
+    async function refreshContributorStatus() {
+      try {
+        await refreshContributorQuote();
+        const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorState.userId)}`);
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const account = payload.account || {};
+        document.getElementById("contrib-plan-status").textContent = payload.premium_active
+          ? contributorUi.status_active.replace("{plan}", account.plan || "Plus")
+          : contributorUi.status_free;
+        const devices = Array.isArray(payload.devices) ? payload.devices : [];
+        const linked = devices[0] || null;
+        document.getElementById("contrib-linked-device").textContent = linked ? describeExactDevice(linked) : contributorUi.device_missing;
+        document.getElementById("contrib-last-seen").textContent = linked ? formatContributorDate(linked.last_heartbeat_at || linked.updated_at || linked.linked_at) : "-";
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (summaryNode) {
+          if (payload.exact_device_summary) {
+            summaryNode.textContent = payload.exact_device_summary;
+            summaryNode.dataset.exactDevice = "true";
+          } else {
+            delete summaryNode.dataset.exactDevice;
+          }
+        }
+        const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+        document.getElementById("contrib-history").textContent = reservations.length
+          ? reservations.slice(0, 3).map((item) => `${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / ")
+          : contributorUi.empty_history;
+      } catch (_) {}
+    }
+    async function reserveContributorPlan() {
+      const note = document.getElementById("contrib-note");
+      note.textContent = "";
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const startsAt = document.getElementById("contrib-start")?.value;
+        const cpuCap = Number(document.getElementById("contrib-cpu")?.value || 70);
+        const gpuCap = Number(document.getElementById("contrib-gpu")?.value || 70);
+        const deviceProfile = await getDeviceProfile();
+        const response = await fetch("/api/contributor/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            starts_at: startsAt,
+            cpu_cap: cpuCap,
+            gpu_cap: gpuCap,
+            device_profile: deviceProfile,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) { note.textContent = payload.message || payload.error || "Unable to save reservation."; return; }
+        note.textContent = contributorUi.success;
+        await refreshContributorStatus();
+      } catch (_) {
+        note.textContent = "Unable to save reservation.";
+      }
+    }
+    document.getElementById("contrib-plan")?.addEventListener("change", refreshContributorQuote);
+    document.getElementById("contrib-hours")?.addEventListener("input", refreshContributorQuote);
+    setDefaultContributorStart();
+    refreshContributorStatus().catch(() => {});
+  </script>
+</body>
+</html>
