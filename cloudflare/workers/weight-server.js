@@ -101,6 +101,14 @@ export default {
       );
     }
 
+    if (isMarketingProxyPath(url.pathname)) {
+      const publicBackend = await resolvePublicBackendConfig(request, env);
+      const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
+      if (upstreamBase) {
+        return proxyHtmlPage(request, `${upstreamBase}${url.pathname}${url.search || ""}`);
+      }
+    }
+
     if (!env.ASSETS) {
       return jsonResponse(
         { ok: false, message: "Static assets binding is missing." },
@@ -506,6 +514,13 @@ function shouldServeIndex(pathname) {
   return pathname === "/" || pathname === "/index.html";
 }
 
+function isMarketingProxyPath(pathname) {
+  if (!pathname) return false;
+  if (/^\/index\/purple-bee(\/.*)?$/.test(pathname)) return true;
+  if (/^\/(ko-KR|en-US|ja-JP)\/index\/purple-bee(\/.*)?$/.test(pathname)) return true;
+  return false;
+}
+
 function jsonResponse(payload, status, request) {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
@@ -705,6 +720,27 @@ async function proxyExternalAsset(request, upstreamUrl, proxyKind = "asset-proxy
 
   return new Response(upstreamResponse.body, {
     status: upstreamResponse.status,
+    headers,
+  });
+}
+
+async function proxyHtmlPage(request, upstreamUrl) {
+  const response = await fetch(upstreamUrl, {
+    method: request.method,
+    headers: {
+      "User-Agent": "Purple-Bee-Cloudflare-Worker/1.0",
+      Accept: request.headers.get("Accept") || "text/html,application/xhtml+xml",
+      "Accept-Language": request.headers.get("Accept-Language") || "en-US,en;q=0.9",
+    },
+    redirect: "follow",
+  });
+
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "public, max-age=300");
+  headers.set("Content-Type", headers.get("Content-Type") || "text/html; charset=UTF-8");
+
+  return new Response(response.body, {
+    status: response.status,
     headers,
   });
 }
