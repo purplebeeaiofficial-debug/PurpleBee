@@ -268,6 +268,19 @@
   .pbx-assets-files-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .pbx-assets-files-title{font-size:15px;font-weight:800;color:var(--text)}
   .pbx-assets-files-sub{margin-top:6px;font-size:12px;color:var(--text-2);line-height:1.6}
+  .pbx-assets-spec-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+  .pbx-assets-spec-card{padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border)}
+  .pbx-assets-spec-title{font-size:12px;font-weight:800;color:var(--text)}
+  .pbx-assets-spec-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;font-size:12px;color:var(--text-2)}
+  .pbx-assets-spec-check{font-weight:800}
+  .pbx-assets-spec-check.ok{color:var(--green)}
+  .pbx-assets-spec-check.no{color:var(--red)}
+  .pbx-assets-progress{margin-top:14px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border)}
+  .pbx-assets-progress-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .pbx-assets-progress-title{font-size:13px;font-weight:800;color:var(--text)}
+  .pbx-assets-progress-sub{font-size:12px;color:var(--text-2)}
+  .pbx-assets-progress-bar{margin-top:12px;height:10px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)}
+  .pbx-assets-progress-fill{height:100%;width:0%;background:linear-gradient(135deg,var(--accent),#a855f7);transition:width .25s ease}
   .pbx-assets-list{margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .pbx-assets-item{
     display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--border);min-width:0
@@ -292,6 +305,7 @@
 
   @media(max-width:980px){
     .pbx-assets-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .pbx-assets-spec-grid{grid-template-columns:1fr}
     .pbx-assets-list{grid-template-columns:1fr}
   }
 

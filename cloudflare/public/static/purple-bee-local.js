@@ -8871,6 +8871,20 @@ async function generateReasonedChatReply(prompt, language) {
     return `${Math.round(number)} MB`;
   }
 
+  function pbxRequirementMark(ok) {
+    return ok ? '<span class="pbx-assets-spec-check ok">✓</span>' : '<span class="pbx-assets-spec-check no">✕</span>';
+  }
+
+  function pbxSetAssetsProgress(label, percent, detail = "") {
+    const fill = document.getElementById("pbx-assets-progress-fill");
+    const text = document.getElementById("pbx-assets-progress-text");
+    const sub = document.getElementById("pbx-assets-progress-sub");
+    const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+    if (fill) fill.style.width = `${safePercent}%`;
+    if (text) text.textContent = `${Math.round(safePercent)}%`;
+    if (sub) sub.textContent = detail ? `${label} · ${detail}` : label;
+  }
+
   async function pbxDetectDeviceProfile(plan) {
     const storage = (navigator.storage && navigator.storage.estimate)
       ? await navigator.storage.estimate().catch(() => null)
@@ -8929,6 +8943,32 @@ async function generateReasonedChatReply(prompt, language) {
       throw new Error(`runtime-asset-${response.status}`);
     }
     return await response.blob();
+  }
+
+  async function pbxReadRuntimeBlobWithProgress(url, onProgress) {
+    const response = await fetch(url, { cache: "force-cache" });
+    if (!response.ok) {
+      throw new Error(`runtime-asset-${response.status}`);
+    }
+    const total = Number(response.headers.get("content-length") || 0);
+    const reader = response.body && response.body.getReader ? response.body.getReader() : null;
+    if (!reader) {
+      const blob = await response.blob();
+      if (typeof onProgress === "function") onProgress(blob.size, blob.size || total || 1);
+      return blob;
+    }
+    let loaded = 0;
+    const chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        loaded += value.byteLength;
+        if (typeof onProgress === "function") onProgress(loaded, total || loaded || 1);
+      }
+    }
+    return new Blob(chunks, { type: response.headers.get("content-type") || "application/octet-stream" });
   }
 
   async function pbxFetchRuntimeManifest(plan) {
@@ -9382,6 +9422,19 @@ async function generateReasonedChatReply(prompt, language) {
                 <div id="pbx-assets-storage" class="pbx-assets-mini-value">-</div>
               </div>
             </div>
+            <div id="pbx-assets-spec-grid" class="pbx-assets-spec-grid"></div>
+            <div class="pbx-assets-progress">
+              <div class="pbx-assets-progress-head">
+                <div>
+                  <div class="pbx-assets-progress-title">설치 진행 상태</div>
+                  <div id="pbx-assets-progress-sub" class="pbx-assets-progress-sub">아직 설치를 시작하지 않았어요.</div>
+                </div>
+                <div id="pbx-assets-progress-text" class="pbx-assets-help">0%</div>
+              </div>
+              <div class="pbx-assets-progress-bar">
+                <div id="pbx-assets-progress-fill" class="pbx-assets-progress-fill"></div>
+              </div>
+            </div>
           </div>
           <div class="pbx-assets-files-card">
             <div class="pbx-assets-files-head">
@@ -9442,6 +9495,7 @@ async function generateReasonedChatReply(prompt, language) {
     const memory = document.getElementById("pbx-assets-memory");
     const cpu = document.getElementById("pbx-assets-cpu");
     const storage = document.getElementById("pbx-assets-storage");
+    const specGrid = document.getElementById("pbx-assets-spec-grid");
     if (memory) memory.textContent = profile?.memoryGb ? `${profile.memoryGb} GB` : "알 수 없음";
     if (cpu) cpu.textContent = profile?.cpuThreads ? `${profile.cpuThreads} threads` : "알 수 없음";
     if (storage) storage.textContent = pbxFormatMb(profile?.freeStorageMb);
@@ -9451,6 +9505,40 @@ async function generateReasonedChatReply(prompt, language) {
       summary.textContent = "이 기기 상태를 아직 확인하지 못했어요.";
       pill.textContent = "확인 중";
       return;
+    }
+
+    if (specGrid) {
+      const currentRows = [
+        { label: "메모리", value: profile.memoryGb ? `${profile.memoryGb} GB` : "알 수 없음", ok: profile.memoryGb >= Number(profile.minimum.memory_gb || 0) },
+        { label: "CPU 스레드", value: profile.cpuThreads ? `${profile.cpuThreads}` : "알 수 없음", ok: profile.cpuThreads >= Number(profile.minimum.cpu_threads || 0) },
+        { label: "남은 저장 공간", value: pbxFormatMb(profile.freeStorageMb), ok: profile.freeStorageMb >= Number(profile.minimum.free_storage_mb || 0) },
+      ];
+      const minimumRows = [
+        { label: "메모리", value: `${profile.minimum.memory_gb} GB`, ok: currentRows[0].ok },
+        { label: "CPU 스레드", value: `${profile.minimum.cpu_threads}`, ok: currentRows[1].ok },
+        { label: "저장 공간", value: pbxFormatMb(profile.minimum.free_storage_mb), ok: currentRows[2].ok },
+      ];
+      const recommendedRows = [
+        { label: "메모리", value: `${profile.recommended.memory_gb} GB`, ok: profile.memoryGb >= Number(profile.recommended.memory_gb || 0) },
+        { label: "CPU 스레드", value: `${profile.recommended.cpu_threads}`, ok: profile.cpuThreads >= Number(profile.recommended.cpu_threads || 0) },
+        { label: "저장 공간", value: pbxFormatMb(profile.recommended.free_storage_mb), ok: profile.freeStorageMb >= Number(profile.recommended.free_storage_mb || 0) },
+      ];
+      const cards = [
+        { title: "현재 내 PC", rows: currentRows },
+        { title: "최소 사양", rows: minimumRows },
+        { title: "권장 사양", rows: recommendedRows },
+      ];
+      specGrid.innerHTML = cards.map((card) => `
+        <div class="pbx-assets-spec-card">
+          <div class="pbx-assets-spec-title">${card.title}</div>
+          ${card.rows.map((row) => `
+            <div class="pbx-assets-spec-row">
+              <span>${row.label}</span>
+              <span>${row.value} ${pbxRequirementMark(row.ok)}</span>
+            </div>
+          `).join("")}
+        </div>
+      `).join("");
     }
 
     if (profile.tier === "recommended") {
@@ -9487,7 +9575,7 @@ async function generateReasonedChatReply(prompt, language) {
         <div class="pbx-assets-item-main">
           <div class="pbx-assets-item-name">${String(asset.filename || "")}</div>
           <div class="pbx-assets-item-desc">${String(asset.description || "")}</div>
-          <div class="pbx-assets-item-kind">${String(asset.kind || "")}${asset.bytes ? ` · ${pbxFormatMb(Math.ceil(Number(asset.bytes || 0) / (1024 * 1024)))}` : ""}</div>
+          <div class="pbx-assets-item-kind">${String(asset.kind || "")}${asset.bytes ? ` · ${formatBytes(Number(asset.bytes || 0))}` : ""}</div>
         </div>
       </div>
     `).join("");
@@ -9588,10 +9676,27 @@ async function generateReasonedChatReply(prompt, language) {
       }
       const plan = document.getElementById("pbx-assets-modal")?._pbxPlan || await pbxFetchPackagePlan();
       pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "모델 파일을 내려받고, 이 기기에 저장하고, 선택한 폴더와도 맞춰 두고 있어요. 첫 설치는 조금 더 걸릴 수 있어요.");
+      const totalBytes = Number(plan?.download?.estimated_bytes || 0);
+      let completedBytes = 0;
+      pbxSetAssetsProgress("준비 시작", 1, `예상 다운로드 ${formatBytes(totalBytes || 0)}`);
       const manifest = await pbxFetchRuntimeManifest(plan);
-      const onnxBlob = await pbxReadRuntimeBlob(manifest?.browser_assets?.onnx);
-      const tokenizerBlob = await pbxReadRuntimeBlob(manifest?.browser_assets?.tokenizer);
-      const onnxDataBlob = manifest?.browser_assets?.onnx_data ? await pbxReadRuntimeBlob(manifest.browser_assets.onnx_data) : null;
+      pbxSetAssetsProgress("설치 정보 확인", 5, "브라우저용 실행 정보를 읽고 있어요.");
+      const progressFor = (label, baseBytes) => (loaded, total) => {
+        const effectiveLoaded = Math.min(Number(baseBytes || 0), Number(loaded || 0));
+        const dynamicTotal = totalBytes > 0 ? totalBytes : Number(total || 1);
+        const current = Math.min(dynamicTotal, completedBytes + effectiveLoaded);
+        pbxSetAssetsProgress(label, (current / Math.max(dynamicTotal, 1)) * 100, `${formatBytes(current)} / ${formatBytes(dynamicTotal)}`);
+      };
+      const onnxBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.onnx, progressFor("모델 파일 다운로드", 112072646));
+      completedBytes += Number(onnxBlob.size || 0);
+      pbxSetAssetsProgress("모델 파일 저장", (completedBytes / Math.max(totalBytes || completedBytes || 1, 1)) * 100, `${formatBytes(completedBytes)} / ${formatBytes(totalBytes || completedBytes)}`);
+      const tokenizerBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.tokenizer, progressFor("토크나이저 다운로드", 389579));
+      completedBytes += Number(tokenizerBlob.size || 0);
+      let onnxDataBlob = null;
+      if (manifest?.browser_assets?.onnx_data) {
+        onnxDataBlob = await pbxReadRuntimeBlobWithProgress(manifest.browser_assets.onnx_data, progressFor("추가 자산 다운로드", 0));
+        completedBytes += Number(onnxDataBlob.size || 0);
+      }
       const installedAt = new Date().toISOString();
       const packagePayload = {
         family_name: "Purple Bee",
@@ -9606,14 +9711,21 @@ async function generateReasonedChatReply(prompt, language) {
           onnx_data: onnxDataBlob,
         },
       };
+      pbxSetAssetsProgress("브라우저 저장소에 설치", 88, "이 기기에서 바로 쓸 수 있도록 저장하고 있어요.");
       await pbxSaveInstalledRuntimePackage(packagePayload.model_id, packagePayload);
+      pbxSetAssetsProgress("폴더 동기화", 94, "선택한 폴더에도 설치 상태를 맞추는 중이에요.");
       await pbxInstallAssetsToFolder(handle, plan, manifest, packagePayload.assets);
+      pbxSetAssetsProgress("실행 엔진 준비", 97, "첫 질문 전에 백그라운드 엔진이 열리는지 확인하고 있어요.");
       pbxTerminateInferenceWorker();
+      await pbxEnsureInferenceWorker(plan);
+      pbxSetAssetsProgress("설치 완료", 100, `총 ${formatBytes(totalBytes || completedBytes)} 설치를 마쳤어요.`);
       pbxSetAssetsModalStatus("ok", "설치/업데이트가 끝났어요", "이 기기에 모델 준비물을 저장했고, 폴더에도 설치 상태를 맞춰뒀어요. 이제 바로 질문을 이어가면 됩니다.");
       await pbxRefreshAssetsButtonState();
       showToast(getActiveUiLanguage() === "ko" ? "AI 준비물 설치가 완료됐어요." : "AI assets are ready.");
       await pbxOpenAssetsSetupModal();
     } catch (_error) {
+      console.error("[Purple Bee][AI Prep] install failed", _error);
+      pbxSetAssetsProgress("설치 중단", 0, String(_error && _error.message ? _error.message : "install-failed"));
       pbxSetAssetsModalStatus("error", "설치/업데이트 중 문제가 생겼어요", "폴더에 파일을 쓰는 과정에서 오류가 났어요. 잠시 후 다시 시도해 주세요.");
     }
   }
@@ -9697,6 +9809,9 @@ async function generateReasonedChatReply(prompt, language) {
       const isFailureReply = !safeText || replyCode === "PB-ANSWER-FAILED";
 
       if (isFailureReply) {
+        if (engine.lastError) {
+          console.error("[Purple Bee][Reply Failed]", engine.lastError);
+        }
         const failureEntry = {
           id: `msg_${Date.now()}_fail`,
           role: "assistant",
@@ -9721,6 +9836,7 @@ async function generateReasonedChatReply(prompt, language) {
         state.history.push(aiEntry);
       }
     } catch (_error) {
+      console.error("[Purple Bee][Reply Exception]", _error, engine.lastError || "");
       const failureEntry = {
         id: `msg_${Date.now()}_err`,
         role: "assistant",
