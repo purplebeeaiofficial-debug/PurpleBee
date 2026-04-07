@@ -32,6 +32,7 @@
   const STORAGE_KEY = "pb_conversations_v2";
   const SETTINGS_KEY = "pb_settings_v1";
   const REPORTS_KEY = "pb_reports_v1";
+  const CONSENT_KEY = "pb_required_consents_v1";
   const MAX_CONVERSATIONS = 20;
   const STORAGE_TEXT_LIMIT = 6000;
   const MODEL_URL = "/static/purple-bee-model.bin";
@@ -131,6 +132,7 @@
     modelRegistry: null,
     dialogueExamples: [],
     dialogueLoading: null,
+    consents: loadRequiredConsents(),
   };
 
   const engine = {
@@ -145,6 +147,93 @@
     deviceProfile: null,
     lastError: "",
   };
+
+  function loadRequiredConsents() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CONSENT_KEY) || "{}");
+      return {
+        terms: !!parsed.terms,
+        resource: !!parsed.resource,
+        privacy: !!parsed.privacy,
+        acceptedAt: parsed.acceptedAt || "",
+        version: parsed.version || 1,
+      };
+    } catch (_error) {
+      return { terms: false, resource: false, privacy: false, acceptedAt: "", version: 1 };
+    }
+  }
+
+  function saveRequiredConsents() {
+    localStorage.setItem(CONSENT_KEY, JSON.stringify(state.consents || {}));
+  }
+
+  function hasRequiredConsents() {
+    const consent = state.consents || {};
+    return !!(consent.terms && consent.resource && consent.privacy);
+  }
+
+  function syncRequiredConsentUi() {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    const terms = document.getElementById("consent-terms");
+    const resource = document.getElementById("consent-resource");
+    const privacy = document.getElementById("consent-privacy");
+    const submit = document.getElementById("consent-submit-btn");
+    if (terms) terms.checked = !!state.consents?.terms;
+    if (resource) resource.checked = !!state.consents?.resource;
+    if (privacy) privacy.checked = !!state.consents?.privacy;
+    if (submit) submit.disabled = !hasRequiredConsents();
+  }
+
+  function openConsentModal() {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    syncRequiredConsentUi();
+    modal.classList.add("open");
+  }
+
+  function closeConsentModal(force = false) {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    if (!force && !hasRequiredConsents()) return;
+    modal.classList.remove("open");
+  }
+
+  function toggleRequiredConsent() {
+    state.consents = {
+      ...(state.consents || {}),
+      terms: !!document.getElementById("consent-terms")?.checked,
+      resource: !!document.getElementById("consent-resource")?.checked,
+      privacy: !!document.getElementById("consent-privacy")?.checked,
+    };
+    syncRequiredConsentUi();
+  }
+
+  function submitRequiredConsent() {
+    toggleRequiredConsent();
+    if (!hasRequiredConsents()) {
+      showToast("시작하려면 필수 동의 3개를 모두 확인해 주세요.");
+      return false;
+    }
+    state.consents.acceptedAt = new Date().toISOString();
+    state.consents.version = 1;
+    saveRequiredConsents();
+    closeConsentModal(true);
+    showToast("필수 동의를 저장했어요. 이제 Purple Bee를 바로 시작할 수 있어요.");
+    return true;
+  }
+
+  function ensureRequiredConsent() {
+    if (hasRequiredConsents()) return true;
+    openConsentModal();
+    return false;
+  }
+
+  function openConsentDocs() {
+    window.open("/index/purple-bee/legal/terms/", "_blank", "noopener");
+    window.open("/index/purple-bee/legal/resource-use/", "_blank", "noopener");
+    window.open("/index/purple-bee/legal/privacy/", "_blank", "noopener");
+  }
 
   const UI_STRINGS = {
     ko: {
@@ -6562,6 +6651,7 @@ async function generateReasonedChatReply(prompt, language) {
     applySettingsToUI();
     pbxApplyTheme();
     pbxSetRandomWelcome();
+    syncRequiredConsentUi();
     pbxRenderProfileMenu();
     if (state.settings.rememberChats && pbxCurrentUser()) {
       state.conversations = loadStoredConversations(true);
@@ -6577,6 +6667,11 @@ async function generateReasonedChatReply(prompt, language) {
       const list = document.getElementById("chat-history-list");
       if (!list || !list.contains(event.target)) pbxCloseHistoryContextMenu();
     });
+    if (!hasRequiredConsents()) {
+      openConsentModal();
+    } else {
+      closeConsentModal(true);
+    }
   }
 
   const PBX_WELCOME_TEMPLATES = [
@@ -7109,6 +7204,7 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   async function loginWithGoogle() {
+    if (!ensureRequiredConsent()) return;
     const sdkReady = await pbxWaitForGoogleSdk(7000);
     if (!sdkReady) {
       showToast("Google 로그인 SDK 로드가 지연되고 있어요. 새로고침 후 다시 시도해 주세요.");
@@ -7617,6 +7713,7 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   async function sendMessage() {
+    if (!ensureRequiredConsent()) return;
     const field = document.getElementById("input-field");
     if (!field || state.isStreaming) return;
 
@@ -10249,5 +10346,9 @@ async function generateReasonedChatReply(prompt, language) {
     linkAiAssetsFolder,
     renameConversationFromMenu,
     deleteConversationFromMenu,
+    toggleRequiredConsent,
+    submitRequiredConsent,
+    openConsentModal,
+    openConsentDocs,
   });
 })();

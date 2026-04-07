@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="{{ site_lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Bee | Policy</title>
+<style>
+  :root{
+    --bg:#f6f7fb;--panel:#fff;--text:#111827;--sub:#4b5563;--line:#d8e0ec;--accent:#6d28d9;--shadow:0 20px 70px rgba(15,23,42,.08)
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Noto Sans KR","Segoe UI",sans-serif;background:
+    radial-gradient(circle at 15% -10%, rgba(196,181,253,.7), transparent 32%),
+    radial-gradient(circle at 90% 0%, rgba(125,211,252,.45), transparent 28%),var(--bg);color:var(--text)}
+  a{text-decoration:none;color:inherit}
+  .wrap{width:min(1000px,92vw);margin:0 auto}
+  header{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.84);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+  .nav{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px 0}
+  .brand{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:900}
+  .brand-badge{padding:5px 11px;border-radius:999px;background:#111827;color:#fff;font-size:11px;font-weight:800}
+  .locale-switch{display:flex;gap:8px;flex-wrap:wrap}
+  .locale-chip{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
+  .locale-chip.active{border-color:rgba(109,40,217,.3);background:rgba(109,40,217,.08);color:#4c1d95}
+  .cta{padding:11px 16px;border-radius:999px;background:#111827;color:#fff;font-size:13px;font-weight:800}
+  .hero{padding:42px 0 20px}
+  .eyebrow{font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--sub)}
+  h1{margin-top:14px;font-size:clamp(36px,5vw,58px);line-height:1.05;letter-spacing:-.06em}
+  .lead{margin-top:14px;font-size:18px;line-height:1.72;color:var(--sub)}
+  .policy-grid{display:grid;gap:16px;margin:24px 0 16px}
+  .policy-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow)}
+  .policy-card h2{font-size:26px;letter-spacing:-.04em}
+  .policy-card p{margin-top:10px;color:var(--sub);font-size:15px;line-height:1.78}
+  .consent-box{margin:24px 0 30px;background:linear-gradient(135deg,rgba(109,40,217,.1),rgba(236,72,153,.08));border:1px solid rgba(109,40,217,.12);border-radius:24px;padding:22px}
+  .consent-box h3{font-size:18px}
+  .consent-list{margin-top:12px;display:grid;gap:10px}
+  .consent-item{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--sub);line-height:1.7}
+  footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 34px;color:var(--sub);font-size:13px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="brand" href="{{ base_prefix }}/">
+        <span>Purple Bee</span>
+        <span class="brand-badge">{{ brand_badge }}</span>
+      </a>
+      <div class="locale-switch">
+        {% for item in locale_links %}
+        <a class="locale-chip {{ 'active' if item.locale == site_locale else '' }}" href="{{ item.href }}">{{ item.label }}</a>
+        {% endfor %}
+      </div>
+      <a class="cta" href="/">{{ nav.open_chat }}</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="eyebrow">{{ nav.legal }}</div>
+      <h1>{{ policy.title }}</h1>
+      <div class="lead">{{ policy.subtitle }}</div>
+    </section>
+
+    <section class="consent-box">
+      <h3>Required consent flow</h3>
+      <div class="consent-list">
+        <div class="consent-item">✓ {{ policy_labels.terms }}</div>
+        <div class="consent-item">✓ {{ policy_labels["resource-use"] }}</div>
+        <div class="consent-item">✓ {{ policy_labels.privacy }}</div>
+      </div>
+    </section>
+
+    <section class="policy-grid">
+      {% for section in policy.sections %}
+      <article class="policy-card">
+        <h2>{{ section.title }}</h2>
+        <p>{{ section.body }}</p>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <div>{{ footer_copy }}</div>
+    <div>{{ site_locale }}</div>
+  </footer>
+</body>
+</html>

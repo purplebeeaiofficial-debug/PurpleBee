@@ -201,6 +201,37 @@
   .toast{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:8px;animation:slideIn .3s ease,fadeOut .3s ease 3.7s forwards;pointer-events:auto;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
   @keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
   @keyframes fadeOut{to{opacity:0;transform:translateX(10px)}}
+  .consent-backdrop{position:fixed;inset:0;background:rgba(9,10,16,.6);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px;z-index:1400}
+  .consent-backdrop.open{display:flex}
+  .consent-modal{width:min(720px,100%);background:var(--card);border:1px solid var(--border);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.38);overflow:hidden}
+  .consent-head{padding:24px 24px 18px;border-bottom:1px solid var(--border)}
+  .consent-title{font-size:24px;font-weight:800;letter-spacing:-.03em}
+  .consent-subtitle{margin-top:10px;font-size:13px;color:var(--text-2);line-height:1.75}
+  .consent-body{padding:20px 24px 24px;display:grid;gap:14px}
+  .consent-panel{border:1px solid var(--border);border-radius:18px;background:var(--surface);padding:16px}
+  .consent-panel h3{font-size:15px;font-weight:800}
+  .consent-panel p{margin-top:8px;font-size:12px;color:var(--text-2);line-height:1.7}
+  .consent-checks{display:grid;gap:10px}
+  .consent-check{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--card)}
+  .consent-check input{margin-top:3px}
+  .consent-check-main{display:grid;gap:4px}
+  .consent-check-title{font-size:13px;font-weight:700;color:var(--text)}
+  .consent-check-desc{font-size:11px;color:var(--text-2);line-height:1.6}
+  .consent-check-links{display:flex;gap:8px;flex-wrap:wrap}
+  .consent-check-links a{font-size:11px;color:var(--accent-light);text-decoration:none}
+  .consent-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px;flex-wrap:wrap}
+  .consent-btn{padding:11px 16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-weight:700}
+  .consent-btn.primary{background:linear-gradient(135deg,var(--accent),#c026d3);border:none;color:#fff}
+  .consent-btn:disabled{opacity:.45;cursor:not-allowed}
+  .consent-legal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .consent-legal-card{padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--card)}
+  .consent-legal-card strong{display:block;font-size:12px}
+  .consent-legal-card span{display:block;margin-top:6px;font-size:11px;line-height:1.6;color:var(--text-2)}
+  @media (max-width:760px){
+    .consent-legal-grid{grid-template-columns:1fr}
+    .consent-actions{justify-content:stretch}
+    .consent-btn{width:100%}
+  }
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:1200;padding:20px}
   .modal-backdrop.open{display:flex}
@@ -382,7 +413,7 @@
     </div>
   </div>
 
-  <a class="upgrade-plan-btn" href="/ko-KR/index/purple-bee/pricing/">
+  <a class="upgrade-plan-btn" href="/index/purple-bee/pricing/">
     <div class="upgrade-plan-copy">
       <span class="upgrade-plan-title">⚡ 플랜 업그레이드</span>
       <span class="upgrade-plan-sub">Free, Basic, Plus, Pro와 기여 기반 구독 혜택 보기</span>
@@ -726,6 +757,61 @@
     <i class="ph ph-trash"></i>
     <span>채팅방 삭제</span>
   </button>
+</div>
+
+<div class="consent-backdrop" id="consent-backdrop">
+  <section class="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+    <div class="consent-head">
+      <div class="consent-title" id="consent-title">시작 전에 필수 동의를 확인해 주세요</div>
+      <div class="consent-subtitle">Purple Bee는 설치형 준비물과 기여 기반 구독 구조를 함께 다루기 때문에, 서비스 약관과 자원 사용 범위를 분리해서 먼저 안내합니다. 아래 세 항목은 모두 필수입니다.</div>
+    </div>
+    <div class="consent-body">
+      <div class="consent-legal-grid">
+        <div class="consent-legal-card">
+          <strong>어떤 자원을 쓰나요?</strong>
+          <span>CPU, GPU, RAM, 저장 공간, 네트워크의 일부를 상한 정책 안에서 사용합니다.</span>
+        </div>
+        <div class="consent-legal-card">
+          <strong>언제 쓰나요?</strong>
+          <span>준비물 설치 시와, 기여 구독을 켠 경우 예약된 시간 동안만 사용합니다.</span>
+        </div>
+        <div class="consent-legal-card">
+          <strong>언제 멈추나요?</strong>
+          <span>안전 기준을 벗어나거나 사용자가 다시 작업을 시작하면 자동으로 일시정지하거나 중단합니다.</span>
+        </div>
+      </div>
+      <div class="consent-checks">
+        <label class="consent-check">
+          <input type="checkbox" id="consent-terms" onchange="toggleRequiredConsent()">
+          <div class="consent-check-main">
+            <div class="consent-check-title">[필수] 이용약관에 동의합니다</div>
+            <div class="consent-check-desc">서비스 범위, 책임 범위, 중단 조건을 설명하는 문서입니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/terms/" target="_blank" rel="noopener">이용약관 보기</a></div>
+          </div>
+        </label>
+        <label class="consent-check">
+          <input type="checkbox" id="consent-resource" onchange="toggleRequiredConsent()">
+          <div class="consent-check-main">
+            <div class="consent-check-title">[필수] 컴퓨터 자원 사용에 동의합니다</div>
+            <div class="consent-check-desc">어떤 자원을, 언제, 어떤 상한으로 쓰는지와 자동 중단 조건을 따로 안내합니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/resource-use/" target="_blank" rel="noopener">자원 사용 동의 보기</a></div>
+          </div>
+        </label>
+        <label class="consent-check">
+          <input type="checkbox" id="consent-privacy" onchange="toggleRequiredConsent()">
+          <div class="consent-check-main">
+            <div class="consent-check-title">[필수] 개인정보 처리방침에 동의합니다</div>
+            <div class="consent-check-desc">로그인, 세션, 메모리, 구독 상태를 어떻게 저장하고 다루는지 설명합니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/privacy/" target="_blank" rel="noopener">개인정보 처리방침 보기</a></div>
+          </div>
+        </label>
+      </div>
+      <div class="consent-actions">
+        <button type="button" class="consent-btn" onclick="openConsentDocs()">정책 문서 다시 보기</button>
+        <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>시작하기</button>
+      </div>
+    </div>
+  </section>
 </div>
 
 <div id="toast-container"></div>

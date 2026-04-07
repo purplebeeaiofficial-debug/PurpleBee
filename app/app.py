@@ -19,7 +19,7 @@ import secrets
 from types import SimpleNamespace
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for
 import requests
 from bs4 import BeautifulSoup
 
@@ -4209,29 +4209,506 @@ def run_tool(tool_id: str, params: dict) -> dict:
         return {"type": "error", "message": f"알 수 없는 도구: {tool_id}"}
 
 # ── Flask 라우트 ─────────────────────────────────────────────────────
+SUPPORTED_SITE_LOCALES = {
+    "ko-KR": "ko",
+    "en-US": "en",
+    "ja-JP": "ja",
+}
+
+SITE_LOCALE_ALIASES = {
+    "ko": "ko-KR",
+    "ko-kr": "ko-KR",
+    "en": "en-US",
+    "en-us": "en-US",
+    "ja": "ja-JP",
+    "ja-jp": "ja-JP",
+}
+
+SITE_COPY = {
+    "ko-KR": {
+        "brand_badge": "Global",
+        "nav": {
+            "home": "소개",
+            "features": "기능",
+            "safety": "안전",
+            "architecture": "아키텍처",
+            "pricing": "요금",
+            "legal": "정책",
+            "open_chat": "Purple Bee 열기",
+        },
+        "pages": {
+            "home": {
+                "eyebrow": "Purple Bee",
+                "title": "설치형 준비물과 분산 기여 구독을 함께 갖춘 AI 플랫폼",
+                "description": "Purple Bee는 웹사이트에서 준비물 상태를 점검하고, 필요한 실행 자산만 설치한 뒤, 사용자 기기와 기여 네트워크를 함께 활용하도록 설계된 제품형 AI 서비스입니다.",
+                "badges": ["준비물 설치 상태 관리", "기여 기반 구독", "다국어 제품 사이트", "안정성 중심 설계"],
+                "hero_cards": [
+                    {"label": "실행 준비", "title": "준비물 설치 상태를 한 화면에서 확인", "meta": "설치되지 않음 · 업데이트 필요 · 최신 설치됨을 구분해 안내합니다."},
+                    {"label": "기여 구독", "title": "기여 시간을 예약해 상위 플랜 혜택 확보", "meta": "자원을 제공한 시간과 성능 점수를 기준으로 구독을 활성화합니다."},
+                    {"label": "운영 구조", "title": "웹사이트 · 기여 클라이언트 · 중앙 스케줄러 분리", "meta": "추후 확장을 고려해 안전성과 제품화를 함께 잡는 구조로 설계합니다."},
+                ],
+                "sections": [
+                    {
+                        "title": "제품 핵심",
+                        "text": "브라우저 안에서는 설치 상태와 실행 흐름을 관리하고, 실제 하드웨어 판정과 분산 기여는 별도 네이티브 클라이언트가 맡습니다.",
+                        "bullets": [
+                            "준비물 상태를 즉시 확인하고 업데이트가 필요한 경우만 안내",
+                            "사용자 기기 단독 실행과 분산 보조 연산을 함께 고려한 구조",
+                            "플랜과 기여 상태를 같은 제품 경험 안에서 관리",
+                        ],
+                    },
+                    {
+                        "title": "왜 이렇게 만들었나요?",
+                        "text": "모델 추론 경로, 설치 UX, 기기 성능 조건, 기여 구독 규칙을 따로 흩어놓지 않고 한 제품 안에서 이어지게 하기 위해서입니다.",
+                        "bullets": [
+                            "실패 시점을 설명할 수 있는 설치/실행 피드백",
+                            "약관과 자원 사용 동의를 분리한 제품형 시작 흐름",
+                            "언어권에 따라 시작 경로를 자동으로 맞추는 글로벌 소개 사이트",
+                        ],
+                    },
+                ],
+            },
+            "features": {
+                "eyebrow": "Features",
+                "title": "설치, 실행, 기여, 구독을 한 흐름으로 묶은 기능 구성",
+                "description": "Purple Bee는 단순 채팅 UI가 아니라, 준비물 배포와 설치 상태 판정, 기여 예약, 구독 활성화까지 이어지는 기능 체계를 목표로 합니다.",
+                "badges": ["설치 관리자형 UI", "실행 상태 점검", "기여 예약", "구독 활성화"],
+                "sections": [
+                    {
+                        "title": "AI 준비물",
+                        "text": "설치 여부, 버전 차이, 예상 다운로드 용량, 현재 기기 조건을 함께 보여주고 필요한 작업만 진행하도록 안내합니다.",
+                        "bullets": [
+                            "설치되지 않음 / 업데이트 필요 / 최신 설치됨 상태 분리",
+                            "정확한 다운로드 용량과 진행률 표시",
+                            "준비물 삭제와 재설치 흐름 제공",
+                        ],
+                    },
+                    {
+                        "title": "기여 기반 구독",
+                        "text": "기여 시간을 예약하고, 해당 시간 동안 자원을 제공하면 프리미엄 상태를 활성화하는 모델을 준비합니다.",
+                        "bullets": [
+                            "Free · Basic · Plus · Pro 플랜 구조",
+                            "기여 시간과 기기 성능을 함께 반영한 효율 점수",
+                            "작업 중단, 미참여, 재시도에 대한 패널티 설계",
+                        ],
+                    },
+                ],
+            },
+            "safety": {
+                "eyebrow": "Safety",
+                "title": "자원 사용 범위와 책임 경계를 먼저 설명하는 제품",
+                "description": "Purple Bee는 컴퓨터 자원 사용에 대한 동의를 별도로 받으며, 언제 어떤 범위까지 자원을 쓰는지와 중단 조건을 사용자에게 명확히 보여줍니다.",
+                "badges": ["자원 사용 동의 분리", "중단 조건 명시", "책임 범위 표시", "권한 최소화"],
+                "sections": [
+                    {
+                        "title": "필수 동의",
+                        "text": "시작 전 이용약관, 자원 사용, 개인정보 처리방침 동의를 모두 받아야 하며, 자원 사용 동의는 별도 문서로 분리합니다.",
+                        "bullets": [
+                            "이용약관 동의",
+                            "컴퓨터 자원 사용 동의",
+                            "개인정보 처리방침 동의",
+                        ],
+                    },
+                    {
+                        "title": "사용자 보호",
+                        "text": "기여 클라이언트는 CPU/GPU 상한과 유휴 상태, 강제 일시정지 규칙을 가집니다.",
+                        "bullets": [
+                            "사용자 활동 감지 시 자동 일시정지",
+                            "실패 작업 자동 재분배",
+                            "장기적으론 샌드박스와 네이티브 보호 계층 적용",
+                        ],
+                    },
+                ],
+            },
+            "architecture": {
+                "eyebrow": "Architecture",
+                "title": "웹사이트, 기여 클라이언트, 중앙 스케줄러를 분리한 구조",
+                "description": "웹사이트는 제품 경험과 설치·구독 상태를 관리하고, 실제 하드웨어 감지와 분산 기여는 별도 클라이언트가 수행하며, 중앙 서버는 작업 큐와 구독 상태를 판정합니다.",
+                "badges": ["Node.js + Python", "기여 클라이언트", "작업 큐", "구독 판정 로직"],
+                "sections": [
+                    {
+                        "title": "클라이언트",
+                        "text": "웹 클라이언트는 시작 경험, 준비물 설치, 상태 표시를 담당합니다. 네이티브 기여 클라이언트는 CPU/GPU/RAM/디스크를 실제로 읽고 예약된 시간에 작업을 수행합니다.",
+                        "bullets": [
+                            "웹: 설치·업데이트·동의·플랜 UX",
+                            "네이티브: 실제 하드웨어 감지와 백그라운드 작업",
+                            "브리지: 상태 동기화와 기여 시간 보고",
+                        ],
+                    },
+                    {
+                        "title": "서버",
+                        "text": "중앙 서버는 무료/기여 구독 큐를 분리하고, 작업을 작은 단위로 나눠 재시도·재할당까지 관리합니다.",
+                        "bullets": [
+                            "작업 분배와 재시도",
+                            "구독 활성화/비활성화 계산",
+                            "패널티 누적과 복구 판정",
+                        ],
+                    },
+                ],
+            },
+            "pricing": {
+                "eyebrow": "Pricing",
+                "title": "Free부터 Pro까지, 그리고 기여 기반 구독",
+                "description": "기본 사용은 무료로 제공하고, 더 빠른 응답과 상위 모델 접근이 필요한 사용자는 기여 시간을 예약해 프리미엄 구독을 활성화할 수 있도록 설계합니다.",
+                "badges": ["Free", "Basic", "Plus", "Pro"],
+                "plans": [
+                    {"name": "Free", "price": "₩0", "meta": "기본 사용", "badge": "Free", "features": ["기본 AI 사용", "낮은 우선순위", "경량 모델 중심", "요청 횟수 제한"]},
+                    {"name": "Basic", "price": "1시간 기여", "meta": "1일 혜택", "badge": "Basic", "features": ["응답 대기시간 단축", "요청 제한 완화", "기여 예약 가능", "기본 분산 보조 연산"]},
+                    {"name": "Plus", "price": "5시간 기여", "meta": "7일 혜택", "badge": "Plus", "recommended": True, "features": ["상위 우선순위", "최신 모델 접근", "요청 제한 사실상 해제", "분산 보조 연산 가중치 상향"]},
+                    {"name": "Pro", "price": "확장 기여", "meta": "확장 혜택", "badge": "Pro", "features": ["최상위 우선순위", "고급 기능 우선 적용", "다중 세션/대형 작업 대응", "장기 기여형 운용"]},
+                ],
+                "sections": [
+                    {
+                        "title": "분산 기여 구독은 어떻게 동작하나요?",
+                        "text": "예를 들어 구독 사용자 100명, 동시 사용 300명 상황이라면, 모든 사용자는 자기 기기에서 먼저 실행하고, 상위 플랜 사용자는 추가로 기여 네트워크의 보조 연산을 함께 받습니다.",
+                        "bullets": [
+                            "자기 기기 우선 실행은 모든 플랜에 공통",
+                            "기여 노드는 상위 플랜 요청에 가중치를 더 높게 배정",
+                            "실패 노드는 즉시 제외하고 작업을 재분배",
+                            "CPU/GPU 상한과 네트워크 상태를 기준으로 안전하게 배정",
+                        ],
+                    }
+                ],
+            },
+        },
+        "policies": {
+            "terms": {
+                "title": "이용약관",
+                "subtitle": "서비스 범위, 책임 경계, 계정/구독 운영 기준을 설명합니다.",
+                "sections": [
+                    {"title": "서비스 범위", "body": "Purple Bee는 AI 대화, 준비물 설치, 기여 구독, 제품형 안내 페이지를 포함하는 서비스를 제공합니다."},
+                    {"title": "책임 범위", "body": "서비스는 최선의 결과를 목표로 하지만, 생성형 답변의 정확성은 항상 검증이 필요합니다."},
+                    {"title": "중단 조건", "body": "불법 사용, 서비스 남용, 기여 예약 반복 불이행, 안전 정책 위반 시 기능 또는 계정 접근이 제한될 수 있습니다."},
+                ],
+            },
+            "privacy": {
+                "title": "개인정보 처리방침",
+                "subtitle": "로그인, 설정, 대화 기록, 기여 상태 데이터가 어떤 방식으로 처리되는지 설명합니다.",
+                "sections": [
+                    {"title": "수집 항목", "body": "로그인 계정 정보, 세션 설정, 기여 상태, 구독 상태, 오류 복구를 위한 최소한의 사용 로그를 처리할 수 있습니다."},
+                    {"title": "이용 목적", "body": "서비스 제공, 상태 복구, 구독 판정, 안전 운영, 사용자 맞춤 경험을 위해 사용됩니다."},
+                    {"title": "보관 및 삭제", "body": "사용자는 저장된 대화나 메모리를 직접 삭제할 수 있으며, 정책상 보관이 필요한 최소 데이터만 유지합니다."},
+                ],
+            },
+            "resource-use": {
+                "title": "컴퓨터 자원 사용 동의",
+                "subtitle": "어떤 자원을, 언제, 어떤 조건에서 사용하는지 별도로 설명하는 문서입니다.",
+                "sections": [
+                    {"title": "어떤 자원을 쓰나요?", "body": "CPU, GPU, RAM, 저장 공간, 네트워크 대역폭의 일부를 사용합니다. 실제 사용 비율은 상한 정책을 따릅니다."},
+                    {"title": "언제 쓰나요?", "body": "예약된 기여 시간 동안만 사용하며, 사용자가 다시 작업을 시작하면 자동으로 일시정지될 수 있습니다."},
+                    {"title": "중단 조건", "body": "온도/부하/배터리/네트워크 상태가 안전 기준을 벗어나면 기여 작업은 즉시 중단되거나 재배정됩니다."},
+                ],
+            },
+        },
+        "policy_labels": {
+            "terms": "이용약관",
+            "privacy": "개인정보 처리방침",
+            "resource-use": "컴퓨터 자원 사용 동의",
+        },
+        "footer": "Purple Bee 제품 사이트",
+    },
+    "en-US": {
+        "brand_badge": "Global",
+        "nav": {
+            "home": "Overview",
+            "features": "Features",
+            "safety": "Safety",
+            "architecture": "Architecture",
+            "pricing": "Pricing",
+            "legal": "Policies",
+            "open_chat": "Open Purple Bee",
+        },
+        "pages": {
+            "home": {
+                "eyebrow": "Purple Bee",
+                "title": "An AI product with install-ready assets and contribution-based subscriptions",
+                "description": "Purple Bee combines runtime asset setup, device-aware execution, and contributor subscriptions in one product flow.",
+                "badges": ["Install state management", "Contribution subscription", "Global product site", "Reliability-first"],
+                "hero_cards": [
+                    {"label": "Install", "title": "Check setup status in one place", "meta": "Know whether the model is not installed, needs updates, or is already current."},
+                    {"label": "Contribute", "title": "Reserve idle time to unlock premium access", "meta": "Contribution time and device score activate higher tiers."},
+                    {"label": "Operate", "title": "Separate web UX, native client, and scheduler", "meta": "Built for productization, stability, and future scaling."},
+                ],
+                "sections": [
+                    {"title": "What makes it different", "text": "The website manages onboarding and setup, while a native contributor client is responsible for exact hardware inspection and safe background contribution.", "bullets": ["Clear install/update state", "Device-first execution with distributed assist", "Plans and contribution status in one flow"]},
+                    {"title": "Why this product shape", "text": "Runtime setup, execution constraints, and subscription rules should feel like one product—not a collection of disconnected tools.", "bullets": ["Actionable setup feedback", "Separate resource-use consent", "Locale-aware entry path"]},
+                ],
+            },
+            "features": {
+                "eyebrow": "Features",
+                "title": "Install, run, contribute, and upgrade within one system",
+                "description": "Purple Bee is designed as a product experience, not just a chat box.",
+                "badges": ["Installer-like setup", "Runtime checks", "Contribution scheduling", "Subscription activation"],
+                "sections": [
+                    {"title": "AI Prep", "text": "Users can see installation status, update requirements, expected download size, and runtime readiness before they ask the first question.", "bullets": ["Not installed / update needed / up to date", "Exact download size and progress", "Delete and reinstall flow"]},
+                    {"title": "Contributor Subscription", "text": "Users can schedule contribution time and exchange idle compute for higher service tiers.", "bullets": ["Free · Basic · Plus · Pro", "Time + hardware efficiency scoring", "Penalty rules for no-show and early exits"]},
+                ],
+            },
+            "safety": {
+                "eyebrow": "Safety",
+                "title": "Consent, resource boundaries, and failure handling are part of the product",
+                "description": "Purple Bee separates terms, privacy, and computer-resource consent, and explains exactly when resource usage starts and stops.",
+                "badges": ["Separate resource consent", "Stop conditions", "Defined responsibility", "Minimal permissions"],
+                "sections": [
+                    {"title": "Required agreements", "text": "Terms of service, computer resource use, and privacy policy are required before users start.", "bullets": ["Terms of service", "Computer resource use consent", "Privacy policy"]},
+                    {"title": "User protection", "text": "The contributor client is designed to pause automatically when the user resumes active work or when safety constraints are exceeded.", "bullets": ["Automatic pause during activity", "Retry and reassignment", "Sandbox-oriented execution path"]},
+                ],
+            },
+            "architecture": {
+                "eyebrow": "Architecture",
+                "title": "A split architecture for UX, hardware inspection, and task orchestration",
+                "description": "The website handles setup and plan UX. The native client handles exact hardware detection and background contribution. The central scheduler handles task distribution and subscription logic.",
+                "badges": ["Node.js + Python", "Native contributor client", "Task queue", "Subscription logic"],
+                "sections": [
+                    {"title": "Client architecture", "text": "Web and native clients serve different roles. The web app manages setup and plan UX; the native client inspects hardware and runs background tasks.", "bullets": ["Web: setup, install, legal, plan UX", "Native: exact CPU/GPU/RAM/disk detection", "Bridge: sync device and contribution state"]},
+                    {"title": "Server architecture", "text": "The server separates free and contributor queues and reallocates failed work automatically.", "bullets": ["Task distribution and retries", "Subscription activation/deactivation", "Penalty and reliability scoring"]},
+                ],
+            },
+            "pricing": {
+                "eyebrow": "Pricing",
+                "title": "From Free to Pro, with contribution-based upgrades",
+                "description": "Core access starts free. Higher tiers are activated through reserved contribution time and device efficiency.",
+                "badges": ["Free", "Basic", "Plus", "Pro"],
+                "plans": [
+                    {"name": "Free", "price": "$0", "meta": "base access", "badge": "Free", "features": ["Basic AI access", "Lower priority queue", "Lightweight models", "Usage limits"]},
+                    {"name": "Basic", "price": "1 hour contribution", "meta": "1 day benefits", "badge": "Basic", "features": ["Faster queue", "Softer request limits", "Contribution scheduling", "Basic distributed assist"]},
+                    {"name": "Plus", "price": "5 hours contribution", "meta": "7 day benefits", "badge": "Plus", "recommended": True, "features": ["Higher priority", "Latest model access", "Much looser limits", "Stronger distributed assist"]},
+                    {"name": "Pro", "price": "extended contribution", "meta": "extended benefits", "badge": "Pro", "features": ["Top priority", "Advanced features", "Large jobs and sessions", "Long-run contribution mode"]},
+                ],
+                "sections": [
+                    {"title": "How distributed contribution scales", "text": "If 300 users are active and 100 contributors are available, each request still starts on the local device first. Higher plans can then receive extra distributed assist from contributor nodes.", "bullets": ["Local-device-first by default", "Weighted assignment for higher plans", "Automatic reassignment on node failure", "CPU/GPU/network-aware safety checks"]},
+                ],
+            },
+        },
+        "policies": {
+            "terms": {"title": "Terms of Service", "subtitle": "Service scope, responsibility boundaries, and subscription rules.", "sections": [{"title": "Service scope", "body": "Purple Bee provides AI chat, asset setup, contribution subscriptions, and product guidance pages."}, {"title": "Responsibility", "body": "Generated answers should still be verified. The service aims for quality, not absolute correctness."}, {"title": "Suspension conditions", "body": "Abuse, repeated no-shows, unsafe contribution behavior, or policy violations may limit access."}]},
+            "privacy": {"title": "Privacy Policy", "subtitle": "How account, session, memory, and contribution data are handled.", "sections": [{"title": "Collected data", "body": "Account information, session settings, contribution state, and minimal reliability logs may be processed."}, {"title": "Purpose", "body": "To provide the service, restore state, manage subscriptions, and operate safely."}, {"title": "Retention", "body": "Users can delete saved chats and memories, while only minimal operational data is retained when needed."}]},
+            "resource-use": {"title": "Computer Resource Use Consent", "subtitle": "A separate document for what is used, when it is used, and when it must stop.", "sections": [{"title": "What is used", "body": "A portion of CPU, GPU, RAM, storage, and network bandwidth may be used within configured limits."}, {"title": "When it is used", "body": "Only during reserved contribution windows, with automatic pause when active usage resumes."}, {"title": "Stop conditions", "body": "Contribution work pauses or stops when thermal, battery, network, or safety limits are exceeded."}]},
+        },
+        "policy_labels": {"terms": "Terms", "privacy": "Privacy", "resource-use": "Resource use"},
+        "footer": "Purple Bee product site",
+    },
+    "ja-JP": {
+        "brand_badge": "Global",
+        "nav": {
+            "home": "概要",
+            "features": "機能",
+            "safety": "安全性",
+            "architecture": "構成",
+            "pricing": "料金",
+            "legal": "ポリシー",
+            "open_chat": "Purple Bee を開く",
+        },
+        "pages": {
+            "home": {
+                "eyebrow": "Purple Bee",
+                "title": "準備物のインストールと貢献型サブスクリプションを備えた AI プラットフォーム",
+                "description": "Purple Bee は、実行資産の準備、デバイス別の実行、分散貢献サブスクリプションを一つの製品体験として設計しています。",
+                "badges": ["準備状態の管理", "貢献型サブスクリプション", "グローバル製品サイト", "安定性重視"],
+                "hero_cards": [
+                    {"label": "準備", "title": "インストール状態を一画面で確認", "meta": "未インストール・更新必要・最新状態を区別して案内します。"},
+                    {"label": "貢献", "title": "空き時間を予約して上位プランを有効化", "meta": "貢献時間と性能点数で上位特典を有効化します。"},
+                    {"label": "運用", "title": "Web UX・ネイティブクライアント・スケジューラを分離", "meta": "拡張性と安定性を両立するための構成です。"},
+                ],
+                "sections": [
+                    {"title": "製品の中心", "text": "Web は導入と準備状態を扱い、正確なハードウェア判定と安全な背景実行はネイティブクライアントが担当します。", "bullets": ["明確なインストール/更新状態", "デバイス優先実行 + 分散補助", "プランと貢献状態を一つの体験で管理"]},
+                    {"title": "この形にした理由", "text": "実行、設置、プラン、資源利用同意を別々の断片ではなく、一つの製品体験として扱うためです。", "bullets": ["失敗理由を説明できるセットアップ UX", "資源利用同意を別文書として分離", "地域言語に合わせた案内"]},
+                ],
+            },
+            "features": {
+                "eyebrow": "Features",
+                "title": "インストール、実行、貢献、アップグレードを一つの流れに",
+                "description": "Purple Bee は単なるチャット UI ではなく、準備・実行・貢献をまとめて扱う製品構成を目指します。",
+                "badges": ["インストーラー型 UI", "実行チェック", "貢献予約", "サブスク有効化"],
+                "sections": [
+                    {"title": "AI 準備物", "text": "インストール有無、更新必要性、予想ダウンロード容量、現在の実行条件をまとめて表示します。", "bullets": ["未インストール / 更新必要 / 最新", "正確なダウンロード容量と進行率", "削除と再インストール"]},
+                    {"title": "貢献型サブスクリプション", "text": "空き時間を予約し、計算資源を提供することで上位プランを有効化する方式です。", "bullets": ["Free · Basic · Plus · Pro", "時間 + ハードウェア効率スコア", "無断離脱・不参加に対するペナルティ"]},
+                ],
+            },
+            "safety": {
+                "eyebrow": "Safety",
+                "title": "資源利用の範囲と責任境界を先に示す製品",
+                "description": "Purple Bee は利用規約、資源利用同意、個人情報ポリシーを分けて提示し、いつ何を使うのかを明確にします。",
+                "badges": ["資源利用同意の分離", "停止条件", "責任範囲", "最小権限"],
+                "sections": [
+                    {"title": "必須同意", "text": "サービス開始前に利用規約、コンピュータ資源利用、個人情報処理方針への同意が必要です。", "bullets": ["利用規約", "コンピュータ資源使用への同意", "個人情報処理方針"]},
+                    {"title": "ユーザー保護", "text": "貢献クライアントはユーザー操作の再開や安全条件の逸脱時に自動停止するよう設計します。", "bullets": ["活動再開時の自動一時停止", "失敗時の再試行と再割当", "サンドボックス志向の実行"]},
+                ],
+            },
+            "architecture": {
+                "eyebrow": "Architecture",
+                "title": "Web・ネイティブクライアント・中央スケジューラを分離した構成",
+                "description": "Web は導入とプラン UX を担当し、ネイティブクライアントは正確なハードウェア検出と背景貢献、中央サーバーはタスク分配とサブスク判定を担当します。",
+                "badges": ["Node.js + Python", "ネイティブクライアント", "タスクキュー", "サブスク判定"],
+                "sections": [
+                    {"title": "クライアント構成", "text": "Web とネイティブは役割を分けます。Web は設置と案内、ネイティブは実部品判定と背景作業です。", "bullets": ["Web: 設置・法務・プラン UX", "Native: CPU/GPU/RAM/ディスク判定", "Bridge: 状態同期"]},
+                    {"title": "サーバー構成", "text": "中央サーバーは無料/貢献プランのキューを分離し、失敗した作業は安全に再割当します。", "bullets": ["分配と再試行", "サブスクの有効/無効化", "ペナルティと信頼度スコア"]},
+                ],
+            },
+            "pricing": {
+                "eyebrow": "Pricing",
+                "title": "Free から Pro まで、そして貢献型アップグレード",
+                "description": "基本利用は無料。より速い応答や上位モデル利用は、予約した貢献時間によって有効化されます。",
+                "badges": ["Free", "Basic", "Plus", "Pro"],
+                "plans": [
+                    {"name": "Free", "price": "¥0", "meta": "基本利用", "badge": "Free", "features": ["基本 AI 利用", "低優先キュー", "軽量モデル中心", "利用回数制限"]},
+                    {"name": "Basic", "price": "1時間貢献", "meta": "1日特典", "badge": "Basic", "features": ["待ち時間短縮", "利用制限緩和", "貢献予約", "基本分散補助"]},
+                    {"name": "Plus", "price": "5時間貢献", "meta": "7日特典", "badge": "Plus", "recommended": True, "features": ["高優先度", "最新モデル利用", "大幅な制限緩和", "強い分散補助"]},
+                    {"name": "Pro", "price": "拡張貢献", "meta": "拡張特典", "badge": "Pro", "features": ["最上位優先度", "高度機能", "大規模リクエスト対応", "長時間貢献モード"]},
+                ],
+                "sections": [
+                    {"title": "分散貢献の動作", "text": "同時利用 300 人・貢献ノード 100 台でも、各リクエストはまずローカル実行を開始し、上位プランに対して追加の分散補助を割り当てます。", "bullets": ["ローカル実行が常に先", "上位プランほど高い重み", "失敗ノードは自動除外", "CPU/GPU/ネットワークを考慮した安全判定"]},
+                ],
+            },
+        },
+        "policies": {
+            "terms": {"title": "利用規約", "subtitle": "サービス範囲、責任境界、サブスク運用基準を説明します。", "sections": [{"title": "サービス範囲", "body": "Purple Bee は AI 会話、準備物設置、貢献型サブスクリプション、製品案内ページを提供します。"}, {"title": "責任範囲", "body": "生成結果は常に検証が必要です。品質を目指しますが絶対的な正確さを保証するものではありません。"}, {"title": "停止条件", "body": "乱用、無断欠席の繰り返し、安全方針違反があった場合はアクセスを制限できるものとします。"}]},
+            "privacy": {"title": "個人情報処理方針", "subtitle": "アカウント、セッション、メモリ、貢献状態の扱いを説明します。", "sections": [{"title": "収集項目", "body": "アカウント情報、セッション設定、貢献状態、信頼性判定のための最小ログを扱うことがあります。"}, {"title": "利用目的", "body": "サービス提供、状態復元、サブスク判定、安全運用のためです。"}, {"title": "保管と削除", "body": "保存した会話やメモリはユーザー自身で削除できます。必要最小限の運用データのみ保持します。"}]},
+            "resource-use": {"title": "コンピュータ資源使用同意", "subtitle": "何を、いつ、どんな条件で使うのかを分離して説明する文書です。", "sections": [{"title": "何を使うか", "body": "CPU、GPU、RAM、ストレージ、ネットワーク帯域の一部を設定された上限内で使用します。"}, {"title": "いつ使うか", "body": "予約した貢献時間に限定し、ユーザーの作業再開時は自動で一時停止します。"}, {"title": "停止条件", "body": "温度、バッテリー、ネットワーク、安全条件を外れた場合は作業を停止または再割当します。"}]},
+        },
+        "policy_labels": {"terms": "利用規約", "privacy": "個人情報", "resource-use": "資源利用同意"},
+        "footer": "Purple Bee 製品サイト",
+    },
+}
+
+
+def normalize_site_locale(locale_value: str | None) -> str:
+    if not locale_value:
+        return detect_site_locale()
+    value = str(locale_value).strip()
+    if value in SUPPORTED_SITE_LOCALES:
+        return value
+    return SITE_LOCALE_ALIASES.get(value.lower(), detect_site_locale())
+
+
+def detect_site_locale() -> str:
+    header = (request.headers.get("Accept-Language") or "").lower()
+    for token in [part.split(";")[0].strip() for part in header.split(",") if part.strip()]:
+        if token in SITE_LOCALE_ALIASES:
+            return SITE_LOCALE_ALIASES[token]
+        short = token.split("-")[0]
+        if short in SITE_LOCALE_ALIASES:
+            return SITE_LOCALE_ALIASES[short]
+    return "en-US"
+
+
+def build_site_prefix(locale: str) -> str:
+    return f"/{locale}/index/purple-bee"
+
+
+def build_locale_links(path_suffix: str) -> list[dict]:
+    links = []
+    for locale in SUPPORTED_SITE_LOCALES.keys():
+        links.append({
+            "locale": locale,
+            "label": locale.split("-")[0].upper(),
+            "href": f"{build_site_prefix(locale)}{path_suffix}",
+        })
+    return links
+
+
+def render_site_marketing(page_key: str, locale: str):
+    locale = normalize_site_locale(locale)
+    bundle = SITE_COPY.get(locale, SITE_COPY["en-US"])
+    path_suffix = "/" if page_key == "home" else f"/{page_key}/"
+    return render_template(
+        "purplebee-site-page.html",
+        site_locale=locale,
+        site_lang=SUPPORTED_SITE_LOCALES.get(locale, "en"),
+        base_prefix=build_site_prefix(locale),
+        locale_links=build_locale_links(path_suffix),
+        nav=bundle["nav"],
+        footer_copy=bundle["footer"],
+        brand_badge=bundle["brand_badge"],
+        page_key=page_key,
+        page=bundle["pages"][page_key],
+    )
+
+
+def render_site_policy(policy_key: str, locale: str):
+    locale = normalize_site_locale(locale)
+    bundle = SITE_COPY.get(locale, SITE_COPY["en-US"])
+    return render_template(
+        "purplebee-policy-page.html",
+        site_locale=locale,
+        site_lang=SUPPORTED_SITE_LOCALES.get(locale, "en"),
+        base_prefix=build_site_prefix(locale),
+        locale_links=build_locale_links(f"/legal/{policy_key}/"),
+        nav=bundle["nav"],
+        footer_copy=bundle["footer"],
+        brand_badge=bundle["brand_badge"],
+        policy=bundle["policies"][policy_key],
+        policy_labels=bundle["policy_labels"],
+    )
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/ko-KR/index/purple-bee/")
-def purplebee_landing():
-    return render_template("purplebee-landing.html")
+@app.route("/index/purple-bee/")
+def purplebee_global_landing():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/")
 
-@app.route("/ko-KR/index/purple-bee/features/")
-def purplebee_landing_features():
-    return render_template("purplebee-landing-features.html")
+@app.route("/index/purple-bee/features/")
+def purplebee_global_features():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/features/")
 
-@app.route("/ko-KR/index/purple-bee/safety/")
-def purplebee_landing_safety():
-    return render_template("purplebee-landing-safety.html")
+@app.route("/index/purple-bee/safety/")
+def purplebee_global_safety():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/safety/")
 
-@app.route("/ko-KR/index/purple-bee/architecture/")
-def purplebee_landing_architecture():
-    return render_template("purplebee-landing-architecture.html")
+@app.route("/index/purple-bee/architecture/")
+def purplebee_global_architecture():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/architecture/")
 
-@app.route("/ko-KR/index/purple-bee/pricing/")
-def purplebee_landing_pricing():
-    return render_template("purplebee-landing-pricing.html")
+@app.route("/index/purple-bee/pricing/")
+def purplebee_global_pricing():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/pricing/")
+
+@app.route("/index/purple-bee/legal/terms/")
+def purplebee_global_terms():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/legal/terms/")
+
+@app.route("/index/purple-bee/legal/privacy/")
+def purplebee_global_privacy():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/legal/privacy/")
+
+@app.route("/index/purple-bee/legal/resource-use/")
+def purplebee_global_resource_use():
+    return redirect(f"{build_site_prefix(detect_site_locale())}/legal/resource-use/")
+
+@app.route("/<locale>/index/purple-bee/")
+def purplebee_landing(locale):
+    return render_site_marketing("home", locale)
+
+@app.route("/<locale>/index/purple-bee/features/")
+def purplebee_landing_features(locale):
+    return render_site_marketing("features", locale)
+
+@app.route("/<locale>/index/purple-bee/safety/")
+def purplebee_landing_safety(locale):
+    return render_site_marketing("safety", locale)
+
+@app.route("/<locale>/index/purple-bee/architecture/")
+def purplebee_landing_architecture(locale):
+    return render_site_marketing("architecture", locale)
+
+@app.route("/<locale>/index/purple-bee/pricing/")
+def purplebee_landing_pricing(locale):
+    return render_site_marketing("pricing", locale)
+
+@app.route("/<locale>/index/purple-bee/legal/terms/")
+def purplebee_terms(locale):
+    return render_site_policy("terms", locale)
+
+@app.route("/<locale>/index/purple-bee/legal/privacy/")
+def purplebee_privacy(locale):
+    return render_site_policy("privacy", locale)
+
+@app.route("/<locale>/index/purple-bee/legal/resource-use/")
+def purplebee_resource_use(locale):
+    return render_site_policy("resource-use", locale)
 
 @app.route("/model-panel")
 def model_panel():
