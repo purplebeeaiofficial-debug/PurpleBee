@@ -37,6 +37,7 @@
   const MODEL_URL = "/static/purple-bee-model.bin";
   const BROWSER_MANIFEST_URL = "/api/runtime/browser-manifest";
   const RUNTIME_MODEL_KEY = "pb_runtime_model_id_v1";
+  const INSTALL_MODEL_KEY = "pb_install_model_id_v1";
   const MODEL_REGISTRY_URL = "/static/model-registry.json?v=20260405n";
   const DIALOGUE_BANK_URL = "/static/purple-bee-dialogues.txt";
   const TEXT_EXTENSIONS = new Set(["txt","md","markdown","json","csv","ts","tsx","js","jsx","mjs","py","java","cpp","cc","cxx","c","cs","go","rs","php","rb","html","htm","css","scss","xml","yml","yaml","ini","toml","log","sql","sh","ps1","bat","cmake"]);
@@ -49,6 +50,21 @@
     rememberChats: true,
   };
   const DEVICE_CACHE = new Map();
+  const MODEL_INSTALL_PRESETS = {
+    "purple-bee-1-3": {
+      download_bytes: 445315993,
+      minimum: {
+        memory_gb: 8,
+        cpu_threads: 6,
+        free_storage_mb: 1600,
+      },
+      recommended: {
+        memory_gb: 16,
+        cpu_threads: 10,
+        free_storage_mb: 2800,
+      },
+    },
+  };
 
   const AI_AVATAR_SVG = `<svg width="32" height="32" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="av-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#db2777"/></linearGradient><linearGradient id="av-wing" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c4b5fd" stop-opacity=".9"/><stop offset="100%" stop-color="#818cf8" stop-opacity=".6"/></linearGradient></defs><circle cx="40" cy="40" r="38" fill="url(#av-bg)"/><ellipse cx="24" cy="30" rx="14" ry="7" fill="url(#av-wing)" transform="rotate(-25 24 30)"/><ellipse cx="56" cy="30" rx="14" ry="7" fill="url(#av-wing)" transform="rotate(25 56 30)"/><ellipse cx="40" cy="46" rx="14" ry="16" fill="#f5d76e"/><rect x="31" y="39" width="18" height="4" rx="2" fill="#4c1d95" opacity=".55"/><rect x="31" y="47" width="18" height="4" rx="2" fill="#4c1d95" opacity=".55"/><circle cx="35" cy="34" r="2.2" fill="#1a1a2e"/><circle cx="45" cy="34" r="2.2" fill="#1a1a2e"/></svg>`;
   const initialSettings = loadSettings();
@@ -137,7 +153,7 @@
       history: "최근 대화",
       settings: "설정",
       attach: "자료 첨부",
-      homeSubtitle: "질문을 시작하기 전에 AI 준비물을 한 번 설치하면, 이 기기 안에서 더 안정적으로 답하도록 준비하는 Purple Bee입니다.",
+      homeSubtitle: "질문 전에 필요한 실행 자산을 이 기기에 맞춰 준비하고, 설치 상태와 업데이트 여부를 함께 관리하는 Purple Bee입니다.",
       card1Title: "문서 요약",
       card1Desc: "PDF, 텍스트, 코드 파일을 읽고 핵심만 정리",
       card2Title: "문제 해결",
@@ -623,6 +639,38 @@
     );
     if (fallback) localStorage.setItem(RUNTIME_MODEL_KEY, fallback);
     return fallback;
+  }
+
+  function getSelectedInstallModelId() {
+    const registryModels = getRegistryModelList();
+    const stored = trim(localStorage.getItem(INSTALL_MODEL_KEY) || "");
+    if (stored && registryModels.some((model) => model && model.id === stored)) {
+      return stored;
+    }
+    const fallback = getSelectedRuntimeModelId()
+      || trim((state.modelRegistry && state.modelRegistry.current_model_id) || "")
+      || trim((registryModels[0] && registryModels[0].id) || "");
+    if (fallback) localStorage.setItem(INSTALL_MODEL_KEY, fallback);
+    return fallback;
+  }
+
+  function setSelectedInstallModelId(modelId) {
+    const nextId = trim(modelId);
+    if (!nextId) return;
+    localStorage.setItem(INSTALL_MODEL_KEY, nextId);
+  }
+
+  function getInstallModelMeta() {
+    const registry = state.modelRegistry;
+    const installId = getSelectedInstallModelId() || (registry && registry.current_model_id) || "purple-bee-1-3";
+    const models = registry && Array.isArray(registry.models) ? registry.models : [];
+    return models.find((model) => model && model.id === installId)
+      || models[0]
+      || {
+        id: installId,
+        display_name: "Purple Bee",
+        architecture_name: "Purple Bee runtime",
+      };
   }
 
   function resetRuntimeEngine() {
@@ -7241,6 +7289,16 @@ async function generateReasonedChatReply(prompt, language) {
     if ((!selected || !hasSelectedModel) && state.modelRegistry && state.modelRegistry.current_model_id) {
       localStorage.setItem(RUNTIME_MODEL_KEY, state.modelRegistry.current_model_id);
     }
+    const installSelected = getSelectedInstallModelId();
+    const hasInstallSelectedModel = !!(
+      installSelected
+      && state.modelRegistry
+      && Array.isArray(state.modelRegistry.models)
+      && state.modelRegistry.models.some((model) => model && model.id === installSelected)
+    );
+    if ((!installSelected || !hasInstallSelectedModel) && state.modelRegistry && state.modelRegistry.current_model_id) {
+      localStorage.setItem(INSTALL_MODEL_KEY, state.modelRegistry.current_model_id);
+    }
     renderModelRegistry();
   }
 
@@ -8645,19 +8703,21 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   function getLocalStatusMessage(status) {
+    const installMeta = getInstallModelMeta();
+    const label = installMeta && installMeta.display_name ? installMeta.display_name : "선택한 모델";
     if (status === "loading") {
       return getActiveUiLanguage() === "ko"
-        ? "이 기기에 설치된 Purple Bee 1.3을 준비하는 중입니다..."
-        : "Preparing Purple Bee 1.3 on this device...";
+        ? `${label} 준비 상태를 현재 기기에서 확인하는 중입니다...`
+        : `Preparing ${label} on this device...`;
     }
     if (status === "error") {
       return getActiveUiLanguage() === "ko"
-        ? "이 기기의 Purple Bee 1.3 준비 상태를 확인하지 못했습니다."
-        : "Purple Bee 1.3 could not be prepared on this device.";
+        ? `${label} 준비 상태를 이 기기에서 확인하지 못했습니다.`
+        : `${label} could not be prepared on this device.`;
     }
     return getActiveUiLanguage() === "ko"
-      ? "이 기기에 설치된 Purple Bee 1.3이 백그라운드에서 답변합니다."
-      : "Purple Bee 1.3 is answering from this device in the background.";
+      ? "설치된 선택 모델이 이 기기에서 백그라운드로 답변합니다."
+      : "The installed model answers in the background on this device.";
   }
 
   async function ensureEngineReady() {
@@ -8823,6 +8883,17 @@ async function generateReasonedChatReply(prompt, language) {
     });
   }
 
+  async function pbxRuntimeStoreDelete(key) {
+    const db = await pbxOpenRuntimeDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PBX_RUNTIME_STORE, "readwrite");
+      const store = tx.objectStore(PBX_RUNTIME_STORE);
+      const request = store.delete(key);
+      request.onsuccess = function () { resolve(true); };
+      request.onerror = function () { reject(request.error || new Error("runtime-db-delete-failed")); };
+    });
+  }
+
   async function pbxGetInstalledRuntimePackage(modelId) {
     try {
       const payload = await pbxRuntimeStoreGet(String(modelId || "purple-bee-1-3"));
@@ -8835,6 +8906,12 @@ async function generateReasonedChatReply(prompt, language) {
   async function pbxSaveInstalledRuntimePackage(modelId, payload) {
     await pbxRuntimeStoreSet(String(modelId || "purple-bee-1-3"), payload);
     engine.installedPackage = payload || null;
+    return true;
+  }
+
+  async function pbxDeleteInstalledRuntimePackage(modelId) {
+    await pbxRuntimeStoreDelete(String(modelId || "purple-bee-1-3"));
+    engine.installedPackage = null;
     return true;
   }
 
@@ -8871,6 +8948,37 @@ async function generateReasonedChatReply(prompt, language) {
     return `${Math.round(number)} MB`;
   }
 
+  function fileNameFromUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      const pathname = String(parsed.pathname || "");
+      const last = pathname.split("/").filter(Boolean).pop() || "";
+      return decodeURIComponent(last);
+    } catch (_error) {
+      const cleaned = raw.split("#")[0].split("?")[0];
+      const last = cleaned.split("/").filter(Boolean).pop() || "";
+      return last;
+    }
+  }
+
+  function pbxGetInstallPreset(modelId) {
+    return MODEL_INSTALL_PRESETS[String(modelId || "").trim()] || {
+      download_bytes: 445315993,
+      minimum: {
+        memory_gb: 8,
+        cpu_threads: 6,
+        free_storage_mb: 1600,
+      },
+      recommended: {
+        memory_gb: 16,
+        cpu_threads: 10,
+        free_storage_mb: 2800,
+      },
+    };
+  }
+
   function pbxRequirementMark(ok) {
     return ok ? '<span class="pbx-assets-spec-check ok">✓</span>' : '<span class="pbx-assets-spec-check no">✕</span>';
   }
@@ -8893,16 +9001,17 @@ async function generateReasonedChatReply(prompt, language) {
     const freeStorageMb = Math.max(0, Math.floor(freeBytes / (1024 * 1024)));
     const memoryGb = Number(navigator.deviceMemory || 0);
     const cpuThreads = Number(navigator.hardwareConcurrency || 0);
+    const preset = pbxGetInstallPreset(plan?.model_id || getSelectedInstallModelId());
     const minimum = {
-      memory_gb: 4,
-      cpu_threads: 4,
-      free_storage_mb: 350,
+      memory_gb: preset.minimum.memory_gb,
+      cpu_threads: preset.minimum.cpu_threads,
+      free_storage_mb: preset.minimum.free_storage_mb,
       ...(plan?.requirements?.minimum || {}),
     };
     const recommended = {
-      memory_gb: 8,
-      cpu_threads: 8,
-      free_storage_mb: 700,
+      memory_gb: preset.recommended.memory_gb,
+      cpu_threads: preset.recommended.cpu_threads,
+      free_storage_mb: preset.recommended.free_storage_mb,
       ...(plan?.requirements?.recommended || {}),
     };
     const featureSupport = {
@@ -8928,6 +9037,8 @@ async function generateReasonedChatReply(prompt, language) {
       memoryGb,
       cpuThreads,
       freeStorageMb,
+      selectedModelId: String(plan?.model_id || getSelectedInstallModelId() || ""),
+      selectedModelLabel: String(plan?.display_name || getInstallModelMeta().display_name || "선택한 모델"),
       featureSupport,
       minimum,
       recommended,
@@ -8935,6 +9046,69 @@ async function generateReasonedChatReply(prompt, language) {
       meetsRecommended,
       tier: !featureSupport.worker || !featureSupport.indexedDb ? "unsupported" : meetsRecommended ? "recommended" : meetsMinimum ? "minimum" : "low",
     };
+  }
+
+  async function pbxProbeAssetBytes(url) {
+    const cacheKey = `asset-size:${url}`;
+    if (DEVICE_CACHE.has(cacheKey)) return DEVICE_CACHE.get(cacheKey);
+    try {
+      const response = await fetch(url, { method: "HEAD", cache: "no-store" });
+      if (!response.ok) throw new Error(`head-${response.status}`);
+      const bytes = Number(response.headers.get("content-length") || response.headers.get("x-linked-size") || 0);
+      DEVICE_CACHE.set(cacheKey, bytes);
+      return bytes;
+    } catch (_error) {
+      DEVICE_CACHE.set(cacheKey, 0);
+      return 0;
+    }
+  }
+
+  async function pbxBuildRuntimeAssetState(plan) {
+    const cacheKey = `runtime-assets:${String(plan?.model_id || "")}:${String(plan?.asset_version || "")}`;
+    if (DEVICE_CACHE.has(cacheKey)) {
+      return DEVICE_CACHE.get(cacheKey);
+    }
+    const manifest = await pbxFetchRuntimeManifest(plan);
+    const browserAssets = manifest?.browser_assets || {};
+    const descriptors = [
+      {
+        role: "onnx",
+        url: String(browserAssets.onnx || "").trim(),
+        description: "메인 추론 모델 파일",
+        kind: "runtime-model",
+      },
+      {
+        role: "onnx_data",
+        url: String(browserAssets.onnx_data || "").trim(),
+        description: "대형 모델 가중치 데이터",
+        kind: "runtime-model-data",
+      },
+      {
+        role: "tokenizer",
+        url: String(browserAssets.tokenizer || "").trim(),
+        description: "문장을 토큰으로 바꾸는 토크나이저",
+        kind: "runtime-tokenizer",
+      },
+    ].filter((item) => item.url);
+    const assets = [];
+    let totalBytes = 0;
+    for (const item of descriptors) {
+      const bytes = await pbxProbeAssetBytes(item.url);
+      totalBytes += Number(bytes || 0);
+      assets.push({
+        ...item,
+        filename: fileNameFromUrl(item.url) || `${item.role}.bin`,
+        bytes,
+      });
+    }
+    const payload = {
+      manifest,
+      assets,
+      totalBytes,
+      totalMb: Math.round(totalBytes / (1024 * 1024)),
+    };
+    DEVICE_CACHE.set(cacheKey, payload);
+    return payload;
   }
 
   async function pbxReadRuntimeBlob(url) {
@@ -8987,11 +9161,24 @@ async function generateReasonedChatReply(prompt, language) {
     await writable.close();
   }
 
+  async function pbxRemoveFolderAssetFile(handle, filename) {
+    if (!handle || !filename || typeof handle.removeEntry !== "function") return;
+    try {
+      await handle.removeEntry(filename);
+    } catch (_error) {
+      // Ignore missing files.
+    }
+  }
+
   async function pbxLoadRuntimePackageState(plan) {
     const modelId = String(plan?.model_id || (getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3"));
     const saved = await pbxGetInstalledRuntimePackage(modelId);
     if (!saved || !saved.manifest || !saved.assets || !saved.assets.onnx || !saved.assets.tokenizer) {
       return { installed: false, reason: "runtime-missing", packageState: saved };
+    }
+    const requiresExternalData = Boolean(saved?.manifest?.browser_assets?.onnx_data);
+    if (requiresExternalData && !saved?.assets?.onnx_data) {
+      return { installed: false, reason: "runtime-extra-asset-missing", packageState: saved };
     }
     const installedVersion = pbxNormalizeVersionTag(saved.asset_version);
     const latestVersion = pbxNormalizeVersionTag(plan?.asset_version);
@@ -9083,10 +9270,11 @@ async function generateReasonedChatReply(prompt, language) {
   async function pbxWriteInstallManifest(handle) {
     const fileHandle = await handle.getFileHandle("purple-bee-package.json", { create: true });
     const writable = await fileHandle.createWritable();
+    const installMeta = getInstallModelMeta();
     const payload = {
       family_name: "Purple Bee",
-      model_id: getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3",
-      display_name: getRuntimeModelLabel ? getRuntimeModelLabel() : "Purple Bee 1.3",
+      model_id: installMeta.id || "purple-bee-1-3",
+      display_name: installMeta.display_name || "Purple Bee",
       runtime_mode: "public-server-runtime",
       linked_at: new Date().toISOString(),
       website_origin: window.location.origin,
@@ -9150,6 +9338,7 @@ async function generateReasonedChatReply(prompt, language) {
     const ko = {
       unsupported: "이 브라우저에서는 AI 준비물 폴더 확인 기능을 지원하지 않아요. 최신 Edge에서 접속해 주세요.",
       "runtime-missing": "이 기기에 Purple Bee 준비물이 아직 설치되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 먼저 설치해 주세요.",
+      "runtime-extra-asset-missing": "모델을 실행하는 데 필요한 추가 가중치 파일이 빠져 있어요. 상단의 'AI 준비물' 버튼에서 업데이트를 한 번 다시 눌러 주세요.",
       "no-folder-linked": "AI 준비물 폴더가 아직 연결되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 폴더를 연결하면 설치 상태를 더 쉽게 관리할 수 있어요.",
       "permission-needed": "AI 준비물 폴더 권한이 끊어졌어요. 다만 브라우저 안에 설치된 모델은 그대로일 수 있으니, 필요하면 상단의 'AI 준비물' 버튼으로 다시 연결해 주세요.",
       "manifest-missing": "선택한 폴더에 Purple Bee 설치 마커가 없어요. 상단의 'AI 준비물' 버튼으로 다시 연결해 주세요.",
@@ -9164,30 +9353,47 @@ async function generateReasonedChatReply(prompt, language) {
     if (deviceProfile && deviceProfile.tier === "unsupported") {
       return {
         kind: "error",
-        title: "이 브라우저에서는 준비가 어려워요",
-        body: "Worker 또는 IndexedDB가 없어 이 사이트의 로컬 추론 준비를 진행할 수 없어요. 최신 Edge 또는 Chrome에서 다시 열어 주세요.",
+        title: "이 환경에서는 준비를 진행하기 어려워요",
+        body: "Worker 또는 IndexedDB를 사용할 수 없어 설치를 완료하기 어려워요. 최신 Edge 또는 Chrome에서 다시 열어 주세요.",
         cta: "지원 필요",
         needsUpdate: false,
+        installed: false,
+        canDelete: false,
       };
     }
 
     if (deviceProfile && deviceProfile.tier === "low") {
       return {
         kind: "warn",
-        title: "이 기기는 최소 사양에 가까워요",
-        body: "설치는 가능하지만 첫 로딩과 긴 답변이 더 느릴 수 있어요. 다른 앱을 조금 닫아 두면 더 안정적일 수 있습니다.",
+        title: "최소 사양에 가까운 환경이에요",
+        body: "설치는 진행할 수 있지만 첫 준비 시간과 긴 답변 생성이 더 느릴 수 있어요. 메모리 여유를 조금 확보하면 더 안정적입니다.",
         cta: "저사양",
         needsUpdate: false,
+        installed: false,
+        canDelete: false,
       };
     }
 
     if (!verify || !verify.installed) {
+      if (verify?.reason === "runtime-extra-asset-missing") {
+        return {
+          kind: "warn",
+          title: "추가 자산 업데이트가 필요해요",
+          body: pbxInstallGuideText("runtime-extra-asset-missing"),
+          cta: "업데이트 필요",
+          needsUpdate: true,
+          installed: false,
+          canDelete: true,
+        };
+      }
       return {
         kind: "warn",
-        title: "아직 준비가 끝나지 않았어요",
+        title: "아직 설치가 완료되지 않았어요",
         body: pbxInstallGuideText(verify?.reason || "no-folder-linked"),
         cta: "설치 필요",
         needsUpdate: false,
+        installed: false,
+        canDelete: false,
       };
     }
 
@@ -9195,27 +9401,31 @@ async function generateReasonedChatReply(prompt, language) {
     if (latestVersion && installedVersion && latestVersion !== installedVersion) {
       return {
         kind: "warn",
-        title: "업데이트가 준비되어 있어요",
-        body: `현재 폴더는 ${installedVersion} 버전 기준이고, 사이트 최신 준비물은 ${latestVersion} 버전이에요. 아래의 업데이트 버튼을 누르면 필요한 파일만 최신 상태로 다시 맞출 수 있어요.`,
+        title: "새 준비물이 배포되어 있어요",
+        body: `현재 설치된 자산은 ${installedVersion} 버전이고, 사이트에서 제공하는 최신 자산은 ${latestVersion} 버전이에요. 업데이트를 누르면 필요한 파일만 다시 내려받아 최신 상태로 맞춥니다.`,
         cta: "업데이트 필요",
         needsUpdate: true,
+        installed: true,
+        canDelete: true,
       };
     }
 
     return {
       kind: "ok",
-      title: "지금 바로 써도 괜찮아요",
-      body: "이 기기에 필요한 모델 준비물이 설치되어 있고 현재 사이트 버전과도 맞아요. 필요할 때만 다시 열어서 업데이트를 확인하면 됩니다.",
+      title: "최신 준비물이 설치되어 있어요",
+      body: "선택한 모델에 필요한 자산이 이미 이 기기에 설치되어 있고 현재 배포 버전과도 일치합니다. 지금은 다시 설치할 필요가 없어요.",
       cta: "최신 상태",
       needsUpdate: false,
+      installed: true,
+      canDelete: true,
     };
   }
 
-  async function pbxEnsureAiAssetsInstalled(repairPermission = false) {
+  async function pbxEnsureAiAssetsInstalled(repairPermission = false, modelId = null) {
     if (!("indexedDB" in window)) {
       return { installed: false, reason: "unsupported" };
     }
-    const plan = await pbxFetchPackagePlan().catch(() => null);
+    const plan = await pbxFetchPackagePlan(modelId).catch(() => null);
     const runtimeState = await pbxLoadRuntimePackageState(plan);
     if (!runtimeState.installed) {
       return { installed: false, reason: runtimeState.reason || "runtime-missing", runtimeState };
@@ -9265,9 +9475,9 @@ async function generateReasonedChatReply(prompt, language) {
     }
   }
 
-  async function pbxFetchPackagePlan() {
-    const modelId = getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3";
-    const response = await fetch(`/api/runtime/package-plan?model_id=${encodeURIComponent(modelId)}`, {
+  async function pbxFetchPackagePlan(modelId = null) {
+    const resolvedModelId = trim(modelId || "") || (getSelectedInstallModelId ? getSelectedInstallModelId() : "purple-bee-1-3");
+    const response = await fetch(`/api/runtime/package-plan?model_id=${encodeURIComponent(resolvedModelId)}`, {
       cache: "no-store",
       headers: { "accept": "application/json" },
     });
@@ -9298,8 +9508,9 @@ async function generateReasonedChatReply(prompt, language) {
 
   async function pbxInstallAssetsToFolder(handle, plan, runtimeManifest = null, runtimeAssets = null) {
     const installedAt = new Date().toISOString();
-    const modelId = String(plan?.model_id || (getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3"));
-    const displayName = String(plan?.display_name || (getRuntimeModelLabel ? getRuntimeModelLabel() : "Purple Bee 1.3"));
+    const installMeta = getInstallModelMeta();
+    const modelId = String(plan?.model_id || installMeta.id || "purple-bee-1-3");
+    const displayName = String(plan?.display_name || installMeta.display_name || "Purple Bee");
     const manifest = {
       family_name: "Purple Bee",
       model_id: modelId,
@@ -9330,12 +9541,6 @@ async function generateReasonedChatReply(prompt, language) {
       if (runtimeManifest && asset.filename === "purple-bee-browser-manifest.json") {
         await pbxWriteJsonFile(handle, asset.filename, runtimeManifest);
         written.push({ filename: asset.filename, kind: asset.kind, generated: true });
-      } else if (runtimeAssets && asset.filename === "purple-bee-1-3-int8.onnx" && runtimeAssets.onnx) {
-        await pbxWriteBlobFile(handle, asset.filename, runtimeAssets.onnx);
-        written.push({ filename: asset.filename, kind: asset.kind, bytes: runtimeAssets.onnx.size || 0 });
-      } else if (runtimeAssets && asset.filename === "tokenizer.json" && runtimeAssets.tokenizer) {
-        await pbxWriteBlobFile(handle, asset.filename, runtimeAssets.tokenizer);
-        written.push({ filename: asset.filename, kind: asset.kind, bytes: runtimeAssets.tokenizer.size || 0 });
       } else if (String(asset.kind || "").startsWith("download-") && asset.url) {
         const text = await pbxFetchTextAsset(asset.url);
         await pbxWriteTextFile(handle, asset.filename, text);
@@ -9343,6 +9548,23 @@ async function generateReasonedChatReply(prompt, language) {
       } else if (String(asset.kind || "").startsWith("generated-")) {
         written.push({ filename: asset.filename, kind: asset.kind, generated: true });
       }
+    }
+
+    const runtimeBrowserAssets = runtimeManifest?.browser_assets || {};
+    if (runtimeAssets && runtimeAssets.onnx && runtimeBrowserAssets.onnx) {
+      const onnxName = fileNameFromUrl(runtimeBrowserAssets.onnx) || "model.onnx";
+      await pbxWriteBlobFile(handle, onnxName, runtimeAssets.onnx);
+      written.push({ filename: onnxName, kind: "runtime-model", bytes: runtimeAssets.onnx.size || 0 });
+    }
+    if (runtimeAssets && runtimeAssets.onnx_data && runtimeBrowserAssets.onnx_data) {
+      const onnxDataName = fileNameFromUrl(runtimeBrowserAssets.onnx_data) || "model.onnx.data";
+      await pbxWriteBlobFile(handle, onnxDataName, runtimeAssets.onnx_data);
+      written.push({ filename: onnxDataName, kind: "runtime-model-data", bytes: runtimeAssets.onnx_data.size || 0 });
+    }
+    if (runtimeAssets && runtimeAssets.tokenizer && runtimeBrowserAssets.tokenizer) {
+      const tokenizerName = fileNameFromUrl(runtimeBrowserAssets.tokenizer) || "tokenizer.json";
+      await pbxWriteBlobFile(handle, tokenizerName, runtimeAssets.tokenizer);
+      written.push({ filename: tokenizerName, kind: "runtime-tokenizer", bytes: runtimeAssets.tokenizer.size || 0 });
     }
 
     await pbxWriteJsonFile(handle, "purple-bee-assets-index.json", {
@@ -9359,6 +9581,26 @@ async function generateReasonedChatReply(prompt, language) {
     return manifest;
   }
 
+  async function pbxDeleteAssetsFromFolder(handle, plan, runtimeManifest = null) {
+    if (!handle) return;
+    const runtimeBrowserAssets = runtimeManifest?.browser_assets || {};
+    const removableFiles = [
+      "purple-bee-package.json",
+      "purple-bee-assets-index.json",
+      "purple-bee-endpoints.json",
+      "purple-bee-release-notes.txt",
+      "purple-bee-health.json",
+      "purple-bee-browser-manifest.json",
+      "purple-bee-model-registry.json",
+      fileNameFromUrl(runtimeBrowserAssets.onnx),
+      fileNameFromUrl(runtimeBrowserAssets.onnx_data),
+      fileNameFromUrl(runtimeBrowserAssets.tokenizer),
+    ].filter(Boolean);
+    for (const filename of Array.from(new Set(removableFiles))) {
+      await pbxRemoveFolderAssetFile(handle, filename);
+    }
+  }
+
   function pbxEnsureAssetsModal() {
     let modal = document.getElementById("pbx-assets-modal");
     if (modal) return modal;
@@ -9371,7 +9613,7 @@ async function generateReasonedChatReply(prompt, language) {
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%">
             <div>
               <div class="pbx-assets-title">AI 준비물</div>
-              <div id="pbx-assets-modal-subtitle" class="pbx-assets-subtitle">질문하기 전에 준비 상태를 가볍게 확인하고, 필요한 파일이 있으면 한 번에 설치하거나 업데이트할 수 있어요.</div>
+              <div id="pbx-assets-modal-subtitle" class="pbx-assets-subtitle">설치 여부, 업데이트 필요 여부, 예상 용량을 한 번에 확인하고 필요한 작업만 진행할 수 있어요.</div>
             </div>
             <button type="button" id="pbx-assets-modal-close" class="pbx-assets-close">×</button>
           </div>
@@ -9403,18 +9645,27 @@ async function generateReasonedChatReply(prompt, language) {
           <div class="pbx-assets-files-card">
             <div class="pbx-assets-files-head">
               <div>
+                <div class="pbx-assets-files-title">이 기기에 설치할 모델</div>
+                <div class="pbx-assets-files-sub">이 기기에 둘 모델을 선택하세요. 선택한 모델 기준으로 설치 상태와 업데이트 기준을 계산합니다.</div>
+              </div>
+            </div>
+            <div id="pbx-assets-model-picker" class="pbx-assets-model-picker"></div>
+          </div>
+          <div class="pbx-assets-files-card">
+            <div class="pbx-assets-files-head">
+              <div>
                 <div class="pbx-assets-files-title">이 기기 상태</div>
-                <div id="pbx-assets-device-summary" class="pbx-assets-files-sub">메모리, CPU, 저장 공간을 확인하는 중이에요.</div>
+                <div id="pbx-assets-device-summary" class="pbx-assets-files-sub">브라우저가 확인할 수 있는 실행 환경 정보를 바탕으로 설치 가능성을 점검하는 중이에요.</div>
               </div>
               <div id="pbx-assets-device-pill" class="pbx-assets-help">확인 중</div>
             </div>
             <div class="pbx-assets-mini-grid">
               <div class="pbx-assets-mini">
-                <div class="pbx-assets-mini-label">메모리</div>
+                <div class="pbx-assets-mini-label">확인된 메모리</div>
                 <div id="pbx-assets-memory" class="pbx-assets-mini-value">-</div>
               </div>
               <div class="pbx-assets-mini">
-                <div class="pbx-assets-mini-label">CPU 스레드</div>
+                <div class="pbx-assets-mini-label">확인된 CPU 스레드</div>
                 <div id="pbx-assets-cpu" class="pbx-assets-mini-value">-</div>
               </div>
               <div class="pbx-assets-mini">
@@ -9423,6 +9674,7 @@ async function generateReasonedChatReply(prompt, language) {
               </div>
             </div>
             <div id="pbx-assets-spec-grid" class="pbx-assets-spec-grid"></div>
+            <div class="pbx-assets-help">정확한 CPU·GPU·RAM 모델명은 브라우저만으로 모두 읽을 수 없어요. 실제 부품 기준 평가는 기여 구독용 데스크톱 클라이언트에서 확인합니다.</div>
             <div class="pbx-assets-progress">
               <div class="pbx-assets-progress-head">
                 <div>
@@ -9442,13 +9694,14 @@ async function generateReasonedChatReply(prompt, language) {
                 <div class="pbx-assets-files-title">이번에 준비되는 파일</div>
                 <div id="pbx-assets-model-summary" class="pbx-assets-files-sub"></div>
               </div>
-              <div class="pbx-assets-help">설치가 끝나면 이 폴더를 다시 열어보지 않아도 사이트가 연결 상태를 기억합니다.</div>
+              <div id="pbx-assets-download-estimate" class="pbx-assets-help">다운로드 크기를 계산하는 중이에요.</div>
             </div>
             <div id="pbx-assets-list" class="pbx-assets-list"></div>
           </div>
         </div>
         <div class="pbx-assets-actions" style="padding:0 24px 24px">
           <button type="button" id="pbx-assets-choose-btn" class="pbx-assets-btn">폴더 연결</button>
+          <button type="button" id="pbx-assets-delete-btn" class="pbx-assets-btn">준비물 삭제</button>
           <button type="button" id="pbx-assets-install-btn" class="pbx-assets-btn primary">준비물 설치</button>
         </div>
       </div>
@@ -9461,6 +9714,7 @@ async function generateReasonedChatReply(prompt, language) {
     document.body.appendChild(modal);
     document.getElementById("pbx-assets-modal-close").onclick = function () { pbxCloseAssetsSetupModal(); };
     document.getElementById("pbx-assets-choose-btn").onclick = async function () { await pbxChooseAssetsFolderFromModal(); };
+    document.getElementById("pbx-assets-delete-btn").onclick = async function () { await pbxDeleteAssetsFromModal(); };
     document.getElementById("pbx-assets-install-btn").onclick = async function () { await pbxInstallAssetsFromModal(); };
     return modal;
   }
@@ -9496,8 +9750,8 @@ async function generateReasonedChatReply(prompt, language) {
     const cpu = document.getElementById("pbx-assets-cpu");
     const storage = document.getElementById("pbx-assets-storage");
     const specGrid = document.getElementById("pbx-assets-spec-grid");
-    if (memory) memory.textContent = profile?.memoryGb ? `${profile.memoryGb} GB` : "알 수 없음";
-    if (cpu) cpu.textContent = profile?.cpuThreads ? `${profile.cpuThreads} threads` : "알 수 없음";
+    if (memory) memory.textContent = profile?.memoryGb ? `${profile.memoryGb} GB` : "확인되지 않음";
+    if (cpu) cpu.textContent = profile?.cpuThreads ? `${profile.cpuThreads} threads` : "확인되지 않음";
     if (storage) storage.textContent = pbxFormatMb(profile?.freeStorageMb);
     if (!summary || !pill) return;
 
@@ -9524,7 +9778,7 @@ async function generateReasonedChatReply(prompt, language) {
         { label: "저장 공간", value: pbxFormatMb(profile.recommended.free_storage_mb), ok: profile.freeStorageMb >= Number(profile.recommended.free_storage_mb || 0) },
       ];
       const cards = [
-        { title: "현재 내 PC", rows: currentRows },
+        { title: "현재 기기에서 확인된 값", rows: currentRows },
         { title: "최소 사양", rows: minimumRows },
         { title: "권장 사양", rows: recommendedRows },
       ];
@@ -9543,32 +9797,74 @@ async function generateReasonedChatReply(prompt, language) {
 
     if (profile.tier === "recommended") {
       pill.textContent = "권장 사양";
-      summary.textContent = "현재 기기 성능이면 Purple Bee 1.3을 비교적 안정적으로 준비하고 실행할 수 있어요.";
+      summary.textContent = "선택한 모델을 준비하고 실행하기에 여유가 있는 편이에요. 실제 부품명 확인은 기여 구독용 데스크톱 클라이언트에서 지원합니다.";
       return;
     }
     if (profile.tier === "minimum") {
       pill.textContent = "최소 사양";
-      summary.textContent = "설치와 실행은 가능하지만 첫 준비와 긴 답변은 조금 더 느릴 수 있어요.";
+      summary.textContent = "실행은 가능하지만 첫 설치와 긴 답변은 더 느릴 수 있어요. 여유 자원이 적으면 설치 전에 다른 앱을 정리하는 편이 좋습니다.";
       return;
     }
     if (profile.tier === "low") {
       pill.textContent = "저사양 주의";
-      summary.textContent = `최소 권장은 메모리 ${profile.minimum.memory_gb}GB / ${profile.minimum.cpu_threads}스레드 / 저장 공간 ${profile.minimum.free_storage_mb}MB예요. 지금 기기에서는 느릴 수 있어요.`;
+      summary.textContent = `최소 기준은 메모리 ${profile.minimum.memory_gb}GB / ${profile.minimum.cpu_threads}스레드 / 저장 공간 ${profile.minimum.free_storage_mb}MB예요. 현재 환경에서는 설치 또는 실행 속도가 크게 떨어질 수 있어요.`;
       return;
     }
     pill.textContent = "지원 필요";
     summary.textContent = "이 브라우저에서는 Worker 또는 저장 기능이 부족해서 설치를 진행하기 어려워요. 최신 Edge에서 다시 시도해 주세요.";
   }
 
-  function pbxRenderAssetsList(plan) {
+  function pbxRenderModelPicker() {
+    const picker = document.getElementById("pbx-assets-model-picker");
+    if (!picker) return;
+    const models = getRegistryModelList();
+    const installId = getSelectedInstallModelId();
+    const runtimeId = getSelectedRuntimeModelId();
+    picker.innerHTML = models.map((model) => {
+      const checked = model.id === installId;
+      const isRuntime = model.id === runtimeId;
+      return `
+        <label class="pbx-assets-model-option ${checked ? "selected" : ""}">
+          <input type="radio" name="pbx-install-model" value="${escapeHtml(model.id)}" ${checked ? "checked" : ""}>
+          <div class="pbx-assets-model-option-main">
+            <div class="pbx-assets-model-option-title">${escapeHtml(model.display_name || model.id || "Purple Bee")}</div>
+            <div class="pbx-assets-model-option-sub">${escapeHtml(model.architecture_name || "Purple Bee runtime")}</div>
+          </div>
+          <div class="pbx-assets-model-option-badges">
+            ${checked ? '<span class="pbx-assets-model-badge active">설치 예정</span>' : ""}
+            ${isRuntime ? '<span class="pbx-assets-model-badge">현재 사용 모델</span>' : ""}
+          </div>
+        </label>
+      `;
+    }).join("");
+    picker.querySelectorAll('input[name="pbx-install-model"]').forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        const nextId = trim(event.target && event.target.value);
+        if (!nextId || nextId === getSelectedInstallModelId()) return;
+        setSelectedInstallModelId(nextId);
+        showToast(getActiveUiLanguage() === "ko" ? "설치할 모델을 바꿨어요." : "Updated the install model.");
+        await pbxOpenAssetsSetupModal("model-changed");
+      });
+    });
+  }
+
+  function pbxRenderAssetsList(plan, runtimeDownload = null) {
     const list = document.getElementById("pbx-assets-list");
     const summary = document.getElementById("pbx-assets-model-summary");
     const modelName = document.getElementById("pbx-assets-model-name");
+    const estimate = document.getElementById("pbx-assets-download-estimate");
     if (!list || !summary) return;
-    const assets = Array.isArray(plan?.assets) ? plan.assets : [];
-    if (modelName) modelName.textContent = String(plan?.display_name || "Purple Bee 1.3");
-    const downloadMb = Number(plan?.download?.estimated_mb || 108);
-    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} 기준으로 ${assets.length}개 파일을 준비해요. 첫 설치는 약 ${downloadMb || "?"}MB 정도 내려받고, 이후에는 필요한 파일만 업데이트합니다.`;
+    const metadataAssets = Array.isArray(plan?.assets) ? plan.assets : [];
+    const runtimeAssets = Array.isArray(runtimeDownload?.assets) ? runtimeDownload.assets : [];
+    const assets = [...runtimeAssets, ...metadataAssets];
+    if (modelName) modelName.textContent = String(plan?.display_name || "Purple Bee");
+    const totalBytes = Number(runtimeDownload?.totalBytes || plan?.download?.estimated_bytes || pbxGetInstallPreset(plan?.model_id).download_bytes || 0);
+    summary.textContent = `${String(plan?.display_name || "Purple Bee")} 실행에 필요한 파일 ${assets.length}개를 확인했어요. 이번 설치 또는 업데이트 예상 용량은 ${formatBytes(totalBytes)}입니다.`;
+    if (estimate) {
+      estimate.textContent = runtimeAssets.length
+        ? `모델 자산 예상 용량 ${formatBytes(totalBytes)} · 메타데이터는 매우 작아서 설치 시간에 큰 영향을 주지 않아요.`
+        : "정확한 다운로드 크기를 계산하는 중이에요.";
+    }
     list.innerHTML = assets.map((asset) => `
       <div class="pbx-assets-item">
         <div class="pbx-assets-item-icon"><i class="ph ph-file-text"></i></div>
@@ -9586,14 +9882,18 @@ async function generateReasonedChatReply(prompt, language) {
     const label = document.getElementById("ai-assets-label");
     if (!button) return;
     try {
-      const plan = await pbxFetchPackagePlan();
+      const plan = await pbxFetchPackagePlan(getSelectedInstallModelId());
       const status = await pbxEnsureAiAssetsInstalled(false);
       const deviceProfile = await pbxDetectDeviceProfile(plan);
       const resolved = pbxResolveInstallState(plan, status.runtimeState || status, deviceProfile);
       button.style.opacity = "1";
       button.title = resolved.body;
       if (label) {
-        label.textContent = resolved.needsUpdate ? "업데이트 필요" : status.installed ? "AI 준비 완료" : "AI 준비물";
+        label.textContent = resolved.needsUpdate
+          ? "업데이트 필요"
+          : resolved.installed
+            ? "최신 설치됨"
+            : "AI 준비물";
       }
     } catch (_error) {
       button.style.opacity = ".92";
@@ -9606,37 +9906,86 @@ async function generateReasonedChatReply(prompt, language) {
     modal.classList.add("open");
     pbxSetAssetsModalStatus("loading", "준비 상태를 확인하고 있어요", "잠시만 기다려 주세요.");
     try {
-      const [plan, handle, deviceProfile] = await Promise.all([
-        pbxFetchPackagePlan(),
+      pbxRenderModelPicker();
+      const [plan, handle] = await Promise.all([
+        pbxFetchPackagePlan(getSelectedInstallModelId()),
         pbxLoadAssetsDirectoryHandle(),
-        pbxFetchPackagePlan().then((payload) => pbxDetectDeviceProfile(payload)).catch(() => null),
       ]);
-      modal._pbxPlan = plan;
-      pbxRenderAssetsList(plan);
+      const runtimeDownload = await pbxBuildRuntimeAssetState(plan).catch(() => null);
+      const enrichedPlan = {
+        ...plan,
+        download: {
+          ...(plan?.download || {}),
+          estimated_bytes: Number(runtimeDownload?.totalBytes || plan?.download?.estimated_bytes || 0),
+          estimated_mb: Math.round(Number(runtimeDownload?.totalBytes || plan?.download?.estimated_bytes || 0) / (1024 * 1024)),
+        },
+      };
+      const deviceProfile = await pbxDetectDeviceProfile(enrichedPlan).catch(() => null);
+      modal._pbxPlan = enrichedPlan;
+      modal._pbxRuntimeManifest = runtimeDownload?.manifest || null;
+      modal._pbxRuntimeDownload = runtimeDownload || null;
+      pbxRenderAssetsList(enrichedPlan, runtimeDownload);
       pbxRenderDeviceProfile(deviceProfile);
-      const runtimeState = await pbxLoadRuntimePackageState(plan);
+      const runtimeState = await pbxLoadRuntimePackageState(enrichedPlan);
       const folderState = handle ? await pbxVerifyAssetsFolder(handle, false) : { installed: false, reason: "no-folder-linked" };
-      const resolved = pbxResolveInstallState(plan, runtimeState, deviceProfile);
+      const resolved = pbxResolveInstallState(enrichedPlan, runtimeState, deviceProfile);
       pbxSetAssetsModalStatus(resolved.kind, resolved.title, resolved.body);
       const installState = document.getElementById("pbx-assets-install-state");
       const versionState = document.getElementById("pbx-assets-version-state");
       const installBtn = document.getElementById("pbx-assets-install-btn");
+      const deleteBtn = document.getElementById("pbx-assets-delete-btn");
       if (installState) {
         installState.textContent = runtimeState.installed
-          ? (folderState.installed ? "설치 + 폴더 연결 완료" : "설치 완료")
-          : "설치 필요";
+          ? (folderState.installed ? "최신 설치됨 · 폴더 연결됨" : "최신 설치됨")
+          : runtimeState.reason === "runtime-extra-asset-missing"
+            ? "업데이트 필요"
+          : "설치되지 않음";
       }
       if (versionState) {
         versionState.textContent = runtimeState.installed
-          ? `${pbxNormalizeVersionTag(runtimeState.assetVersion || "-")} → ${pbxNormalizeVersionTag(plan?.asset_version || "-")}`
-          : pbxNormalizeVersionTag(plan?.asset_version || "확인 중");
+          ? `설치 ${pbxNormalizeVersionTag(runtimeState.assetVersion || "-")} · 최신 ${pbxNormalizeVersionTag(enrichedPlan?.asset_version || "-")}`
+          : pbxNormalizeVersionTag(enrichedPlan?.asset_version || "확인 중");
       }
       if (installBtn) {
-        installBtn.textContent = resolved.needsUpdate ? "준비물 업데이트" : runtimeState.installed ? "설치 상태 점검" : "준비물 설치";
+        const alreadyLatest = resolved.installed && !resolved.needsUpdate;
+        installBtn.disabled = Boolean(alreadyLatest);
+        installBtn.textContent = resolved.needsUpdate
+          ? "준비물 업데이트"
+          : alreadyLatest
+            ? "이미 최신 버전"
+            : "준비물 설치";
+      }
+      if (deleteBtn) {
+        deleteBtn.disabled = !resolved.canDelete;
       }
     } catch (_error) {
       pbxSetAssetsModalStatus("error", "준비 목록을 불러오지 못했어요", "사이트에서 최신 준비물 목록을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
+  }
+
+  async function pbxDeleteAssetsFromModal() {
+    const confirmed = window.confirm(
+      getActiveUiLanguage() === "ko"
+        ? "현재 선택한 모델 준비물을 이 브라우저와 연결된 폴더에서 삭제할까요?"
+        : "Delete the selected model assets from this browser and linked folder?"
+    );
+    if (!confirmed) return;
+    const modal = document.getElementById("pbx-assets-modal");
+    const plan = modal?._pbxPlan || await pbxFetchPackagePlan(getSelectedInstallModelId());
+    const manifest = modal?._pbxRuntimeManifest || await pbxFetchRuntimeManifest(plan).catch(() => null);
+    const handle = await pbxLoadAssetsDirectoryHandle();
+    pbxSetAssetsModalStatus("loading", "준비물을 지우는 중이에요", "이 브라우저에 저장된 모델 데이터와 연결된 폴더의 준비물 파일을 정리하고 있어요.");
+    pbxSetAssetsProgress("준비물 삭제", 8, "저장된 자산을 확인하고 있어요.");
+    await pbxDeleteInstalledRuntimePackage(plan?.model_id);
+    pbxTerminateInferenceWorker();
+    pbxSetAssetsProgress("브라우저 저장소 정리", 62, "이 브라우저에 저장된 모델 자산을 삭제하고 있어요.");
+    if (handle) {
+      await pbxDeleteAssetsFromFolder(handle, plan, manifest);
+    }
+    pbxSetAssetsProgress("삭제 완료", 100, "이 모델의 준비물을 지웠어요.");
+    await pbxRefreshAssetsButtonState();
+    showToast(getActiveUiLanguage() === "ko" ? "AI 준비물을 삭제했어요." : "AI assets were removed.");
+    await pbxOpenAssetsSetupModal("deleted");
   }
 
   async function pbxChooseAssetsFolderFromModal() {
@@ -9674,34 +10023,37 @@ async function generateReasonedChatReply(prompt, language) {
         pbxSetAssetsModalStatus("warn", "먼저 폴더를 연결해 주세요", "설치나 업데이트를 시작하려면 준비물 폴더가 먼저 연결되어 있어야 해요.");
         return;
       }
-      const plan = document.getElementById("pbx-assets-modal")?._pbxPlan || await pbxFetchPackagePlan();
+      const modal = document.getElementById("pbx-assets-modal");
+      const plan = modal?._pbxPlan || await pbxFetchPackagePlan(getSelectedInstallModelId());
+      const runtimeDownload = modal?._pbxRuntimeDownload || await pbxBuildRuntimeAssetState(plan);
       pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "모델 파일을 내려받고, 이 기기에 저장하고, 선택한 폴더와도 맞춰 두고 있어요. 첫 설치는 조금 더 걸릴 수 있어요.");
-      const totalBytes = Number(plan?.download?.estimated_bytes || 0);
+      const totalBytes = Number(runtimeDownload?.totalBytes || plan?.download?.estimated_bytes || 0);
       let completedBytes = 0;
       pbxSetAssetsProgress("준비 시작", 1, `예상 다운로드 ${formatBytes(totalBytes || 0)}`);
-      const manifest = await pbxFetchRuntimeManifest(plan);
+      const manifest = modal?._pbxRuntimeManifest || runtimeDownload?.manifest || await pbxFetchRuntimeManifest(plan);
       pbxSetAssetsProgress("설치 정보 확인", 5, "브라우저용 실행 정보를 읽고 있어요.");
+      const runtimeAssetBytes = Object.fromEntries((runtimeDownload?.assets || []).map((asset) => [asset.role, Number(asset.bytes || 0)]));
       const progressFor = (label, baseBytes) => (loaded, total) => {
         const effectiveLoaded = Math.min(Number(baseBytes || 0), Number(loaded || 0));
         const dynamicTotal = totalBytes > 0 ? totalBytes : Number(total || 1);
         const current = Math.min(dynamicTotal, completedBytes + effectiveLoaded);
         pbxSetAssetsProgress(label, (current / Math.max(dynamicTotal, 1)) * 100, `${formatBytes(current)} / ${formatBytes(dynamicTotal)}`);
       };
-      const onnxBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.onnx, progressFor("모델 파일 다운로드", 112072646));
+      const onnxBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.onnx, progressFor("모델 파일 다운로드", runtimeAssetBytes.onnx || 0));
       completedBytes += Number(onnxBlob.size || 0);
       pbxSetAssetsProgress("모델 파일 저장", (completedBytes / Math.max(totalBytes || completedBytes || 1, 1)) * 100, `${formatBytes(completedBytes)} / ${formatBytes(totalBytes || completedBytes)}`);
-      const tokenizerBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.tokenizer, progressFor("토크나이저 다운로드", 389579));
+      const tokenizerBlob = await pbxReadRuntimeBlobWithProgress(manifest?.browser_assets?.tokenizer, progressFor("토크나이저 다운로드", runtimeAssetBytes.tokenizer || 0));
       completedBytes += Number(tokenizerBlob.size || 0);
       let onnxDataBlob = null;
       if (manifest?.browser_assets?.onnx_data) {
-        onnxDataBlob = await pbxReadRuntimeBlobWithProgress(manifest.browser_assets.onnx_data, progressFor("추가 자산 다운로드", 0));
+        onnxDataBlob = await pbxReadRuntimeBlobWithProgress(manifest.browser_assets.onnx_data, progressFor("추가 자산 다운로드", runtimeAssetBytes.onnx_data || 0));
         completedBytes += Number(onnxDataBlob.size || 0);
       }
       const installedAt = new Date().toISOString();
       const packagePayload = {
         family_name: "Purple Bee",
         model_id: String(plan?.model_id || "purple-bee-1-3"),
-        display_name: String(plan?.display_name || "Purple Bee 1.3"),
+        display_name: String(plan?.display_name || "Purple Bee"),
         asset_version: String(plan?.asset_version || "current"),
         installed_at: installedAt,
         manifest,
@@ -9775,7 +10127,7 @@ async function generateReasonedChatReply(prompt, language) {
     const typingId = appendTyping();
 
     try {
-      const installStatus = await pbxEnsureAiAssetsInstalled(true);
+      const installStatus = await pbxEnsureAiAssetsInstalled(true, getSelectedRuntimeModelId());
       if (!installStatus.installed) {
         pbxOpenAssetsSetupModal(installStatus.reason).catch(() => {});
         const failureEntry = {
@@ -9792,7 +10144,7 @@ async function generateReasonedChatReply(prompt, language) {
       if (installStatus.reason === "permission-needed") {
         showToast("AI 준비물 폴더 권한은 끊어졌지만, 이 브라우저 안에 설치된 모델로는 계속 답할 수 있어요.");
       }
-      const latestPlan = await pbxFetchPackagePlan().catch(() => null);
+      const latestPlan = await pbxFetchPackagePlan(getSelectedRuntimeModelId()).catch(() => null);
       const deviceProfile = await pbxDetectDeviceProfile(latestPlan).catch(() => null);
       const resolvedInstall = pbxResolveInstallState(latestPlan, installStatus.runtimeState || installStatus, deviceProfile);
       if (resolvedInstall.needsUpdate) {
