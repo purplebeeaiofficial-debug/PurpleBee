@@ -5303,6 +5303,7 @@ def render_site_marketing(page_key: str, locale: str):
         base_prefix=build_site_prefix(locale),
         locale_links=build_locale_links(path_suffix),
         nav=bundle["nav"],
+        policy_labels=bundle["policies"],
         footer_copy=bundle["footer"],
         brand_badge=bundle["brand_badge"],
         page_key=page_key,
