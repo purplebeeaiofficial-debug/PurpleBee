@@ -52,10 +52,12 @@
   .upgrade-plan-copy{display:flex;flex-direction:column;gap:3px}
   .upgrade-plan-title{font-size:13px;font-weight:800;color:var(--text)}
   .upgrade-plan-sub{font-size:11px;color:var(--text-2);line-height:1.4}
+  .upgrade-plan-btn.hidden,.contributor-card.hidden,.contributor-mode-row.hidden{display:none !important}
   .contributor-card{
     margin:12px 14px 0;padding:14px;border-radius:16px;border:1px solid var(--border);background:var(--card);
-    display:flex;flex-direction:column;gap:10px
+    display:flex;flex-direction:column;gap:10px;cursor:pointer
   }
+  .contributor-card.disabled{opacity:.72;cursor:default}
   .contributor-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .contributor-card-title{font-size:12px;font-weight:800;color:var(--text)}
   .contributor-card-sub{font-size:11px;color:var(--text-3);line-height:1.45;margin-top:3px}
@@ -81,6 +83,38 @@
   .contributor-card-btn:hover{background:var(--card-hover);border-color:rgba(139,92,246,.35)}
   .contributor-card-btn.primary{background:var(--accent-dim);border-color:rgba(139,92,246,.28);color:var(--accent-light)}
   .contributor-card-btn.primary:hover{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.45)}
+  .contributor-mode-row{
+    display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 11px;border-radius:12px;background:var(--surface);border:1px solid var(--border)
+  }
+  .contributor-mode-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .contributor-mode-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+  .contributor-mode-desc{display:none}
+  .contributor-mode-select{
+    width:100%;min-width:0;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:700
+  }
+  .contributor-compact-actions{display:flex;gap:8px}
+  .contributor-chip-btn{
+    flex:1;min-width:0;padding:9px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);
+    cursor:pointer;font-size:12px;font-weight:700;text-align:center
+  }
+  .contributor-chip-btn:hover{background:var(--card-hover)}
+  .contributor-chip-btn.primary{background:var(--accent-dim);border-color:rgba(139,92,246,.25);color:var(--accent-light)}
+  .contributor-hub-backdrop{
+    position:fixed;inset:0;background:rgba(9,10,16,.58);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:20px;z-index:1250
+  }
+  .contributor-hub-backdrop.open{display:flex}
+  .contributor-hub-dialog{
+    width:min(1180px,calc(100vw - 24px));height:min(88vh,920px);background:var(--card);border:1px solid var(--border);border-radius:24px;
+    box-shadow:0 24px 80px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden
+  }
+  .contributor-hub-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}
+  .contributor-hub-title{font-size:22px;font-weight:800;color:var(--text)}
+  .contributor-hub-subtitle{margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.6}
+  .contributor-hub-close{
+    width:40px;height:40px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0
+  }
+  .contributor-hub-frame{flex:1;width:100%;border:none;background:#fff}
+  .contributor-hub-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text-2)}
   .sidebar-section-label{padding:16px 18px 6px;font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0}
   #chat-history-list{flex:1;overflow-y:auto;padding:0 8px}
   .history-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--transition),color var(--transition);display:flex;align-items:center;gap:8px}
@@ -403,6 +437,9 @@
     .pbx-assets-mini-grid,.pbx-assets-list,.pbx-assets-model-picker{grid-template-columns:1fr}
     .pbx-assets-actions{justify-content:stretch}
     .pbx-assets-btn{width:100%}
+    .contributor-mode-row{flex-direction:column;align-items:stretch}
+    .contributor-mode-select{width:100%;min-width:0}
+    .contributor-hub-dialog{width:min(100vw - 16px,1180px);height:min(92vh,920px);border-radius:20px}
   }
 </style>
 </head>
@@ -442,7 +479,7 @@
     </div>
   </div>
 
-  <a class="upgrade-plan-btn" href="/index/purple-bee/pricing/">
+  <a class="upgrade-plan-btn" id="upgrade-plan-btn" href="/index/purple-bee/pricing/" onclick="openUpgradePage(event)">
     <div class="upgrade-plan-copy">
       <span class="upgrade-plan-title" id="upgrade-plan-title">⚡ Upgrade</span>
       <span class="upgrade-plan-sub" id="upgrade-plan-sub">Open plans and contributor benefits</span>
@@ -450,7 +487,7 @@
     <i class="ph ph-arrow-up-right" style="font-size:16px;color:var(--accent-light)"></i>
   </a>
 
-  <section class="contributor-card" id="contributor-card">
+  <section class="contributor-card" id="contributor-card" onclick="openContributorHub()">
     <div class="contributor-card-head">
       <div>
         <div class="contributor-card-title" id="contributor-card-title">Contributor subscription</div>
@@ -477,14 +514,25 @@
       </div>
     </div>
     <div class="contributor-card-note" id="contributor-card-note">Reserve contribution time to unlock higher plans and priority routing.</div>
+    <div class="contributor-mode-row hidden" id="contributor-mode-row">
+      <div class="contributor-mode-copy">
+        <div class="contributor-mode-label" id="contributor-mode-label">연산 모드</div>
+        <div class="contributor-mode-desc" id="contributor-mode-desc">Basic 이상부터 내 기기 연산과 분산 보조 연산을 선택할 수 있어요.</div>
+      </div>
+      <select class="contributor-mode-select" id="contributor-compute-mode-select" onchange="updateContributorComputeMode(this.value); event.stopPropagation();">
+        <option value="local">내 기기 연산</option>
+        <option value="hybrid">내 기기 + 분산 보조 연산</option>
+        <option value="distributed">분산 보조 연산 우선</option>
+      </select>
+    </div>
     <div class="contributor-card-device">
       <div class="contributor-card-device-label" id="contributor-device-label">Linked device</div>
       <div class="contributor-card-device-value" id="contributor-device-value">No device linked yet.</div>
     </div>
-    <div class="contributor-card-actions">
-      <button class="contributor-card-btn primary" type="button" id="contributor-upgrade-btn" onclick="openUpgradePage()">Open plans</button>
-      <button class="contributor-card-btn" type="button" id="contributor-download-btn" onclick="downloadContributorApp()">Download app</button>
-      <button class="contributor-card-btn" type="button" id="contributor-refresh-btn" onclick="refreshContributorSidebar()">Refresh</button>
+    <div class="contributor-compact-actions">
+      <button class="contributor-chip-btn primary" type="button" id="contributor-upgrade-btn" onclick="openContributorHub(); event.stopPropagation();">✨ 자세히</button>
+      <button class="contributor-chip-btn" type="button" id="contributor-download-btn" onclick="downloadContributorApp(); event.stopPropagation();">🧩 앱</button>
+      <button class="contributor-chip-btn" type="button" id="contributor-refresh-btn" onclick="refreshContributorSidebar(); event.stopPropagation();">🔄</button>
     </div>
   </section>
 
@@ -877,6 +925,25 @@
         <button type="button" class="consent-btn" onclick="openConsentDocs()">정책 문서 다시 보기</button>
         <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>시작하기</button>
       </div>
+    </div>
+  </section>
+</div>
+
+<div class="contributor-hub-backdrop" id="contributor-hub-backdrop" onclick="closeContributorHub(event)">
+  <section class="contributor-hub-dialog" role="dialog" aria-modal="true" aria-labelledby="contributor-hub-title" onclick="event.stopPropagation()">
+    <div class="contributor-hub-head">
+      <div>
+        <div class="contributor-hub-title" id="contributor-hub-title">플랜 업그레이드</div>
+        <div class="contributor-hub-subtitle" id="contributor-hub-subtitle">Free, Basic, Plus, Pro와 기여 기반 업그레이드 상태를 이 화면 안에서 바로 확인하고 관리할 수 있어요.</div>
+      </div>
+      <button class="contributor-hub-close" type="button" onclick="closeContributorHub()">
+        <i class="ph ph-x" style="font-size:18px"></i>
+      </button>
+    </div>
+    <iframe class="contributor-hub-frame" id="contributor-hub-frame" title="Contributor hub"></iframe>
+    <div class="contributor-hub-foot">
+      <span id="contributor-hub-foot-left">Free에서는 내 기기 연산만 사용하고, Basic 이상부터 분산 보조 연산 모드를 고를 수 있어요.</span>
+      <span id="contributor-hub-foot-right">정확한 기기 판정과 예약 기여 실행은 기여 앱에서 처리됩니다.</span>
     </div>
   </section>
 </div>

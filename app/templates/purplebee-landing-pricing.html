@@ -185,7 +185,7 @@
           </div>
         </div>
         <div class="contrib-actions">
-          <button class="plan-btn primary" type="button" onclick="reserveContributorPlan()">예약 저장</button>
+          <button class="plan-btn primary" type="button" id="contrib-reserve-btn" onclick="reserveContributorPlan()">예약 저장</button>
           <button class="plan-btn" type="button" onclick="downloadContributorApp()">기여 앱 다운로드</button>
           <button class="plan-btn" type="button" onclick="refreshContributorStatus()">상태 새로고침</button>
         </div>
@@ -300,7 +300,8 @@
     };
     const contributorState = {
       userId: localStorage.getItem("pb_contributor_user_id") || `pb_${Math.random().toString(36).slice(2, 10)}`,
-      displayName: localStorage.getItem("pb_google_display_name") || ""
+      displayName: localStorage.getItem("pb_google_display_name") || "",
+      linked: false
     };
     localStorage.setItem("pb_contributor_user_id", contributorState.userId);
 
@@ -325,6 +326,17 @@
       const now = new Date();
       now.setMinutes(now.getMinutes() + 30);
       start.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    function applyReservationAvailability() {
+      const reserveBtn = document.getElementById("contrib-reserve-btn");
+      const note = document.getElementById("contrib-note");
+      if (!reserveBtn) return;
+      reserveBtn.disabled = !contributorState.linked;
+      reserveBtn.style.opacity = contributorState.linked ? "1" : ".55";
+      reserveBtn.style.cursor = contributorState.linked ? "pointer" : "not-allowed";
+      if (!contributorState.linked && note && !note.textContent) {
+        note.textContent = "기여 앱을 먼저 설치하고 사이트와 동기화한 뒤에 예약할 수 있습니다.";
+      }
     }
     async function getDeviceProfile() {
       let storageGb = 0;
@@ -415,6 +427,7 @@
           : contributorUi.status_free;
         const devices = Array.isArray(payload.devices) ? payload.devices : [];
         const linked = devices[0] || null;
+        contributorState.linked = !!linked;
         document.getElementById("contrib-linked-device").textContent = linked ? describeExactDevice(linked) : contributorUi.device_missing;
         document.getElementById("contrib-last-seen").textContent = linked ? formatContributorDate(linked.last_heartbeat_at || linked.updated_at || linked.linked_at) : "-";
         const summaryNode = document.getElementById("contrib-device-summary");
@@ -430,11 +443,17 @@
         document.getElementById("contrib-history").textContent = reservations.length
           ? reservations.slice(0, 3).map((item) => `${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / ")
           : contributorUi.empty_history;
+        applyReservationAvailability();
       } catch (_) {}
     }
     async function reserveContributorPlan() {
       const note = document.getElementById("contrib-note");
       note.textContent = "";
+      if (!contributorState.linked) {
+        note.textContent = "기여 앱 설치와 사이트 동기화가 먼저 필요합니다.";
+        applyReservationAvailability();
+        return;
+      }
       try {
         const plan = document.getElementById("contrib-plan")?.value || "Plus";
         const hours = Number(document.getElementById("contrib-hours")?.value || 0);
@@ -470,6 +489,7 @@
     document.getElementById("contrib-plan")?.addEventListener("change", refreshContributorQuote);
     document.getElementById("contrib-hours")?.addEventListener("input", refreshContributorQuote);
     setDefaultContributorStart();
+    applyReservationAvailability();
     refreshContributorStatus().catch(() => {});
   </script>
 </body>

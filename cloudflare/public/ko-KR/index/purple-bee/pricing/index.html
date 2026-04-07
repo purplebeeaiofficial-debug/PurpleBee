@@ -13,13 +13,14 @@
   body{font-family:"Noto Sans KR","Segoe UI",sans-serif;background:
     radial-gradient(circle at 10% -10%, rgba(196,181,253,.65), transparent 34%),
     radial-gradient(circle at 90% 0%, rgba(125,211,252,.45), transparent 30%),var(--bg);color:var(--text)}
+  a{text-decoration:none;color:inherit}
   .wrap{width:min(1240px,92vw);margin:0 auto}
   header{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.84);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .nav{height:74px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .brand{font-size:22px;font-weight:900;letter-spacing:-.5px}
   .brand small{margin-left:10px;padding:4px 10px;border-radius:999px;background:#dcfce7;color:#065f46;font-size:11px;font-weight:800}
   .menu{display:flex;gap:22px;flex-wrap:wrap}
-  .menu a{text-decoration:none;color:var(--sub);font-size:14px;font-weight:700}
+  .menu a{font-size:14px;font-weight:700;color:var(--sub)}
   .menu a.active,.menu a:hover{color:var(--text)}
   .hero{padding:42px 0 20px}
   .eyebrow{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--sub)}
@@ -44,7 +45,7 @@
   .plan-section-title{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#334155}
   .plan-list{margin-top:10px;display:grid;gap:9px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.6}
   .plan-foot{margin-top:auto;padding-top:18px}
-  .plan-cta{display:block;width:100%;text-align:center;text-decoration:none;padding:12px 16px;border-radius:16px;font-weight:800;font-size:14px;border:1px solid var(--line);color:var(--text);background:#fff}
+  .plan-cta{display:block;width:100%;text-align:center;padding:12px 16px;border-radius:16px;font-weight:800;font-size:14px;border:1px solid var(--line);color:var(--text);background:#fff}
   .plan.recommended .plan-cta{border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
   .info-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin:22px 0}
   .panel{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow)}
@@ -54,6 +55,25 @@
   .flow-step{border:1px solid var(--line);border-radius:18px;padding:14px 16px;background:#fafcff}
   .flow-step strong{display:block;font-size:15px}
   .flow-step span{display:block;margin-top:6px;color:var(--sub);font-size:13px;line-height:1.65}
+  .contrib-shell{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin:16px 0 30px}
+  .contrib-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow)}
+  .contrib-card h3{font-size:24px;letter-spacing:-.04em}
+  .contrib-card p{margin-top:8px;color:var(--sub);font-size:14px;line-height:1.7}
+  .contrib-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:12px;font-weight:800;color:var(--sub)}
+  .field input,.field select{width:100%;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:14px}
+  .contrib-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .plan-btn{padding:11px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:900;cursor:pointer}
+  .plan-btn.primary{background:#111827;color:#fff;border-color:#111827}
+  .inline-note{margin-top:10px;font-size:13px;color:var(--sub);line-height:1.7}
+  .contrib-status{display:grid;gap:10px}
+  .status-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid rgba(216,224,236,.7);font-size:14px}
+  .mini-list{display:grid;gap:12px;margin-top:18px}
+  .mini-item{padding:16px;border-radius:18px;background:#f8fafc;border:1px solid var(--line)}
+  .mini-item-title{font-size:12px;font-weight:900;color:var(--sub)}
+  .mini-item-sub{margin-top:8px;font-size:14px;line-height:1.7}
   .matrix{margin-top:16px;display:grid;gap:10px}
   .matrix-row{display:grid;grid-template-columns:200px repeat(4,1fr);gap:10px;align-items:stretch}
   .matrix-head,.matrix-cell{padding:12px;border-radius:14px;border:1px solid var(--line);background:#fff}
@@ -63,16 +83,11 @@
   .notice{margin-top:18px;padding:16px 18px;border-radius:18px;background:linear-gradient(135deg,rgba(109,40,217,.08),rgba(236,72,153,.06));border:1px solid rgba(109,40,217,.12)}
   .notice strong{display:block;font-size:14px}
   .notice p{margin-top:6px;color:var(--sub);font-size:13px;line-height:1.7}
+  .policy-links{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 30px}
+  .policy-link{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
   footer{margin:24px 0 36px;color:var(--sub);font-size:13px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  @media (max-width:1180px){
-    .plans{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .info-grid{grid-template-columns:1fr}
-    .matrix-row{grid-template-columns:1fr}
-  }
-  @media (max-width:720px){
-    .plans{grid-template-columns:1fr}
-    .hero p{font-size:16px}
-  }
+  @media (max-width:1180px){.plans{grid-template-columns:repeat(2,minmax(0,1fr))}.info-grid,.contrib-shell{grid-template-columns:1fr}.matrix-row{grid-template-columns:1fr}}
+  @media (max-width:720px){.menu{display:none}.plans,.contrib-grid{grid-template-columns:1fr}.hero p{font-size:16px}}
 </style>
 </head>
 <body>
@@ -94,8 +109,8 @@
       <div class="eyebrow">Pricing</div>
       <h1>Free에서 Pro까지, 그리고 기여 기반 업그레이드까지.</h1>
       <p>
-        Purple Bee는 기본 사용은 가볍고 명확하게, 상위 플랜은 더 빠른 응답과 더 높은 우선순위, 더 넓은 실행 여유를 제공하도록 설계하고 있습니다.
-        여기에 사용자의 유휴 자원을 일정 시간 기여하면 프리미엄 혜택을 활성화할 수 있는 Contributor Subscription 구조를 함께 준비하고 있습니다.
+        Purple Bee는 기본 사용을 가볍고 명확하게 시작할 수 있도록 설계했습니다.
+        더 빠른 응답과 최신 모델, 완화된 제한이 필요할 때는 기여 시간을 예약해 프리미엄 상태를 활성화할 수 있습니다.
       </p>
       <div class="hero-badges">
         <span class="hero-badge">기본 플랜 무료 제공</span>
@@ -106,173 +121,123 @@
 
     <section class="plans">
       <article class="plan">
-        <div class="plan-tier">
-          <div class="plan-name">Free</div>
-          <span class="plan-pill free">기본</span>
-        </div>
-        <div class="plan-price">₩0 <small>/ 기본 제공</small></div>
-        <div class="plan-copy">일상적인 질문, 기본 분석, 경량 모델 사용에 맞춘 시작 플랜입니다.</div>
-        <div class="plan-section">
-          <div class="plan-section-title">포함</div>
-          <ul class="plan-list">
-            <li>기본 AI 대화</li>
-            <li>낮은 우선순위 큐</li>
-            <li>기본 모델 접근</li>
-            <li>요청 횟수 제한</li>
-          </ul>
-        </div>
-        <div class="plan-section">
-          <div class="plan-section-title">기여 시간</div>
-          <ul class="plan-list">
-            <li>없음</li>
-          </ul>
-        </div>
-        <div class="plan-foot">
-          <a class="plan-cta" href="/">지금 시작</a>
-        </div>
+        <div class="plan-tier"><div class="plan-name">Free</div><span class="plan-pill free">기본</span></div>
+        <div class="plan-price">무료 <small>/ 기본 제공</small></div>
+        <div class="plan-copy">일상 질문, 기본 분석, 경량 모델 사용에 맞춘 시작 플랜입니다.</div>
+        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>기본 AI 대화</li><li>표준 우선순위</li><li>기본 모델 접근</li><li>요청 횟수 제한</li></ul></div>
+        <div class="plan-section"><div class="plan-section-title">기여 시간</div><ul class="plan-list"><li>없음</li></ul></div>
+        <div class="plan-foot"><a class="plan-cta" href="/">지금 시작</a></div>
       </article>
-
       <article class="plan">
-        <div class="plan-tier">
-          <div class="plan-name">Basic</div>
-          <span class="plan-pill basic">기여 가능</span>
-        </div>
+        <div class="plan-tier"><div class="plan-name">Basic</div><span class="plan-pill basic">기여 시작</span></div>
         <div class="plan-price">1시간 기여 <small>/ 1일 혜택</small></div>
-        <div class="plan-copy">응답 속도를 조금 더 높이고, 요청 제한을 완화하고 싶은 사용자를 위한 첫 업그레이드 단계입니다.</div>
-        <div class="plan-section">
-          <div class="plan-section-title">포함</div>
-          <ul class="plan-list">
-            <li>기본보다 빠른 우선순위</li>
-            <li>응답 길이 제한 완화</li>
-            <li>내 기기 + 분산 보조 연산</li>
-          </ul>
-        </div>
-        <div class="plan-section">
-          <div class="plan-section-title">기여 시간</div>
-          <ul class="plan-list">
-            <li>예약형 1시간 기여</li>
-            <li>기기 성능에 따라 효율 보정</li>
-          </ul>
-        </div>
-        <div class="plan-foot">
-          <a class="plan-cta" href="#contributor-plan">구조 보기</a>
-        </div>
+        <div class="plan-copy">응답 속도를 조금 더 높이고 요청 제한을 완화하는 첫 업그레이드 단계입니다.</div>
+        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>Free보다 빠른 우선순위</li><li>응답 길이 제한 완화</li><li>내 기기 + 분산 보조 연산</li></ul></div>
+        <div class="plan-section"><div class="plan-section-title">기여 시간</div><ul class="plan-list"><li>예약형 1시간 기여</li><li>기기 성능에 따라 효율 보정</li></ul></div>
+        <div class="plan-foot"><a class="plan-cta" href="#contributor-plan">기여 구독 보기</a></div>
       </article>
-
       <article class="plan recommended">
-        <div class="plan-tier">
-          <div class="plan-name">Plus</div>
-          <span class="plan-pill plus">권장</span>
-        </div>
+        <div class="plan-tier"><div class="plan-name">Plus</div><span class="plan-pill plus">권장</span></div>
         <div class="plan-price">5시간 기여 <small>/ 7일 혜택</small></div>
-        <div class="plan-copy">더 높은 우선순위와 최신 모델 접근, 더 넉넉한 사용량을 원하는 사용자를 위한 메인 플랜입니다.</div>
-        <div class="plan-section">
-          <div class="plan-section-title">포함</div>
-          <ul class="plan-list">
-            <li>상위 우선순위 큐</li>
-            <li>최신 모델 접근</li>
-            <li>요청 제한 크게 완화</li>
-            <li>분산 보조 연산 가중치 상향</li>
-          </ul>
-        </div>
-        <div class="plan-section">
-          <div class="plan-section-title">기여 시간</div>
-          <ul class="plan-list">
-            <li>예약형 5시간 기여</li>
-            <li>고성능 기기일수록 효율 상승</li>
-          </ul>
-        </div>
-        <div class="plan-foot">
-          <a class="plan-cta" href="#contributor-plan">업그레이드 구조 보기</a>
-        </div>
+        <div class="plan-copy">더 높은 우선순위와 최신 모델 접근, 완화된 사용 제한을 함께 제공하는 메인 플랜입니다.</div>
+        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>상위 우선순위 큐</li><li>최신 모델 접근</li><li>요청 제한 대폭 완화</li><li>분산 보조 연산 가중치 상향</li></ul></div>
+        <div class="plan-section"><div class="plan-section-title">기여 시간</div><ul class="plan-list"><li>예약형 5시간 기여</li><li>고성능 기기일수록 효율 우대</li></ul></div>
+        <div class="plan-foot"><a class="plan-cta" href="#contributor-plan">업그레이드 보기</a></div>
       </article>
-
       <article class="plan">
-        <div class="plan-tier">
-          <div class="plan-name">Pro</div>
-          <span class="plan-pill pro">고성능</span>
-        </div>
+        <div class="plan-tier"><div class="plan-name">Pro</div><span class="plan-pill pro">고성능</span></div>
         <div class="plan-price">확장 기여 <small>/ 확장 혜택</small></div>
         <div class="plan-copy">장시간 기여와 높은 안정성을 제공하는 사용자를 위한 최상위 운영 플랜입니다.</div>
-        <div class="plan-section">
-          <div class="plan-section-title">포함</div>
-          <ul class="plan-list">
-            <li>최상위 우선순위 큐</li>
-            <li>고급 모델 및 향후 확장 기능</li>
-            <li>대규모 요청 우선 배정</li>
-            <li>동시 세션 및 작업 여유 확대</li>
-          </ul>
+        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>최상위 우선순위 큐</li><li>고급 모델 및 향후 확장 기능</li><li>대규모 요청 우선 배정</li><li>동시 세션 및 작업 사유 확대</li></ul></div>
+        <div class="plan-section"><div class="plan-section-title">기여 시간</div><ul class="plan-list"><li>고성능 기기 중심의 확장 기여</li><li>높은 가중치로 분산 노드 역할</li></ul></div>
+        <div class="plan-foot"><a class="plan-cta" href="#contributor-plan">Pro 구조 보기</a></div>
+      </article>
+    </section>
+
+    <section class="contrib-shell">
+      <article class="contrib-card" id="contributor-plan">
+        <h3>기여 기반 구독 시작</h3>
+        <p>기여 시간을 예약하면 Premium 상태를 활성화할 수 있습니다.</p>
+        <div class="contrib-grid">
+          <div class="field">
+            <label for="contrib-plan">플랜</label>
+            <select id="contrib-plan">
+              <option value="Basic">Basic</option>
+              <option value="Plus" selected>Plus</option>
+              <option value="Pro">Pro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="contrib-hours">기여 시간</label>
+            <input id="contrib-hours" type="number" min="1" step="1" value="5">
+          </div>
+          <div class="field full">
+            <label for="contrib-start">예약 시작</label>
+            <input id="contrib-start" type="datetime-local">
+          </div>
+          <div class="field">
+            <label for="contrib-cpu">CPU 상한</label>
+            <input id="contrib-cpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
+          <div class="field">
+            <label for="contrib-gpu">GPU 상한</label>
+            <input id="contrib-gpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
         </div>
-        <div class="plan-section">
-          <div class="plan-section-title">기여 시간</div>
-          <ul class="plan-list">
-            <li>고성능 기기 중심의 확장 기여</li>
-            <li>높은 가중치의 분산 노드 역할</li>
-          </ul>
+        <div class="contrib-actions">
+          <button class="plan-btn primary" type="button" id="contrib-reserve-btn" onclick="reserveContributorPlan()">예약 저장</button>
+          <button class="plan-btn" type="button" onclick="downloadContributorApp()">기여 앱 다운로드</button>
+          <button class="plan-btn" type="button" onclick="refreshContributorStatus()">상태 새로고침</button>
         </div>
-        <div class="plan-foot">
-          <a class="plan-cta" href="#contributor-plan">Pro 구조 보기</a>
+        <div class="inline-note">정확한 CPU·GPU·RAM 판정과 예약 기여는 기여 앱에서 처리됩니다.</div>
+        <div class="inline-note" id="contrib-note"></div>
+      </article>
+
+      <article class="contrib-card">
+        <div class="contrib-status">
+          <div class="status-row"><strong>현재 상태</strong><span id="contrib-plan-status">Free</span></div>
+          <div class="status-row"><strong>예상 혜택</strong><span id="contrib-estimate">-</span></div>
+          <div class="status-row"><strong>큐 배정</strong><span id="contrib-queue">standard</span></div>
+          <div class="status-row"><strong>기여 효율</strong><span id="contrib-multiplier">x1.0</span></div>
+        </div>
+        <div class="mini-list">
+          <div class="mini-item"><div class="mini-item-title">기기 요약</div><div class="mini-item-sub" id="contrib-device-summary">브라우저 추정 기기 정보</div></div>
+          <div class="mini-item"><div class="mini-item-title">연결된 기기</div><div class="mini-item-sub" id="contrib-linked-device">아직 연결된 기기가 없습니다.</div></div>
+          <div class="mini-item"><div class="mini-item-title">마지막 연결</div><div class="mini-item-sub" id="contrib-last-seen">-</div></div>
+          <div class="mini-item"><div class="mini-item-title">예정된 기여</div><div class="mini-item-sub" id="contrib-history">아직 예약된 기여 시간이 없습니다.</div></div>
         </div>
       </article>
     </section>
 
     <section class="info-grid">
-      <article class="panel" id="contributor-plan">
+      <article class="panel">
         <h2>기여 기반 구독은 이렇게 동작합니다</h2>
-        <p class="lead">
-          사용자가 예약한 시간 동안 유휴 자원을 안전하게 제공하면, Purple Bee는 그 기여 시간을 계정에 반영하고
-          기준을 만족했을 때 Basic, Plus, Pro 등급에 맞는 혜택을 활성화합니다.
-        </p>
+        <p class="lead">기여 시간을 예약하고 앱을 연결하면, 중앙 서버가 그 시간을 점수화해 Free/BASIC/PLUS/PRO 혜택으로 반영합니다.</p>
         <div class="flow">
-          <div class="flow-step">
-            <strong>1. 시간 예약</strong>
-            <span>사용자가 기여 가능한 시간을 직접 선택합니다. 예약 전에는 현재 기기 상태와 사용량 제한 설정을 다시 확인합니다.</span>
-          </div>
-          <div class="flow-step">
-            <strong>2. 안전한 기여 실행</strong>
-            <span>기여 클라이언트는 CPU·GPU 상한, 사용자 활동 여부, 네트워크 상태를 확인하며 작은 작업 단위만 처리합니다.</span>
-          </div>
-          <div class="flow-step">
-            <strong>3. 점수 환산</strong>
-            <span>기여 시간은 하드웨어 등급, 성공률, 실제 처리량을 반영해 유효 기여 시간으로 계산됩니다.</span>
-          </div>
-          <div class="flow-step">
-            <strong>4. 구독 활성화</strong>
-            <span>유효 기여 시간이 기준을 넘으면 상위 플랜 혜택이 즉시 활성화되거나 기존 만료일 뒤로 연장됩니다.</span>
-          </div>
+          <div class="flow-step"><strong>1. 시간 예약</strong><span>기여 가능한 시간을 직접 선택합니다. 예약 전에 현재 기기 상태와 사용량 상한을 확인할 수 있습니다.</span></div>
+          <div class="flow-step"><strong>2. 안전한 기여 실행</strong><span>기여 클라이언트는 CPU와 GPU 상한, 사용자 활동 여부, 네트워크 상태를 확인하고 가능한 작업만 처리합니다.</span></div>
+          <div class="flow-step"><strong>3. 점수 환산</strong><span>기여 시간은 하드웨어 등급과 실제 처리량을 반영한 유효 기여 시간으로 계산됩니다.</span></div>
+          <div class="flow-step"><strong>4. 구독 활성화</strong><span>유효 기여 시간이 기준을 넘으면 Premium 혜택이 즉시 활성화되거나 기존 만료일 뒤로 연장됩니다.</span></div>
         </div>
         <div class="notice">
-          <strong>100대의 기여 노드가 300명의 요청을 보조할 때도 가중치를 조정합니다</strong>
-          <p>
-            기본적으로 모든 사용자는 자신의 기기에서 먼저 실행을 시작합니다. 상위 플랜은 여기에 분산 기여 노드의 보조 연산을 추가로 배정받고,
-            중앙 조정 서버는 노드 상태, 기여 예약, 실패율, 작업 유형, 재시도 횟수를 기준으로 가중치를 조정해 충돌과 과부하를 줄입니다.
-          </p>
+          <strong>기여 노드와 사용자 요청은 충돌 없이 분리됩니다.</strong>
+          <p>모든 사용자는 자신의 기기에서 먼저 응답을 시작하고, 상위 플랜일수록 분산 기여 노드의 보조 연산을 더 크게 배정받습니다. 실패 노드는 자동 제외되고 작업은 다시 분배됩니다.</p>
         </div>
       </article>
-
       <aside class="panel">
         <h2>운영 원칙</h2>
-        <p class="lead">제품 수준의 안정성과 공정성을 유지하기 위해, 플랜 구조와 기여 평가 규칙을 함께 설계합니다.</p>
+        <p class="lead">제품 안정성과 공정성을 위해 자원 사용, 패널티, 재시도 정책을 분리해 관리합니다.</p>
         <div class="flow">
-          <div class="flow-step">
-            <strong>자원 사용 상한</strong>
-            <span>기여 클라이언트는 CPU/GPU 사용률을 제한하고, 사용자가 다시 작업을 시작하면 자동으로 일시정지합니다.</span>
-          </div>
-          <div class="flow-step">
-            <strong>패널티의 점진적 적용</strong>
-            <span>예약 불이행이 반복될수록 효율 감소, 기여 제한, 단기 구독 제한을 순차적으로 적용합니다.</span>
-          </div>
-          <div class="flow-step">
-            <strong>작업 재분배</strong>
-            <span>노드 실패나 연결 끊김이 발생하면 작업은 다른 기기에 재배정되고, 반복 실패 작업은 격리 큐로 이동합니다.</span>
-          </div>
+          <div class="flow-step"><strong>자원 사용 상한</strong><span>기여 앱은 CPU/GPU 사용률을 제한하고, 사용자가 작업을 시작하면 자동 일시정지됩니다.</span></div>
+          <div class="flow-step"><strong>무단 불참 패널티</strong><span>예약 불이행이 반복되면 기여 효율 감소, 기여 제한, 단기 구독 제한이 순차 적용됩니다.</span></div>
+          <div class="flow-step"><strong>작업 재분배</strong><span>작업 실패나 네트워크 종료가 발생하면 남은 작업은 다른 기기로 다시 분배됩니다.</span></div>
         </div>
       </aside>
     </section>
 
     <section class="panel">
       <h2>플랜 비교</h2>
-      <p class="lead">현재 단계의 MVP 기준으로, Free와 Contributor Subscription 기반 플랜을 이렇게 나눕니다.</p>
+      <p class="lead">현재는 Free와 기여 기반 Contributor 플랜을 중심으로 운영하며, 모든 단계는 같은 제품 흐름 안에서 관리됩니다.</p>
       <div class="matrix">
         <div class="matrix-row">
           <div class="matrix-head">항목</div>
@@ -284,26 +249,26 @@
         <div class="matrix-row">
           <div class="matrix-cell"><strong>응답 우선순위</strong>요청 배정 기준</div>
           <div class="matrix-cell">기본 큐</div>
-          <div class="matrix-cell">기본 큐보다 빠름</div>
+          <div class="matrix-cell">기본보다 빠름</div>
           <div class="matrix-cell">상위 큐</div>
           <div class="matrix-cell">최상위 큐</div>
         </div>
         <div class="matrix-row">
-          <div class="matrix-cell"><strong>모델 접근</strong>모델 범위</div>
+          <div class="matrix-cell"><strong>모델 접근</strong>사용 가능한 모델 범위</div>
           <div class="matrix-cell">기본 모델</div>
           <div class="matrix-cell">개선된 기본 모델</div>
           <div class="matrix-cell">최신 모델</div>
-          <div class="matrix-cell">최신 + 확장 모델</div>
+          <div class="matrix-cell">최신 + 확장 기능</div>
         </div>
         <div class="matrix-row">
-          <div class="matrix-cell"><strong>요청 한도</strong>일반 사용량</div>
+          <div class="matrix-cell"><strong>요청 제한</strong>일반 사용량</div>
           <div class="matrix-cell">제한 있음</div>
           <div class="matrix-cell">완화</div>
           <div class="matrix-cell">대폭 완화</div>
           <div class="matrix-cell">사실상 확장형</div>
         </div>
         <div class="matrix-row">
-          <div class="matrix-cell"><strong>분산 보조 연산</strong>타 사용자 기기 활용</div>
+          <div class="matrix-cell"><strong>분산 보조 연산</strong>추가 연산 보정</div>
           <div class="matrix-cell">없음</div>
           <div class="matrix-cell">기본 가중치</div>
           <div class="matrix-cell">상향 가중치</div>
@@ -311,11 +276,221 @@
         </div>
       </div>
     </section>
+
+    <section class="policy-links">
+      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/terms/">이용약관</a>
+      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/privacy/">개인정보</a>
+      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/resource-use/">자원 사용</a>
+    </section>
   </main>
 
   <footer class="wrap">
     <span>© 2026 Purple Bee</span>
-    <span>결제 시스템은 아직 도입되지 않았고, 현재는 무료 + 기여 기반 구독 MVP를 중심으로 설계 중입니다.</span>
+    <span>현재는 무료 + 기여 기반 구독 MVP를 중심으로 운영 중입니다.</span>
   </footer>
+
+  <script>
+    const contributorUi = {
+      device_missing: "아직 연결된 기기가 없습니다.",
+      empty_history: "아직 예약된 기여 시간이 없습니다.",
+      status_free: "Free",
+      status_active: "{plan} 활성",
+      success: "기여 예약이 저장되었습니다.",
+      download_ready: "기여 앱 다운로드를 시작했습니다."
+    };
+    const contributorState = {
+      userId: localStorage.getItem("pb_contributor_user_id") || `pb_${Math.random().toString(36).slice(2, 10)}`,
+      displayName: localStorage.getItem("pb_google_display_name") || "",
+      linked: false
+    };
+    localStorage.setItem("pb_contributor_user_id", contributorState.userId);
+
+    function formatContributorDate(value) {
+      if (!value) return "-";
+      try { return new Date(value).toLocaleString("ko-KR"); } catch (_) { return value; }
+    }
+    function describeExactDevice(device) {
+      if (!device) return contributorUi.device_missing;
+      const hardware = device.hardware || {};
+      const parts = [];
+      if (device.device_name) parts.push(device.device_name);
+      if (hardware.cpu_model) parts.push(hardware.cpu_model);
+      if (hardware.memory_gb) parts.push(`RAM ${hardware.memory_gb}GB`);
+      if (hardware.cpu_threads) parts.push(`CPU ${hardware.cpu_threads} threads`);
+      if (hardware.gpu_model) parts.push(hardware.gpu_model);
+      return parts.filter(Boolean).join(" · ") || contributorUi.device_missing;
+    }
+    function setDefaultContributorStart() {
+      const start = document.getElementById("contrib-start");
+      if (!start || start.value) return;
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 30);
+      start.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+    function applyReservationAvailability() {
+      const reserveBtn = document.getElementById("contrib-reserve-btn");
+      const note = document.getElementById("contrib-note");
+      if (!reserveBtn) return;
+      reserveBtn.disabled = !contributorState.linked;
+      reserveBtn.style.opacity = contributorState.linked ? "1" : ".55";
+      reserveBtn.style.cursor = contributorState.linked ? "pointer" : "not-allowed";
+      if (!contributorState.linked && note && !note.textContent) {
+        note.textContent = "기여 앱을 먼저 설치하고 사이트와 동기화한 뒤에 예약할 수 있습니다.";
+      }
+    }
+    async function getDeviceProfile() {
+      let storageGb = 0;
+      if (navigator.storage && navigator.storage.estimate) {
+        try {
+          const estimate = await navigator.storage.estimate();
+          storageGb = Number(((estimate.quota || 0) / 1024 / 1024 / 1024).toFixed(1));
+        } catch (_) {}
+      }
+      return {
+        memory_gb: Number(navigator.deviceMemory || 0),
+        cpu_threads: Number(navigator.hardwareConcurrency || 0),
+        storage_gb: storageGb
+      };
+    }
+    function openContributorReservation(planName) {
+      const plan = document.getElementById("contrib-plan");
+      const hours = document.getElementById("contrib-hours");
+      if (plan && planName) plan.value = planName;
+      if (hours) {
+        const defaults = { Free: 0, Basic: 1, Plus: 5, Pro: 12 };
+        hours.value = defaults[planName] ?? hours.value;
+      }
+      window.scrollTo({ top: document.body.scrollHeight * 0.45, behavior: "smooth" });
+      refreshContributorQuote();
+    }
+    async function downloadContributorApp() {
+      const note = document.getElementById("contrib-note");
+      contributorState.displayName = localStorage.getItem("pb_google_display_name") || contributorState.displayName || "";
+      note.textContent = "";
+      try {
+        const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(contributorState.userId)}&display_name=${encodeURIComponent(contributorState.displayName || "")}`);
+        if (!response.ok) {
+          note.textContent = "기여 앱 다운로드를 시작할 수 없습니다.";
+          return;
+        }
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = `purple-bee-contributor-${contributorState.userId.slice(0, 12)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 1500);
+        note.textContent = contributorUi.download_ready;
+      } catch (_) {
+        note.textContent = "기여 앱 다운로드를 시작할 수 없습니다.";
+      }
+    }
+    async function refreshContributorQuote() {
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const deviceProfile = await getDeviceProfile();
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (summaryNode && !summaryNode.dataset.exactDevice) {
+          summaryNode.textContent = `RAM ${deviceProfile.memory_gb || "?"}GB · CPU ${deviceProfile.cpu_threads || "?"} threads · Storage ${deviceProfile.storage_gb || "?"}GB`;
+        }
+        const response = await fetch("/api/contributor/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            device_profile: deviceProfile
+          })
+        });
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const quote = payload.quote || {};
+        document.getElementById("contrib-estimate").textContent = `${quote.plan} · ${quote.premium_days || 0}일 프리미엄`;
+        document.getElementById("contrib-queue").textContent = quote.queue_mode || "standard";
+        document.getElementById("contrib-multiplier").textContent = `x${quote.hardware_multiplier || 1}`;
+      } catch (_) {}
+    }
+    async function refreshContributorStatus() {
+      try {
+        await refreshContributorQuote();
+        const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorState.userId)}`);
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const account = payload.account || {};
+        document.getElementById("contrib-plan-status").textContent = payload.premium_active
+          ? contributorUi.status_active.replace("{plan}", account.plan || "Plus")
+          : contributorUi.status_free;
+        const devices = Array.isArray(payload.devices) ? payload.devices : [];
+        const linked = devices[0] || null;
+        contributorState.linked = !!linked;
+        document.getElementById("contrib-linked-device").textContent = linked ? describeExactDevice(linked) : contributorUi.device_missing;
+        document.getElementById("contrib-last-seen").textContent = linked ? formatContributorDate(linked.last_heartbeat_at || linked.updated_at || linked.linked_at) : "-";
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (summaryNode) {
+          if (payload.exact_device_summary) {
+            summaryNode.textContent = payload.exact_device_summary;
+            summaryNode.dataset.exactDevice = "true";
+          } else {
+            delete summaryNode.dataset.exactDevice;
+          }
+        }
+        const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+        document.getElementById("contrib-history").textContent = reservations.length
+          ? reservations.slice(0, 3).map((item) => `${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / ")
+          : contributorUi.empty_history;
+        applyReservationAvailability();
+      } catch (_) {}
+    }
+    async function reserveContributorPlan() {
+      const note = document.getElementById("contrib-note");
+      note.textContent = "";
+      if (!contributorState.linked) {
+        note.textContent = "기여 앱 설치와 사이트 동기화가 먼저 필요합니다.";
+        applyReservationAvailability();
+        return;
+      }
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const startsAt = document.getElementById("contrib-start")?.value;
+        const cpuCap = Number(document.getElementById("contrib-cpu")?.value || 70);
+        const gpuCap = Number(document.getElementById("contrib-gpu")?.value || 70);
+        const deviceProfile = await getDeviceProfile();
+        const response = await fetch("/api/contributor/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            starts_at: startsAt,
+            cpu_cap: cpuCap,
+            gpu_cap: gpuCap,
+            device_profile: deviceProfile
+          })
+        });
+        const payload = await response.json();
+        if (!payload.ok) {
+          note.textContent = payload.message || payload.error || "예약을 저장할 수 없습니다.";
+          return;
+        }
+        note.textContent = contributorUi.success;
+        await refreshContributorStatus();
+      } catch (_) {
+        note.textContent = "예약을 저장할 수 없습니다.";
+      }
+    }
+    document.getElementById("contrib-plan")?.addEventListener("change", refreshContributorQuote);
+    document.getElementById("contrib-hours")?.addEventListener("input", refreshContributorQuote);
+    setDefaultContributorStart();
+    applyReservationAvailability();
+    refreshContributorStatus().catch(() => {});
+  </script>
 </body>
 </html>

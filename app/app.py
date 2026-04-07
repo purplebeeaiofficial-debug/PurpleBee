@@ -2955,6 +2955,10 @@ def looks_unusable_reply(text, query=""):
         return True
     if repeated_line_ratio(cleaned) > 0.25:
         return True
+    if re.search(r"([가-힣A-Za-z0-9_]{2,})(?:\s+\1){2,}", cleaned):
+        return True
+    if re.search(r"(.{2,12}?)(?:\s+\1){2,}", cleaned):
+        return True
     words = cleaned.split()
     if len(words) >= 10:
         repeated = max(words.count(word) for word in set(words))
@@ -2971,24 +2975,24 @@ def looks_unusable_reply(text, query=""):
 def generation_profile_for_query(query):
     lowered = normalize_corpus_text(query).lower()
     if contains_phrase(lowered, ["안녕", "하이", "헬로", "우리 뭐할래", "심심", "그냥 이야기", "hello", "hi", "what should we do"]):
-        return {"temperature": 0.82, "top_k": 28, "top_p": 0.95}
+        return {"temperature": 0.58, "top_k": 16, "top_p": 0.84}
     if contains_phrase(lowered, ["뭐야", "정의", "설명", "how", "what is", "define", "링크", "날씨", "어떻게"]):
-        return {"temperature": 0.68, "top_k": 20, "top_p": 0.9}
-    return {"temperature": 0.74, "top_k": 24, "top_p": 0.92}
+        return {"temperature": 0.42, "top_k": 12, "top_p": 0.82}
+    return {"temperature": 0.5, "top_k": 14, "top_p": 0.84}
 
 def candidate_generation_profiles(query):
     primary = generation_profile_for_query(query)
     lowered = normalize_corpus_text(query).lower()
     profiles = [primary]
     profiles.append({
-        "temperature": max(0.62, round(primary["temperature"] - 0.08, 2)),
-        "top_k": max(18, primary["top_k"] + 4),
-        "top_p": min(0.96, round(primary["top_p"] + 0.02, 2)),
+        "temperature": max(0.34, round(primary["temperature"] - 0.08, 2)),
+        "top_k": max(10, primary["top_k"] + 2),
+        "top_p": min(0.9, round(primary["top_p"] + 0.02, 2)),
     })
     if contains_phrase(lowered, ["안녕", "하이", "우리 뭐할래", "심심", "외로워", "힘들어", "hello", "hi"]):
-        profiles.append({"temperature": 0.78, "top_k": 32, "top_p": 0.95})
+        profiles.append({"temperature": 0.62, "top_k": 18, "top_p": 0.86})
     else:
-        profiles.append({"temperature": 0.66, "top_k": 24, "top_p": 0.9})
+        profiles.append({"temperature": 0.38, "top_k": 10, "top_p": 0.8})
 
     deduped = []
     seen = set()
@@ -5304,7 +5308,7 @@ def render_site_marketing(page_key: str, locale: str):
         base_prefix=build_site_prefix(locale),
         locale_links=build_locale_links(path_suffix),
         nav=bundle["nav"],
-        policy_labels=bundle["policies"],
+        policy_labels=bundle["policy_labels"],
         footer_copy=bundle["footer"],
         brand_badge=bundle["brand_badge"],
         page_key=page_key,
