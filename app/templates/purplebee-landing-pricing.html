@@ -5,93 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Purple Bee | Pricing</title>
 <style>
-  :root{
-    --bg:#f6f7fb;--panel:#fff;--text:#111827;--sub:#4b5563;--line:#d8e0ec;
-    --accent:#6d28d9;--accent2:#ec4899;--shadow:0 18px 64px rgba(15,23,42,.08);--soft:#f8fafc;
-  }
+  :root{--bg:#f7f8fc;--panel:#fff;--text:#111827;--sub:#5b6476;--line:#dde3ef;--accent:#7c3aed;--surface:#f8fafc;--shadow:0 22px 70px rgba(15,23,42,.08)}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    font-family:"Noto Sans KR","Segoe UI",sans-serif;
-    background:
-      radial-gradient(circle at 10% -10%, rgba(196,181,253,.55), transparent 30%),
-      radial-gradient(circle at 90% 0%, rgba(125,211,252,.38), transparent 26%),
-      var(--bg);
-    color:var(--text)
-  }
+  body{font-family:"Noto Sans KR","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 12% -10%, rgba(196,181,253,.72), transparent 32%),radial-gradient(circle at 92% 0%, rgba(125,211,252,.4), transparent 28%),var(--bg)}
   a{text-decoration:none;color:inherit}
   .wrap{width:min(1220px,calc(100% - 32px));margin:0 auto}
-  header{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  header{position:sticky;top:0;z-index:20;background:rgba(247,248,252,.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
   .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 0}
   .brand{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:900;letter-spacing:-.04em}
-  .brand-mark{width:16px;height:16px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .brand-mark{width:14px;height:14px;border-radius:999px;background:linear-gradient(135deg,#7c3aed,#ec4899)}
   .brand-badge{padding:5px 10px;border-radius:999px;background:#dcfce7;color:#065f46;font-size:11px;font-weight:900}
   .menu{display:flex;gap:18px;flex-wrap:wrap}
-  .menu a{font-size:14px;font-weight:700;color:var(--sub)}
+  .menu a{font-size:14px;font-weight:800;color:var(--sub)}
   .menu a.active,.menu a:hover{color:var(--text)}
-  main{padding:34px 0 42px}
-  .hero{padding:18px 0 8px}
-  .eyebrow{display:inline-flex;padding:8px 12px;border-radius:999px;background:rgba(109,40,217,.08);color:#5b21b6;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
-  h1{margin-top:16px;font-size:clamp(38px,5vw,66px);line-height:1.03;letter-spacing:-.08em;max-width:980px}
-  .hero-copy{margin-top:16px;max-width:860px;font-size:18px;line-height:1.72;color:var(--sub)}
+  .cta{padding:11px 16px;border-radius:999px;background:#111827;color:#fff;font-size:13px;font-weight:800}
+  main{padding:34px 0 40px}
+  .hero{padding:8px 0 18px}
+  .eyebrow{display:inline-flex;padding:8px 12px;border-radius:999px;background:rgba(124,58,237,.08);color:#5b21b6;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  h1{margin-top:16px;font-size:clamp(38px,5vw,64px);line-height:1.04;letter-spacing:-.08em;max-width:950px}
+  .hero-copy{margin-top:16px;max-width:850px;font-size:18px;line-height:1.72;color:var(--sub)}
   .hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
   .hero-badge{padding:9px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800}
-  .plans{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:26px 0 30px}
-  .plan{background:#fff;border:1px solid var(--line);border-radius:26px;padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:500px}
-  .plan.recommended{border-color:rgba(109,40,217,.3);box-shadow:0 20px 60px rgba(109,40,217,.12)}
+  .plans-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .plan-card{background:#fff;border:1px solid var(--line);border-radius:28px;padding:26px;display:flex;flex-direction:column;min-height:520px;box-shadow:var(--shadow)}
+  .plan-card.recommended{border-color:rgba(124,58,237,.28);box-shadow:0 22px 70px rgba(124,58,237,.12)}
   .plan-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .plan-name{font-size:30px;font-weight:900;letter-spacing:-.05em}
-  .plan-badge{padding:6px 10px;border-radius:999px;background:rgba(109,40,217,.1);color:#5b21b6;font-size:11px;font-weight:900}
-  .plan-price{margin-top:18px;font-size:48px;font-weight:900;letter-spacing:-.08em}
+  .plan-name{font-size:28px;font-weight:900;letter-spacing:-.05em}
+  .plan-badge{padding:6px 10px;border-radius:999px;background:rgba(124,58,237,.1);color:#5b21b6;font-size:11px;font-weight:900}
+  .plan-price{margin-top:18px;font-size:44px;font-weight:900;letter-spacing:-.07em}
   .plan-price small{font-size:14px;color:var(--sub);font-weight:800}
-  .plan-copy{margin-top:12px;min-height:70px;font-size:14px;line-height:1.75;color:var(--sub)}
-  .plan-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:13px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:900;margin-top:18px}
-  .plan.recommended .plan-cta{background:#111827;color:#fff;border-color:#111827}
-  .plan-section{margin-top:20px}
-  .plan-section-title{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#334155}
-  .plan-list{margin-top:10px;display:grid;gap:10px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.65}
-  .contrib-shell{display:grid;grid-template-columns:1.02fr .98fr;gap:18px;margin:10px 0 28px}
-  .card{background:#fff;border:1px solid var(--line);border-radius:26px;padding:24px;box-shadow:var(--shadow)}
-  .card h2{font-size:30px;letter-spacing:-.05em}
-  .card .lead{margin-top:10px;color:var(--sub);font-size:15px;line-height:1.75}
-  .status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
-  .status-box{padding:16px;border-radius:20px;background:var(--soft);border:1px solid var(--line)}
-  .status-box-label{font-size:12px;font-weight:900;color:var(--sub);letter-spacing:.04em;text-transform:uppercase}
-  .status-box-value{margin-top:8px;font-size:22px;font-weight:900;letter-spacing:-.04em}
-  .status-box-copy{margin-top:8px;font-size:13px;line-height:1.65;color:var(--sub)}
-  .field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
-  .field{display:flex;flex-direction:column;gap:8px}
-  .field.full{grid-column:1/-1}
-  .field label{font-size:12px;font-weight:900;color:var(--sub)}
-  .field input,.field select{width:100%;padding:13px 14px;border-radius:16px;border:1px solid var(--line);background:#fff;font-size:14px}
-  .button-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-  .minor-btn,.ghost-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:999px;border:1px solid var(--line);font-size:13px;font-weight:900;cursor:pointer}
-  .minor-btn{background:#111827;color:#fff;border-color:#111827}
-  .inline-note{margin-top:10px;font-size:13px;line-height:1.7;color:var(--sub)}
-  .helper-banner{margin-top:18px;padding:16px 18px;border-radius:18px;background:linear-gradient(135deg,rgba(109,40,217,.08),rgba(236,72,153,.05));border:1px solid rgba(109,40,217,.12)}
-  .helper-banner strong{display:block;font-size:14px}
-  .helper-banner p{margin-top:6px;color:var(--sub);font-size:13px;line-height:1.7}
+  .plan-copy{margin-top:12px;min-height:72px;font-size:14px;line-height:1.75;color:var(--sub)}
+  .plan-cta{margin-top:18px;width:100%;padding:13px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:900;text-align:center}
+  .plan-card.recommended .plan-cta{background:#111827;color:#fff;border-color:#111827}
+  .plan-list{margin-top:18px;display:grid;gap:10px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.68}
+  .plan-foot{margin-top:auto;padding-top:18px;font-size:12px;line-height:1.6;color:var(--sub)}
+  .step-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:24px}
+  .step-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:15px 16px;box-shadow:var(--shadow)}
+  .step-chip{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:rgba(124,58,237,.1);color:#5b21b6;font-size:12px;font-weight:900}
+  .step-card strong{display:block;margin-top:12px;font-size:15px}
+  .step-card p{margin-top:6px;font-size:13px;line-height:1.65;color:var(--sub)}
   .policy-links{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 10px}
   .policy-link{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
   footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 0 24px;color:var(--sub);font-size:13px}
-  .embed-shell header,.embed-shell .hero,.embed-shell .policy-links,.embed-shell footer{display:none}
-  .embed-shell{background:#fff}
-  .embed-shell main{padding:0}
-  .embed-shell .wrap{width:min(1180px,calc(100% - 24px))}
-  .embed-shell .plans{margin:0}
-  .embed-shell[data-embed="plans"] .status-only{display:none !important}
-  .embed-shell[data-embed="status"] .plans-only{display:none !important}
-  .embed-shell .embed-head{display:none}
-  .embed-shell[data-embed] .embed-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0 18px}
-  .embed-shell[data-embed] .embed-title{font-size:30px;font-weight:900;letter-spacing:-.05em}
-  .embed-shell[data-embed] .embed-copy{font-size:14px;color:var(--sub)}
-  @media (max-width:1160px){.plans{grid-template-columns:repeat(2,minmax(0,1fr))}.contrib-shell{grid-template-columns:1fr}}
-  @media (max-width:760px){.menu{display:none}.plans,.field-grid,.status-grid{grid-template-columns:1fr}h1{font-size:40px}.hero-copy{font-size:16px}.button-row{flex-direction:column}.minor-btn,.ghost-btn,.plan-cta{width:100%}}
+  @media (max-width:1160px){.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.step-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:760px){.menu{display:none}.plans-grid,.step-row{grid-template-columns:1fr}h1{font-size:40px}.hero-copy{font-size:16px}}
 </style>
 </head>
 <body>
   <header>
     <div class="wrap nav">
-      <div class="brand"><span class="brand-mark"></span><span>Purple Bee</span><span class="brand-badge">Free</span></div>
+      <a class="brand" href="/ko-KR/index/purple-bee/"><span class="brand-mark"></span><span>Purple Bee</span><span class="brand-badge">Free</span></a>
       <nav class="menu">
         <a href="/ko-KR/index/purple-bee/">소개</a>
         <a href="/ko-KR/index/purple-bee/features/">기능</a>
@@ -99,90 +62,84 @@
         <a href="/ko-KR/index/purple-bee/architecture/">아키텍처</a>
         <a class="active" href="/ko-KR/index/purple-bee/pricing/">요금</a>
       </nav>
+      <a class="cta" href="/">채팅 열기</a>
     </div>
   </header>
   <main class="wrap">
-    <div class="embed-head">
-      <div>
-        <div class="embed-title" id="embed-title">플랜 업그레이드</div>
-        <div class="embed-copy" id="embed-copy">Free, Basic, Plus, Pro 플랜을 한 번에 비교하고 선택할 수 있어요.</div>
-      </div>
-    </div>
-    <section class="hero plans-only">
+    <section class="hero">
       <span class="eyebrow">Pricing</span>
-      <h1>Free부터 Pro까지, 그리고 기여 기반 업그레이드까지.</h1>
-      <p class="hero-copy">Purple Bee는 기본 사용은 무료로 시작하고, 더 빠른 응답과 더 높은 우선순위가 필요할 때 기여 시간을 예약해 프리미엄 상태를 활성화할 수 있도록 설계했습니다.</p>
+      <h1>Free부터 Pro까지, 필요한 범위만 또렷하게 선택하세요.</h1>
+      <p class="hero-copy">Purple Bee는 가볍게 시작할 수 있는 무료 플랜과 더 빠른 응답, 더 넓은 작업 범위를 위한 업그레이드 플랜을 제공합니다. 기여 기반 혜택은 플랜을 선택한 뒤 별도 상태 화면에서 진행합니다.</p>
       <div class="hero-badges">
         <span class="hero-badge">기본 플랜 무료 제공</span>
-        <span class="hero-badge">기여 시간 기반 업그레이드</span>
-        <span class="hero-badge">내 기기 + 분산 보조 연산 병행 구조</span>
+        <span class="hero-badge">업그레이드 단계 명확 분리</span>
+        <span class="hero-badge">기여 구독은 별도 상태 화면에서 관리</span>
       </div>
     </section>
-    <section class="plans plans-only">
-      <article class="plan">
+
+    <section class="plans-grid">
+      <article class="plan-card">
         <div class="plan-top"><div class="plan-name">Free</div><span class="plan-badge">기본</span></div>
         <div class="plan-price">무료 <small>/ 기본 제공</small></div>
-        <div class="plan-copy">일상 질문과 기본 작업을 가볍게 시작하는 기본 플랜입니다.</div>
-        <a class="plan-cta" href="/">지금 시작</a>
-        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>기본 AI 대화</li><li>표준 우선순위</li><li>경량 모델 중심</li><li>요청 횟수 제한</li></ul></div>
+        <div class="plan-copy">일상 질문과 기본 분석을 가볍게 시작하는 무료 플랜입니다.</div>
+        <a class="plan-cta" href="/">바로 시작</a>
+        <ul class="plan-list">
+          <li>기본 AI 대화</li>
+          <li>표준 우선순위</li>
+          <li>내 기기 연산 중심</li>
+          <li>기본 요청 제한</li>
+        </ul>
+        <div class="plan-foot">무료 플랜은 기본 대화와 내 기기 연산을 중심으로 사용합니다.</div>
       </article>
-      <article class="plan">
-        <div class="plan-top"><div class="plan-name">Basic</div><span class="plan-badge">시작</span></div>
+      <article class="plan-card">
+        <div class="plan-top"><div class="plan-name">Basic</div><span class="plan-badge">첫 업그레이드</span></div>
         <div class="plan-price">1시간 기여 <small>/ 1일 혜택</small></div>
-        <div class="plan-copy">내 기기 연산을 유지하면서, 필요할 때 분산 보조 연산을 선택할 수 있는 첫 단계입니다.</div>
-        <button class="plan-cta" type="button" onclick="openContributorReservation('Basic')">Basic 선택</button>
-        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>Free보다 빠른 우선순위</li><li>응답 길이 제한 완화</li><li>기여 예약 가능</li><li>보조 연산 모드 사용</li></ul></div>
+        <div class="plan-copy">응답 속도를 높이고, 기여 앱을 통한 분산 보조 연산을 처음 열 수 있는 단계입니다.</div>
+        <a class="plan-cta" href="/">Basic 선택</a>
+        <ul class="plan-list">
+          <li>Free보다 빠른 우선순위</li>
+          <li>응답 길이 제한 완화</li>
+          <li>기여 구독 시작 가능</li>
+          <li>내 기기 + 보조 연산 모드</li>
+        </ul>
+        <div class="plan-foot">Basic부터 기여 앱 설치와 동기화가 끝나면 예약 단계로 이어집니다.</div>
       </article>
-      <article class="plan recommended">
+      <article class="plan-card recommended">
         <div class="plan-top"><div class="plan-name">Plus</div><span class="plan-badge">권장</span></div>
         <div class="plan-price">5시간 기여 <small>/ 7일 혜택</small></div>
-        <div class="plan-copy">더 빠른 응답과 더 넓은 작업 범위, 더 강한 보조 연산 배정을 함께 쓰는 메인 플랜입니다.</div>
-        <button class="plan-cta" type="button" onclick="openContributorReservation('Plus')">Plus 선택</button>
-        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>상위 우선순위</li><li>최신 모델 접근</li><li>요청 제한 대폭 완화</li><li>분산 보조 연산 가중치 상향</li></ul></div>
+        <div class="plan-copy">더 넓은 작업 범위와 더 안정적인 보조 연산 배정을 제공하는 메인 플랜입니다.</div>
+        <a class="plan-cta" href="/">Plus 선택</a>
+        <ul class="plan-list">
+          <li>상위 우선순위</li>
+          <li>최신 모델 접근 폭 확대</li>
+          <li>요청 제한 대폭 완화</li>
+          <li>기여 효율 가중치 상향</li>
+        </ul>
+        <div class="plan-foot">Plus는 더 빠른 응답과 더 넓은 사용 범위를 위한 중심 플랜입니다.</div>
       </article>
-      <article class="plan">
-        <div class="plan-top"><div class="plan-name">Pro</div><span class="plan-badge">고성능</span></div>
-        <div class="plan-price">확장 기여 <small>/ 확장 혜택</small></div>
-        <div class="plan-copy">장시간 작업과 높은 안정성, 대형 요청을 우선으로 둔 상위 플랜입니다.</div>
-        <button class="plan-cta" type="button" onclick="openContributorReservation('Pro')">Pro 선택</button>
-        <div class="plan-section"><div class="plan-section-title">포함</div><ul class="plan-list"><li>최상위 우선순위</li><li>고급 기능 우선 적용</li><li>대형 요청 대응</li><li>장기 기여형 운영</li></ul></div>
-      </article>
-    </section>
-    <section class="contrib-shell status-only">
-      <article class="card">
-        <h2>기여 구독 상태</h2>
-        <p class="lead">현재 플랜, 연결 기기, 예약 상태만 간단히 보여줍니다.</p>
-        <div class="status-grid">
-          <div class="status-box"><div class="status-box-label">현재 플랜</div><div class="status-box-value" id="contrib-plan-status">Free</div><div class="status-box-copy">Basic 이상부터 서버 보조 연산 모드를 선택할 수 있습니다.</div></div>
-          <div class="status-box"><div class="status-box-label">예상 혜택</div><div class="status-box-value" id="contrib-estimate">-</div><div class="status-box-copy">기여 시간과 기기 효율을 기준으로 계산됩니다.</div></div>
-          <div class="status-box"><div class="status-box-label">큐</div><div class="status-box-value" id="contrib-queue">standard</div><div class="status-box-copy">상위 플랜일수록 우선순위가 높아집니다.</div></div>
-          <div class="status-box"><div class="status-box-label">기여 효율</div><div class="status-box-value" id="contrib-multiplier">x1.0</div><div class="status-box-copy">연결된 기기 성능과 상태를 함께 반영합니다.</div></div>
-        </div>
-        <div class="helper-banner"><strong>기여 앱 설치와 사이트 동기화가 먼저 필요합니다.</strong><p>기여 앱이 설치되고 사이트와 한 번 이상 동기화되어야 예약 저장과 보조 연산 모드가 열립니다.</p></div>
-      </article>
-      <article class="card">
-        <h2>기기 연결 · 예약</h2>
-        <p class="lead">연결된 기기 상태와 최근 예약만 간단하게 관리합니다.</p>
-        <div class="status-grid">
-          <div class="status-box"><div class="status-box-label">연결된 기기</div><div class="status-box-value" id="contrib-linked-device">아직 연결된 기기가 없습니다.</div><div class="status-box-copy" id="contrib-device-summary">브라우저 기준 기기 요약</div></div>
-          <div class="status-box"><div class="status-box-label">마지막 연결</div><div class="status-box-value" id="contrib-last-seen">-</div><div class="status-box-copy">최근 heartbeat를 기준으로 갱신됩니다.</div></div>
-          <div class="status-box" style="grid-column:1/-1"><div class="status-box-label">예약된 기여</div><div class="status-box-value" id="contrib-history">아직 예약된 기여 시간이 없습니다.</div><div class="status-box-copy">최근 3건을 요약해서 보여줍니다.</div></div>
-        </div>
-        <div class="field-grid">
-          <div class="field"><label for="contrib-plan">기여 플랜</label><select id="contrib-plan"><option value="Basic">Basic</option><option value="Plus" selected>Plus</option><option value="Pro">Pro</option></select></div>
-          <div class="field"><label for="contrib-hours">기여 시간</label><input id="contrib-hours" type="number" min="1" step="1" value="5"></div>
-          <div class="field full"><label for="contrib-start">예약 시작</label><input id="contrib-start" type="datetime-local"></div>
-          <div class="field"><label for="contrib-cpu">CPU 상한 (%)</label><input id="contrib-cpu" type="number" min="20" max="90" step="5" value="70"></div>
-          <div class="field"><label for="contrib-gpu">GPU 상한 (%)</label><input id="contrib-gpu" type="number" min="20" max="90" step="5" value="70"></div>
-        </div>
-        <div class="button-row">
-          <button class="minor-btn" type="button" id="contrib-reserve-btn" onclick="reserveContributorPlan()">예약 저장</button>
-          <button class="ghost-btn" type="button" onclick="downloadContributorApp()">기여 앱 다운로드</button>
-          <button class="ghost-btn" type="button" onclick="refreshContributorStatus()">상태 새로고침</button>
-        </div>
-        <div class="inline-note" id="contrib-note"></div>
+      <article class="plan-card">
+        <div class="plan-top"><div class="plan-name">Pro</div><span class="plan-badge">상위</span></div>
+        <div class="plan-price">장기 기여 <small>/ 장기 혜택</small></div>
+        <div class="plan-copy">가장 높은 우선순위와 가장 넓은 작업 범위를 위한 상위 플랜입니다.</div>
+        <a class="plan-cta" href="/">Pro 선택</a>
+        <ul class="plan-list">
+          <li>최상위 우선순위</li>
+          <li>고급 기능 우선 접근</li>
+          <li>대규모 요청 범위</li>
+          <li>장기 기여 예약 운영</li>
+        </ul>
+        <div class="plan-foot">Pro는 응답 여유와 가용 범위를 가장 크게 확보하는 플랜입니다.</div>
       </article>
     </section>
+
+    <section class="step-row">
+      <article class="step-card"><span class="step-chip">1</span><strong>플랜 선택</strong><p>요금 페이지에서는 구독제 종류와 혜택만 또렷하게 비교합니다.</p></article>
+      <article class="step-card"><span class="step-chip">2</span><strong>기여 앱 설치</strong><p>유료 플랜을 선택한 뒤에만 기여 앱 설치 단계로 넘어갑니다.</p></article>
+      <article class="step-card"><span class="step-chip">3</span><strong>연동 확인</strong><p>앱과 사이트가 같은 계정으로 연결돼야 예약이 열립니다.</p></article>
+      <article class="step-card"><span class="step-chip">4</span><strong>성능 판정</strong><p>CPU, GPU, 메모리, 저장 공간을 기준으로 기여 효율을 계산합니다.</p></article>
+      <article class="step-card"><span class="step-chip">5</span><strong>기여 예약</strong><p>상태 화면에서 시간을 예약하면 프리미엄 상태가 자동으로 반영됩니다.</p></article>
+    </section>
+
     <section class="policy-links">
       <a class="policy-link" href="/ko-KR/index/purple-bee/legal/terms/">이용약관</a>
       <a class="policy-link" href="/ko-KR/index/purple-bee/legal/privacy/">개인정보 처리방침</a>
@@ -191,37 +148,7 @@
   </main>
   <footer class="wrap">
     <span>© 2026 Purple Bee</span>
-    <span>Free 플랜과 기여 기반 구독을 함께 운영하는 제품형 AI 서비스</span>
+    <span>구독제 비교와 기여 구독 관리는 단계별로 분리해 제공합니다.</span>
   </footer>
-  <script>
-    const contributorUi = {
-      device_missing: "아직 연결된 기기가 없습니다.",
-      empty_history: "아직 예약된 기여 시간이 없습니다.",
-      status_free: "Free",
-      status_active: "{plan} 활성",
-      success: "기여 예약이 저장되었습니다.",
-      download_ready: "기여 앱 다운로드를 시작했습니다."
-    };
-    const contributorState = {
-      userId: localStorage.getItem("pb_contributor_user_id") || `pb_${Math.random().toString(36).slice(2, 10)}`,
-      displayName: localStorage.getItem("pb_google_display_name") || "",
-      linked: false
-    };
-    localStorage.setItem("pb_contributor_user_id", contributorState.userId);
-    function formatContributorDate(value){if(!value)return "-";try{return new Date(value).toLocaleString("ko-KR");}catch(_){return value;}}
-    function describeExactDevice(device){if(!device)return contributorUi.device_missing;const hardware=device.hardware||{};const parts=[];if(device.device_name)parts.push(device.device_name);if(hardware.cpu_model)parts.push(hardware.cpu_model);if(hardware.memory_gb)parts.push(`RAM ${hardware.memory_gb}GB`);if(hardware.cpu_threads)parts.push(`CPU ${hardware.cpu_threads} threads`);if(hardware.gpu_model)parts.push(hardware.gpu_model);return parts.filter(Boolean).join(" · ")||contributorUi.device_missing;}
-    function setDefaultContributorStart(){const start=document.getElementById("contrib-start");if(!start||start.value)return;const now=new Date();now.setMinutes(now.getMinutes()+30);start.value=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);}
-    function applyReservationAvailability(){const reserveBtn=document.getElementById("contrib-reserve-btn");const note=document.getElementById("contrib-note");if(!reserveBtn)return;reserveBtn.disabled=!contributorState.linked;reserveBtn.style.opacity=contributorState.linked?"1":".55";reserveBtn.style.cursor=contributorState.linked?"pointer":"not-allowed";if(!contributorState.linked&&note&&!note.textContent){note.textContent="기여 앱 설치와 사이트 동기화가 먼저 필요합니다.";}}
-    async function getDeviceProfile(){let storageGb=0;if(navigator.storage&&navigator.storage.estimate){try{const estimate=await navigator.storage.estimate();storageGb=Number(((estimate.quota||0)/1024/1024/1024).toFixed(1));}catch(_){}}return{memory_gb:Number(navigator.deviceMemory||0),cpu_threads:Number(navigator.hardwareConcurrency||0),storage_gb:storageGb};}
-    function openContributorReservation(planName){const plan=document.getElementById("contrib-plan");const hours=document.getElementById("contrib-hours");if(plan&&planName&&planName!=="Free")plan.value=planName;if(hours){const defaults={Basic:1,Plus:5,Pro:12};if(defaults[planName])hours.value=defaults[planName];}const target=document.querySelector(".status-only");if(target)target.scrollIntoView({behavior:"smooth",block:"start"});refreshContributorQuote();}
-    async function downloadContributorApp(){const note=document.getElementById("contrib-note");contributorState.displayName=localStorage.getItem("pb_google_display_name")||contributorState.displayName||"";note.textContent="";try{const response=await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(contributorState.userId)}&display_name=${encodeURIComponent(contributorState.displayName||"")}`);if(!response.ok){note.textContent="기여 앱 다운로드를 시작할 수 없습니다.";return;}const blob=await response.blob();const href=URL.createObjectURL(blob);const link=document.createElement("a");link.href=href;link.download=`purple-bee-contributor-${contributorState.userId.slice(0,12)}.zip`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(href),1500);note.textContent=contributorUi.download_ready;}catch(_){note.textContent="기여 앱 다운로드를 시작할 수 없습니다.";}}
-    async function refreshContributorQuote(){try{const plan=document.getElementById("contrib-plan")?.value||"Plus";const hours=Number(document.getElementById("contrib-hours")?.value||0);const deviceProfile=await getDeviceProfile();const summaryNode=document.getElementById("contrib-device-summary");if(summaryNode&&!summaryNode.dataset.exactDevice){summaryNode.textContent=`RAM ${deviceProfile.memory_gb||"?"}GB · CPU ${deviceProfile.cpu_threads||"?"} threads · Storage ${deviceProfile.storage_gb||"?"}GB`;}const response=await fetch("/api/contributor/quote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:contributorState.userId,display_name:contributorState.displayName,plan,hours,device_profile:deviceProfile})});const payload=await response.json();if(!payload.ok)return;const quote=payload.quote||{};document.getElementById("contrib-estimate").textContent=`${quote.plan} · ${quote.premium_days||0}일 프리미엄`;document.getElementById("contrib-queue").textContent=quote.queue_mode||"standard";document.getElementById("contrib-multiplier").textContent=`x${quote.hardware_multiplier||1}`;}catch(_){}} 
-    async function refreshContributorStatus(){try{await refreshContributorQuote();const response=await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorState.userId)}`);const payload=await response.json();if(!payload.ok)return;const account=payload.account||{};document.getElementById("contrib-plan-status").textContent=payload.premium_active?contributorUi.status_active.replace("{plan}",account.plan||"Plus"):contributorUi.status_free;const devices=Array.isArray(payload.devices)?payload.devices:[];const linked=devices[0]||null;contributorState.linked=!!linked;document.getElementById("contrib-linked-device").textContent=linked?describeExactDevice(linked):contributorUi.device_missing;document.getElementById("contrib-last-seen").textContent=linked?formatContributorDate(linked.last_heartbeat_at||linked.updated_at||linked.linked_at):"-";const summaryNode=document.getElementById("contrib-device-summary");if(summaryNode){if(payload.exact_device_summary){summaryNode.textContent=payload.exact_device_summary;summaryNode.dataset.exactDevice="true";}else{delete summaryNode.dataset.exactDevice;}}const reservations=Array.isArray(payload.reservations)?payload.reservations:[];document.getElementById("contrib-history").textContent=reservations.length?reservations.slice(0,3).map((item)=>`${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / "):contributorUi.empty_history;applyReservationAvailability();}catch(_){}} 
-    async function reserveContributorPlan(){const note=document.getElementById("contrib-note");note.textContent="";if(!contributorState.linked){note.textContent="기여 앱 설치와 사이트 동기화가 먼저 필요합니다.";applyReservationAvailability();return;}try{const plan=document.getElementById("contrib-plan")?.value||"Plus";const hours=Number(document.getElementById("contrib-hours")?.value||0);const startsAt=document.getElementById("contrib-start")?.value;const cpuCap=Number(document.getElementById("contrib-cpu")?.value||70);const gpuCap=Number(document.getElementById("contrib-gpu")?.value||70);const deviceProfile=await getDeviceProfile();const response=await fetch("/api/contributor/reserve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:contributorState.userId,display_name:contributorState.displayName,plan,hours,starts_at:startsAt,cpu_cap:cpuCap,gpu_cap:gpuCap,device_profile:deviceProfile})});const payload=await response.json();if(!payload.ok){note.textContent=payload.message||payload.error||"예약을 저장할 수 없습니다.";return;}note.textContent=contributorUi.success;await refreshContributorStatus();}catch(_){note.textContent="예약을 저장할 수 없습니다.";}}
-    function applyEmbedMode(){const mode=new URLSearchParams(window.location.search).get("embed")||"";if(!mode)return;document.body.classList.add("embed-shell");document.body.dataset.embed=mode;const titleNode=document.getElementById("embed-title");const copyNode=document.getElementById("embed-copy");if(mode==="plans"){if(titleNode)titleNode.textContent="플랜 업그레이드";if(copyNode)copyNode.textContent="Free, Basic, Plus, Pro 플랜만 한 번에 비교하고 선택할 수 있어요.";}else if(mode==="status"){if(titleNode)titleNode.textContent="기여 구독 상태";if(copyNode)copyNode.textContent="연결된 기기, 예약 상태, 기여 효율만 모아서 간단히 확인할 수 있어요.";}}
-    document.getElementById("contrib-plan")?.addEventListener("change",refreshContributorQuote);
-    document.getElementById("contrib-hours")?.addEventListener("input",refreshContributorQuote);
-    setDefaultContributorStart();applyEmbedMode();applyReservationAvailability();refreshContributorStatus().catch(()=>{});
-  </script>
 </body>
 </html>

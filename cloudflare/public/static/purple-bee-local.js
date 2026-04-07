@@ -5984,26 +5984,24 @@ async function generateReasonedChatReply(prompt, language) {
     const lang = getActiveUiLanguage();
     if (lang === "ko") {
       return {
-        upgradeTitle: "⚡ 플랜 업그레이드",
-        upgradeSub: "Free, Basic, Plus, Pro 플랜과 기여 기반 업그레이드를 확인해 보세요.",
+        upgradeTitle: "✨ 플랜 업그레이드",
+        upgradeSub: "Free, Basic, Plus, Pro 플랜만 깔끔하게 비교해 보세요.",
         cardTitle: "기여 구독 상태",
-        cardSub: "현재 플랜, 큐, 연결된 기기만 간단하게 보여드려요.",
-        labels: { plan: "플랜", premium: "프리미엄", queue: "큐", next: "다음 기여", mode: "연산 모드" },
-        values: { inactive: "비활성", active: "활성", standard: "표준", none: "없음", free: "Free" },
+        cardSub: "현재 상태와 다음 단계만 간단히 확인할 수 있어요.",
+        labels: { plan: "플랜", premium: "프리미엄", queue: "우선순위", next: "다음 예약", mode: "연산 모드" },
+        values: { inactive: "비활성", active: "활성", standard: "기본", none: "없음", free: "Free" },
         deviceLabel: "연결된 기기",
         deviceCount: "{count}대 연결됨",
         noteAnon: "Google 로그인 후 기여 시간 예약과 구독 상태를 계정 기준으로 관리할 수 있어요.",
-        noteFree: "Free에서는 내 기기 연산만 사용합니다. Basic 이상부터 분산 보조 연산 모드를 고를 수 있어요.",
-        noteActive: "현재 기여 기반 구독이 활성화되어 있어요. 모드와 다음 기여 시간을 여기서 빠르게 확인할 수 있어요.",
-        openPlans: "✨ 자세히",
-        downloadApp: "🧩 앱",
-        refresh: "🔄",
+        noteFree: "Free에서는 내 기기 연산만 사용합니다.",
+        noteActive: "기여 앱 설치와 연동이 끝나면 예약과 모드 선택이 열립니다.",
+        openPlans: "플랜 업그레이드",
         modeOptions: {
           local: "내 기기 연산",
           hybrid: "내 기기 + 분산 보조 연산",
           distributed: "분산 보조 연산 우선",
         },
-        modeDesc: "Basic 이상부터 모드를 고를 수 있어요.",
+        modeDesc: "Basic 이상부터 선택할 수 있어요.",
       };
     }
     if (lang === "ja") {
@@ -6023,19 +6021,17 @@ async function generateReasonedChatReply(prompt, language) {
     }
     return {
       upgradeTitle: "⚡ Upgrade plans",
-      upgradeSub: "See Free, Basic, Plus, Pro and contributor benefits",
+      upgradeSub: "Compare Free, Basic, Plus, and Pro in one place.",
       cardTitle: "Contributor status",
-      cardSub: "A compact summary of your plan, queue, and linked device.",
+      cardSub: "A compact summary of your plan, linked device, and next window.",
       labels: { plan: "Plan", premium: "Premium", queue: "Queue", next: "Next window", mode: "Compute mode" },
       values: { inactive: "Inactive", active: "Active", standard: "Standard", none: "None", free: "Free" },
       deviceLabel: "Linked device",
       deviceCount: "{count} linked",
       noteAnon: "Sign in with Google to manage contributor windows and plan status per account.",
-      noteFree: "Free uses local compute only. Basic and above can switch to distributed assist modes.",
-      noteActive: "Your contributor subscription is active. Open the hub for reservation details and plan controls.",
-      openPlans: "✨ Details",
-      downloadApp: "🧩 App",
-      refresh: "🔄",
+      noteFree: "Free uses local compute only.",
+      noteActive: "Once the contributor app is linked, you can manage reservations and compute modes here.",
+      openPlans: "Upgrade plans",
       modeOptions: {
         local: "Local compute",
         hybrid: "Local + contributor assist",
@@ -6133,16 +6129,16 @@ async function generateReasonedChatReply(prompt, language) {
     if (subtitleNode) {
       subtitleNode.textContent = safeMode === "plans"
         ? (getActiveUiLanguage() === "ko"
-          ? "Free, Basic, Plus, Pro 플랜 차이와 혜택만 한눈에 볼 수 있어요."
+          ? "구독제 비교만 한 화면에서 확인하고 선택할 수 있어요."
           : "See only the Free, Basic, Plus, and Pro plan differences in one place.")
         : (getActiveUiLanguage() === "ko"
-          ? "기여 앱 연결, 예약 시간, 연결 기기 상태를 한 화면에서 관리할 수 있어요."
+          ? "기여 앱 설치, 연동 확인, 예약 상태를 단계별로 관리할 수 있어요."
           : "Manage contributor app sync, reservations, and device status in one place.");
     }
     if (footLeftNode) {
       footLeftNode.textContent = safeMode === "plans"
         ? (getActiveUiLanguage() === "ko"
-          ? "Free에서는 내 기기 연산만 사용하고, Basic 이상부터 분산 보조 연산 모드를 선택할 수 있어요."
+          ? "플랜 화면에서는 구독제만 비교합니다. 기여 예약과 연동은 별도 상태 화면에서 진행됩니다."
           : "Free uses local compute only. Basic and above can choose distributed assist modes.")
         : (getActiveUiLanguage() === "ko"
           ? "기여 예약은 기여 앱 설치와 사이트 동기화가 확인된 뒤에만 활성화됩니다."
@@ -6167,6 +6163,36 @@ async function generateReasonedChatReply(prompt, language) {
     const frame = document.getElementById("contributor-hub-frame");
     if (backdrop) backdrop.classList.remove("open");
     if (frame) frame.src = "about:blank";
+  }
+
+  window.addEventListener("message", (event) => {
+    const data = event && event.data ? event.data : null;
+    if (!data || typeof data !== "object") return;
+    if (data.type === "pbx-contributor-open-status") {
+      if (data.plan) localStorage.setItem("pb_selected_contributor_plan", data.plan);
+      pbxOpenContributorHub("status");
+    } else if (data.type === "pbx-close-contributor-hub") {
+      pbxCloseContributorHub();
+    }
+  });
+
+  function pbxContributorQueueLabel(value) {
+    const copy = pbxContributorStrings();
+    const normalized = lower(trim(String(value || "")));
+    if (!normalized) return copy.values.standard;
+    if (normalized.includes("priority-plus")) return "상위 우선";
+    if (normalized.includes("priority-pro")) return "최상위";
+    if (normalized.includes("priority")) return "우선";
+    return copy.values.standard;
+  }
+
+  function pbxShortDeviceSummary(summary, devices) {
+    const exact = trim(String(summary || ""));
+    if (exact) {
+      const compact = exact.split(/[|,]/).map((part) => trim(part)).filter(Boolean).slice(0, 2).join(" · ");
+      return compact || exact;
+    }
+    return devices && devices.length ? pbxContributorStrings().deviceCount.replace("{count}", String(devices.length)) : pbxContributorStrings().values.none;
   }
 
   function pbxUpdateContributorComputeMode(mode) {
@@ -6248,9 +6274,6 @@ async function generateReasonedChatReply(prompt, language) {
     setText("contributor-stat-premium-label", copy.labels.premium);
     setText("contributor-stat-queue-label", copy.labels.queue);
     setText("contributor-stat-next-label", copy.labels.next);
-    setText("contributor-upgrade-btn", copy.openPlans);
-    setText("contributor-refresh-btn", copy.refresh);
-
     const planNode = document.getElementById("contributor-plan-value");
     const premiumNode = document.getElementById("contributor-premium-value");
     const queueNode = document.getElementById("contributor-queue-value");
@@ -6259,10 +6282,10 @@ async function generateReasonedChatReply(prompt, language) {
     const noteNode = document.getElementById("contributor-card-note");
     const deviceLabelNode = document.getElementById("contributor-device-label");
     const deviceNode = document.getElementById("contributor-device-value");
+    const hintNode = document.getElementById("contributor-card-hint");
     if (!planNode || !premiumNode || !queueNode || !nextNode || !pillNode || !noteNode || !deviceNode || !deviceLabelNode || !upgradeNode || !cardNode) return;
 
     const user = pbxCurrentUser();
-    setText("contributor-download-btn", copy.downloadApp);
     deviceLabelNode.textContent = copy.deviceLabel;
     if (!user) {
       upgradeNode.classList.remove("hidden");
@@ -6275,6 +6298,7 @@ async function generateReasonedChatReply(prompt, language) {
       pillNode.textContent = copy.values.free;
       noteNode.textContent = copy.noteAnon;
       deviceNode.textContent = copy.values.none;
+      if (hintNode) hintNode.textContent = "로그인 후 플랜을 선택하면 여기서 기여 상태를 볼 수 있어요.";
       return;
     }
 
@@ -6291,21 +6315,20 @@ async function generateReasonedChatReply(prompt, language) {
       const mode = pbxApplyContributorComputeMode(plan);
       const paidPlan = pbxIsPaidPlan(plan);
       upgradeNode.classList.toggle("hidden", paidPlan);
-      cardNode.classList.remove("hidden");
-      cardNode.classList.toggle("disabled", !paidPlan);
+      cardNode.classList.toggle("hidden", !paidPlan);
+      cardNode.classList.toggle("disabled", false);
       planNode.textContent = plan;
       premiumNode.textContent = premiumActive ? copy.values.active : copy.values.inactive;
-      queueNode.textContent = trim((account.latest_quote && account.latest_quote.queue_mode) || payload.queue_mode || copy.values.standard);
+      queueNode.textContent = pbxContributorQueueLabel((account.latest_quote && account.latest_quote.queue_mode) || payload.queue_mode || copy.values.standard);
       nextNode.textContent = nextReservation ? pbxFormatContributorDate(nextReservation.starts_at) : copy.values.none;
       pillNode.textContent = premiumActive ? `${plan} Active` : plan;
-      noteNode.textContent = !paidPlan
-        ? copy.noteFree
-        : mode === "distributed"
-          ? (getActiveUiLanguage() === "ko" ? "분산 보조 연산 우선 모드가 선택되어 있어요." : "Contributor assist priority mode is active.")
-          : mode === "hybrid"
-            ? (getActiveUiLanguage() === "ko" ? "내 기기 + 분산 보조 연산을 함께 쓰는 모드예요." : "Hybrid local + contributor assist mode is active.")
-            : copy.noteActive;
-      deviceNode.textContent = trim(payload.exact_device_summary || "") || (devices.length ? copy.deviceCount.replace("{count}", String(devices.length)) : copy.values.none);
+      noteNode.textContent = mode === "distributed"
+        ? "분산 보조 연산 우선 모드가 선택되어 있어요."
+        : mode === "hybrid"
+          ? "내 기기와 보조 연산을 함께 쓰는 모드예요."
+          : copy.noteActive;
+      deviceNode.textContent = pbxShortDeviceSummary(payload.exact_device_summary, devices);
+      if (hintNode) hintNode.textContent = "카드를 열면 앱 설치, 연동 확인, 예약 단계를 자세히 볼 수 있어요.";
     } catch (_error) {
       upgradeNode.classList.remove("hidden");
       cardNode.classList.add("hidden");
@@ -6317,7 +6340,16 @@ async function generateReasonedChatReply(prompt, language) {
       pillNode.textContent = copy.values.free;
       noteNode.textContent = copy.noteFree;
       deviceNode.textContent = copy.values.none;
+      if (hintNode) hintNode.textContent = "플랜을 고르면 여기서 기여 상태를 볼 수 있어요.";
     }
+  }
+
+  let pbxContributorSidebarInterval = null;
+  function pbxEnsureContributorSidebarAutoRefresh() {
+    if (pbxContributorSidebarInterval) return;
+    pbxContributorSidebarInterval = setInterval(() => {
+      pbxRefreshContributorSidebar().catch(() => {});
+    }, 30000);
   }
 
   function pbxCloseProfileMenu() {
@@ -10655,11 +10687,13 @@ async function generateReasonedChatReply(prompt, language) {
       pbxEnhanceUiBindings();
       pbxRefreshAssetsButtonState().catch(() => {});
       pbxRefreshContributorSidebar().catch(() => {});
+      pbxEnsureContributorSidebarAutoRefresh();
     });
   } else {
     pbxEnhanceUiBindings();
     pbxRefreshAssetsButtonState().catch(() => {});
     pbxRefreshContributorSidebar().catch(() => {});
+    pbxEnsureContributorSidebarAutoRefresh();
   }
 
   Object.assign(window, {

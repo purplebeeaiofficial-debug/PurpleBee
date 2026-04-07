@@ -52,7 +52,7 @@
   .upgrade-plan-copy{display:flex;flex-direction:column;gap:3px}
   .upgrade-plan-title{font-size:13px;font-weight:800;color:var(--text)}
   .upgrade-plan-sub{font-size:11px;color:var(--text-2);line-height:1.4}
-  .upgrade-plan-btn.hidden,.contributor-card.hidden,.contributor-mode-row.hidden{display:none !important}
+  .upgrade-plan-btn.hidden,.contributor-card.hidden{display:none !important}
   .contributor-card{
     margin:12px 14px 0;padding:14px;border-radius:16px;border:1px solid var(--border);background:var(--card);
     display:flex;flex-direction:column;gap:10px;cursor:pointer
@@ -74,31 +74,18 @@
     padding:10px 11px;border-radius:12px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.14)
   }
   .contributor-card-device-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
-  .contributor-card-device-value{margin-top:6px;font-size:12px;font-weight:700;color:var(--text);line-height:1.55;overflow-wrap:anywhere}
-  .contributor-card-actions{display:flex;gap:8px;flex-wrap:wrap}
-  .contributor-card-btn{
-    flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);
-    color:var(--text);cursor:pointer;font-size:12px;font-weight:700;transition:background var(--transition),border-color var(--transition)
+  .contributor-card-device-value{
+    margin-top:6px;font-size:12px;font-weight:700;color:var(--text);line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all
   }
-  .contributor-card-btn:hover{background:var(--card-hover);border-color:rgba(139,92,246,.35)}
-  .contributor-card-btn.primary{background:var(--accent-dim);border-color:rgba(139,92,246,.28);color:var(--accent-light)}
-  .contributor-card-btn.primary:hover{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.45)}
-  .contributor-mode-row{
-    display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 11px;border-radius:12px;background:var(--surface);border:1px solid var(--border)
+  .contributor-card-tail{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px
   }
-  .contributor-mode-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .contributor-mode-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
-  .contributor-mode-desc{display:none}
-  .contributor-mode-select{
-    width:100%;min-width:0;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:700
+  .contributor-card-hint{font-size:11px;color:var(--text-3);line-height:1.55;max-width:170px}
+  .contributor-card-arrow{
+    width:28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+    background:rgba(139,92,246,.1);color:var(--accent-light);flex-shrink:0
   }
-  .contributor-compact-actions{display:flex;gap:8px}
-  .contributor-chip-btn{
-    flex:1;min-width:0;padding:9px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);
-    cursor:pointer;font-size:12px;font-weight:700;text-align:center
-  }
-  .contributor-chip-btn:hover{background:var(--card-hover)}
-  .contributor-chip-btn.primary{background:var(--accent-dim);border-color:rgba(139,92,246,.25);color:var(--accent-light)}
   .contributor-hub-backdrop{
     position:fixed;inset:0;background:rgba(9,10,16,.58);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:20px;z-index:1250
   }
@@ -437,8 +424,6 @@
     .pbx-assets-mini-grid,.pbx-assets-list,.pbx-assets-model-picker{grid-template-columns:1fr}
     .pbx-assets-actions{justify-content:stretch}
     .pbx-assets-btn{width:100%}
-    .contributor-mode-row{flex-direction:column;align-items:stretch}
-    .contributor-mode-select{width:100%;min-width:0}
     .contributor-hub-dialog{width:min(100vw - 16px,1180px);height:min(92vh,920px);border-radius:20px}
   }
 </style>
@@ -514,25 +499,15 @@
       </div>
     </div>
     <div class="contributor-card-note" id="contributor-card-note">Reserve contribution time to unlock higher plans and priority routing.</div>
-    <div class="contributor-mode-row hidden" id="contributor-mode-row">
-      <div class="contributor-mode-copy">
-        <div class="contributor-mode-label" id="contributor-mode-label">연산 모드</div>
-        <div class="contributor-mode-desc" id="contributor-mode-desc">Basic 이상부터 내 기기 연산과 분산 보조 연산을 선택할 수 있어요.</div>
-      </div>
-      <select class="contributor-mode-select" id="contributor-compute-mode-select" onchange="updateContributorComputeMode(this.value); event.stopPropagation();">
-        <option value="local">내 기기 연산</option>
-        <option value="hybrid">내 기기 + 분산 보조 연산</option>
-        <option value="distributed">분산 보조 연산 우선</option>
-      </select>
-    </div>
     <div class="contributor-card-device">
       <div class="contributor-card-device-label" id="contributor-device-label">Linked device</div>
       <div class="contributor-card-device-value" id="contributor-device-value">No device linked yet.</div>
     </div>
-    <div class="contributor-compact-actions">
-      <button class="contributor-chip-btn primary" type="button" id="contributor-upgrade-btn" onclick="openContributorHub('status'); event.stopPropagation();">✨ 상태</button>
-      <button class="contributor-chip-btn" type="button" id="contributor-download-btn" onclick="downloadContributorApp(); event.stopPropagation();">🧩 앱</button>
-      <button class="contributor-chip-btn" type="button" id="contributor-refresh-btn" onclick="refreshContributorSidebar(); event.stopPropagation();">🔄</button>
+    <div class="contributor-card-tail">
+      <div class="contributor-card-hint" id="contributor-card-hint">카드를 누르면 기기 연결과 예약 상태를 볼 수 있어요.</div>
+      <div class="contributor-card-arrow">
+        <i class="ph ph-arrow-right" style="font-size:15px"></i>
+      </div>
     </div>
   </section>
 
@@ -952,6 +927,6 @@
 
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260407c"></script>
+  <script src="/static/purple-bee-local.js?v=20260407d"></script>
 </body>
 </html>
