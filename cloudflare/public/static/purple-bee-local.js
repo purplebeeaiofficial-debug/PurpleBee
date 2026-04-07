@@ -32,6 +32,7 @@
   const STORAGE_KEY = "pb_conversations_v2";
   const SETTINGS_KEY = "pb_settings_v1";
   const REPORTS_KEY = "pb_reports_v1";
+  const CONSENT_KEY = "pb_required_consents_v1";
   const MAX_CONVERSATIONS = 20;
   const STORAGE_TEXT_LIMIT = 6000;
   const MODEL_URL = "/static/purple-bee-model.bin";
@@ -131,6 +132,7 @@
     modelRegistry: null,
     dialogueExamples: [],
     dialogueLoading: null,
+    consents: loadRequiredConsents(),
   };
 
   const engine = {
@@ -145,6 +147,93 @@
     deviceProfile: null,
     lastError: "",
   };
+
+  function loadRequiredConsents() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CONSENT_KEY) || "{}");
+      return {
+        terms: !!parsed.terms,
+        resource: !!parsed.resource,
+        privacy: !!parsed.privacy,
+        acceptedAt: parsed.acceptedAt || "",
+        version: parsed.version || 1,
+      };
+    } catch (_error) {
+      return { terms: false, resource: false, privacy: false, acceptedAt: "", version: 1 };
+    }
+  }
+
+  function saveRequiredConsents() {
+    localStorage.setItem(CONSENT_KEY, JSON.stringify(state.consents || {}));
+  }
+
+  function hasRequiredConsents() {
+    const consent = state.consents || {};
+    return !!(consent.terms && consent.resource && consent.privacy);
+  }
+
+  function syncRequiredConsentUi() {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    const terms = document.getElementById("consent-terms");
+    const resource = document.getElementById("consent-resource");
+    const privacy = document.getElementById("consent-privacy");
+    const submit = document.getElementById("consent-submit-btn");
+    if (terms) terms.checked = !!state.consents?.terms;
+    if (resource) resource.checked = !!state.consents?.resource;
+    if (privacy) privacy.checked = !!state.consents?.privacy;
+    if (submit) submit.disabled = !hasRequiredConsents();
+  }
+
+  function openConsentModal() {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    syncRequiredConsentUi();
+    modal.classList.add("open");
+  }
+
+  function closeConsentModal(force = false) {
+    const modal = document.getElementById("consent-backdrop");
+    if (!modal) return;
+    if (!force && !hasRequiredConsents()) return;
+    modal.classList.remove("open");
+  }
+
+  function toggleRequiredConsent() {
+    state.consents = {
+      ...(state.consents || {}),
+      terms: !!document.getElementById("consent-terms")?.checked,
+      resource: !!document.getElementById("consent-resource")?.checked,
+      privacy: !!document.getElementById("consent-privacy")?.checked,
+    };
+    syncRequiredConsentUi();
+  }
+
+  function submitRequiredConsent() {
+    toggleRequiredConsent();
+    if (!hasRequiredConsents()) {
+      showToast("시작하려면 필수 동의 3개를 모두 확인해 주세요.");
+      return false;
+    }
+    state.consents.acceptedAt = new Date().toISOString();
+    state.consents.version = 1;
+    saveRequiredConsents();
+    closeConsentModal(true);
+    showToast("필수 동의를 저장했어요. 이제 Purple Bee를 바로 시작할 수 있어요.");
+    return true;
+  }
+
+  function ensureRequiredConsent() {
+    if (hasRequiredConsents()) return true;
+    openConsentModal();
+    return false;
+  }
+
+  function openConsentDocs() {
+    window.open("/index/purple-bee/legal/terms/", "_blank", "noopener");
+    window.open("/index/purple-bee/legal/resource-use/", "_blank", "noopener");
+    window.open("/index/purple-bee/legal/privacy/", "_blank", "noopener");
+  }
 
   const UI_STRINGS = {
     ko: {
@@ -5888,6 +5977,143 @@ async function generateReasonedChatReply(prompt, language) {
     if (loginBtn) loginBtn.style.display = user ? "none" : "";
     if (logoutBtn) logoutBtn.style.display = user ? "" : "none";
     pbxRenderMemoryList();
+    pbxRefreshContributorSidebar().catch(() => {});
+  }
+
+  function pbxContributorStrings() {
+    const lang = getActiveUiLanguage();
+    if (lang === "ko") {
+      return {
+        upgradeTitle: "⚡ 플랜 업그레이드",
+        upgradeSub: "Free, Basic, Plus, Pro와 기여 구독 혜택 보기",
+        cardTitle: "기여 구독 상태",
+        cardSub: "예약한 기여 시간과 현재 활성 플랜을 한눈에 확인할 수 있어요.",
+        labels: { plan: "플랜", premium: "프리미엄", queue: "큐", next: "다음 기여" },
+        values: { inactive: "비활성", active: "활성", standard: "표준", none: "없음", free: "Free" },
+        noteAnon: "Google 로그인 후 사용자별 기여 일정과 구독 상태를 관리할 수 있어요.",
+        noteFree: "기여 시간을 예약하면 Basic, Plus, Pro 혜택을 바로 활성화할 수 있어요.",
+        noteActive: "현재 기여 기반 구독이 활성화되어 있어요. 예약을 추가하면 혜택 기간을 이어갈 수 있어요.",
+        openPlans: "플랜 보기",
+        refresh: "상태 새로고침",
+      };
+    }
+    if (lang === "ja") {
+      return {
+        upgradeTitle: "⚡ プランをアップグレード",
+        upgradeSub: "Free・Basic・Plus・Pro と貢献型特典を見る",
+        cardTitle: "貢献サブスク状態",
+        cardSub: "予約した貢献時間と現在の有効プランをまとめて確認できます。",
+        labels: { plan: "プラン", premium: "Premium", queue: "キュー", next: "次の貢献" },
+        values: { inactive: "未有効", active: "有効", standard: "標準", none: "なし", free: "Free" },
+        noteAnon: "Google ログイン後、ユーザー単位で貢献予定とプラン状態を管理できます。",
+        noteFree: "貢献時間を予約すると Basic / Plus / Pro 特典を有効化できます。",
+        noteActive: "現在、貢献型サブスクが有効です。追加予約で特典期間を延長できます。",
+        openPlans: "プランを見る",
+        refresh: "更新",
+      };
+    }
+    return {
+      upgradeTitle: "⚡ Upgrade plans",
+      upgradeSub: "See Free, Basic, Plus, Pro and contributor benefits",
+      cardTitle: "Contributor status",
+      cardSub: "Check your reserved contribution windows and active plan in one place.",
+      labels: { plan: "Plan", premium: "Premium", queue: "Queue", next: "Next window" },
+      values: { inactive: "Inactive", active: "Active", standard: "Standard", none: "None", free: "Free" },
+      noteAnon: "Sign in with Google to manage contributor windows and plan status per account.",
+      noteFree: "Reserve contribution time to unlock Basic, Plus, and Pro benefits.",
+      noteActive: "A contributor subscription is active. Add another reservation to extend access.",
+      openPlans: "Open plans",
+      refresh: "Refresh",
+    };
+  }
+
+  function pbxOpenUpgradePage() {
+    const locale = getActiveUiLanguage() === "ko"
+      ? "ko-KR"
+      : getActiveUiLanguage() === "ja"
+        ? "ja-JP"
+        : "en-US";
+    window.location.href = `/${locale}/index/purple-bee/pricing/`;
+  }
+
+  function pbxContributorUserId() {
+    const user = pbxCurrentUser();
+    const stored = trim(localStorage.getItem("pb_contributor_user_id") || "");
+    const preferred = trim(String(user?.sub || user?.email || stored || ""));
+    const value = preferred || `pb_${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem("pb_contributor_user_id", value);
+    return value;
+  }
+
+  function pbxFormatContributorDate(value) {
+    if (!value) return pbxContributorStrings().values.none;
+    try {
+      return new Date(value).toLocaleString(getActiveUiLanguage() === "ko" ? "ko-KR" : getActiveUiLanguage() === "ja" ? "ja-JP" : "en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (_error) {
+      return String(value);
+    }
+  }
+
+  async function pbxRefreshContributorSidebar() {
+    const copy = pbxContributorStrings();
+    setText("upgrade-plan-title", copy.upgradeTitle);
+    setText("upgrade-plan-sub", copy.upgradeSub);
+    setText("contributor-card-title", copy.cardTitle);
+    setText("contributor-card-sub", copy.cardSub);
+    setText("contributor-stat-plan-label", copy.labels.plan);
+    setText("contributor-stat-premium-label", copy.labels.premium);
+    setText("contributor-stat-queue-label", copy.labels.queue);
+    setText("contributor-stat-next-label", copy.labels.next);
+    setText("contributor-upgrade-btn", copy.openPlans);
+    setText("contributor-refresh-btn", copy.refresh);
+
+    const planNode = document.getElementById("contributor-plan-value");
+    const premiumNode = document.getElementById("contributor-premium-value");
+    const queueNode = document.getElementById("contributor-queue-value");
+    const nextNode = document.getElementById("contributor-next-value");
+    const pillNode = document.getElementById("contributor-card-pill");
+    const noteNode = document.getElementById("contributor-card-note");
+    if (!planNode || !premiumNode || !queueNode || !nextNode || !pillNode || !noteNode) return;
+
+    const user = pbxCurrentUser();
+    if (!user) {
+      planNode.textContent = copy.values.free;
+      premiumNode.textContent = copy.values.inactive;
+      queueNode.textContent = copy.values.standard;
+      nextNode.textContent = copy.values.none;
+      pillNode.textContent = copy.values.free;
+      noteNode.textContent = copy.noteAnon;
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(pbxContributorUserId())}`);
+      const payload = await response.json();
+      if (!payload || !payload.ok) throw new Error("status-unavailable");
+      const account = payload.account || {};
+      const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+      const nextReservation = reservations.find((item) => String(item.status || "").toLowerCase() === "scheduled") || reservations[0] || null;
+      const plan = trim(account.plan || "Free");
+      const premiumActive = !!payload.premium_active;
+      planNode.textContent = plan;
+      premiumNode.textContent = premiumActive ? copy.values.active : copy.values.inactive;
+      queueNode.textContent = trim((account.latest_quote && account.latest_quote.queue_mode) || payload.queue_mode || copy.values.standard);
+      nextNode.textContent = nextReservation ? pbxFormatContributorDate(nextReservation.starts_at) : copy.values.none;
+      pillNode.textContent = premiumActive ? `${plan} Active` : plan;
+      noteNode.textContent = premiumActive ? copy.noteActive : copy.noteFree;
+    } catch (_error) {
+      planNode.textContent = copy.values.free;
+      premiumNode.textContent = copy.values.inactive;
+      queueNode.textContent = copy.values.standard;
+      nextNode.textContent = copy.values.none;
+      pillNode.textContent = copy.values.free;
+      noteNode.textContent = copy.noteFree;
+    }
   }
 
   function pbxCloseProfileMenu() {
@@ -6219,6 +6445,7 @@ async function generateReasonedChatReply(prompt, language) {
     pbxApplyTheme();
     pbxSetRandomWelcome();
     pbxRenderProfileMenu();
+    pbxRefreshContributorSidebar().catch(() => {});
   }
 
   function saveConversation() {
@@ -6562,6 +6789,7 @@ async function generateReasonedChatReply(prompt, language) {
     applySettingsToUI();
     pbxApplyTheme();
     pbxSetRandomWelcome();
+    syncRequiredConsentUi();
     pbxRenderProfileMenu();
     if (state.settings.rememberChats && pbxCurrentUser()) {
       state.conversations = loadStoredConversations(true);
@@ -6577,6 +6805,11 @@ async function generateReasonedChatReply(prompt, language) {
       const list = document.getElementById("chat-history-list");
       if (!list || !list.contains(event.target)) pbxCloseHistoryContextMenu();
     });
+    if (!hasRequiredConsents()) {
+      openConsentModal();
+    } else {
+      closeConsentModal(true);
+    }
   }
 
   const PBX_WELCOME_TEMPLATES = [
@@ -7109,6 +7342,7 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   async function loginWithGoogle() {
+    if (!ensureRequiredConsent()) return;
     const sdkReady = await pbxWaitForGoogleSdk(7000);
     if (!sdkReady) {
       showToast("Google 로그인 SDK 로드가 지연되고 있어요. 새로고침 후 다시 시도해 주세요.");
@@ -7617,6 +7851,7 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   async function sendMessage() {
+    if (!ensureRequiredConsent()) return;
     const field = document.getElementById("input-field");
     if (!field || state.isStreaming) return;
 
@@ -10215,10 +10450,12 @@ async function generateReasonedChatReply(prompt, language) {
     document.addEventListener("DOMContentLoaded", function () {
       pbxEnhanceUiBindings();
       pbxRefreshAssetsButtonState().catch(() => {});
+      pbxRefreshContributorSidebar().catch(() => {});
     });
   } else {
     pbxEnhanceUiBindings();
     pbxRefreshAssetsButtonState().catch(() => {});
+    pbxRefreshContributorSidebar().catch(() => {});
   }
 
   Object.assign(window, {
@@ -10247,7 +10484,13 @@ async function generateReasonedChatReply(prompt, language) {
     loginWithGoogle,
     logoutUser,
     linkAiAssetsFolder,
+    openUpgradePage: pbxOpenUpgradePage,
+    refreshContributorSidebar: pbxRefreshContributorSidebar,
     renameConversationFromMenu,
     deleteConversationFromMenu,
+    toggleRequiredConsent,
+    submitRequiredConsent,
+    openConsentModal,
+    openConsentDocs,
   });
 })();

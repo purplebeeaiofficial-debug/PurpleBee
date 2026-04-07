@@ -52,6 +52,30 @@
   .upgrade-plan-copy{display:flex;flex-direction:column;gap:3px}
   .upgrade-plan-title{font-size:13px;font-weight:800;color:var(--text)}
   .upgrade-plan-sub{font-size:11px;color:var(--text-2);line-height:1.4}
+  .contributor-card{
+    margin:12px 14px 0;padding:14px;border-radius:16px;border:1px solid var(--border);background:var(--card);
+    display:flex;flex-direction:column;gap:10px
+  }
+  .contributor-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .contributor-card-title{font-size:12px;font-weight:800;color:var(--text)}
+  .contributor-card-sub{font-size:11px;color:var(--text-3);line-height:1.45;margin-top:3px}
+  .contributor-card-pill{
+    padding:5px 9px;border-radius:999px;background:rgba(109,40,217,.1);border:1px solid rgba(109,40,217,.18);
+    color:var(--accent-light);font-size:10px;font-weight:800;white-space:nowrap
+  }
+  .contributor-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .contributor-card-stat{padding:10px 11px;border-radius:12px;background:var(--surface);border:1px solid var(--border)}
+  .contributor-card-stat-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+  .contributor-card-stat-value{margin-top:5px;font-size:13px;font-weight:800;color:var(--text);line-height:1.4}
+  .contributor-card-note{font-size:11px;color:var(--text-2);line-height:1.55}
+  .contributor-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .contributor-card-btn{
+    flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);
+    color:var(--text);cursor:pointer;font-size:12px;font-weight:700;transition:background var(--transition),border-color var(--transition)
+  }
+  .contributor-card-btn:hover{background:var(--card-hover);border-color:rgba(139,92,246,.35)}
+  .contributor-card-btn.primary{background:var(--accent-dim);border-color:rgba(139,92,246,.28);color:var(--accent-light)}
+  .contributor-card-btn.primary:hover{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.45)}
   .sidebar-section-label{padding:16px 18px 6px;font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0}
   #chat-history-list{flex:1;overflow-y:auto;padding:0 8px}
   .history-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--transition),color var(--transition);display:flex;align-items:center;gap:8px}
@@ -415,11 +439,44 @@
 
   <a class="upgrade-plan-btn" href="/index/purple-bee/pricing/">
     <div class="upgrade-plan-copy">
-      <span class="upgrade-plan-title">⚡ 플랜 업그레이드</span>
-      <span class="upgrade-plan-sub">Free, Basic, Plus, Pro와 기여 기반 구독 혜택 보기</span>
+      <span class="upgrade-plan-title" id="upgrade-plan-title">⚡ Upgrade</span>
+      <span class="upgrade-plan-sub" id="upgrade-plan-sub">Open plans and contributor benefits</span>
     </div>
     <i class="ph ph-arrow-up-right" style="font-size:16px;color:var(--accent-light)"></i>
   </a>
+
+  <section class="contributor-card" id="contributor-card">
+    <div class="contributor-card-head">
+      <div>
+        <div class="contributor-card-title" id="contributor-card-title">Contributor subscription</div>
+        <div class="contributor-card-sub" id="contributor-card-sub">Connect a plan and reserve contribution time.</div>
+      </div>
+      <span class="contributor-card-pill" id="contributor-card-pill">Free</span>
+    </div>
+    <div class="contributor-card-grid">
+      <div class="contributor-card-stat">
+        <div class="contributor-card-stat-label" id="contributor-stat-plan-label">Plan</div>
+        <div class="contributor-card-stat-value" id="contributor-plan-value">Free</div>
+      </div>
+      <div class="contributor-card-stat">
+        <div class="contributor-card-stat-label" id="contributor-stat-premium-label">Premium</div>
+        <div class="contributor-card-stat-value" id="contributor-premium-value">Inactive</div>
+      </div>
+      <div class="contributor-card-stat">
+        <div class="contributor-card-stat-label" id="contributor-stat-queue-label">Queue</div>
+        <div class="contributor-card-stat-value" id="contributor-queue-value">Standard</div>
+      </div>
+      <div class="contributor-card-stat">
+        <div class="contributor-card-stat-label" id="contributor-stat-next-label">Next window</div>
+        <div class="contributor-card-stat-value" id="contributor-next-value">None</div>
+      </div>
+    </div>
+    <div class="contributor-card-note" id="contributor-card-note">Reserve contribution time to unlock higher plans and priority routing.</div>
+    <div class="contributor-card-actions">
+      <button class="contributor-card-btn primary" type="button" id="contributor-upgrade-btn" onclick="openUpgradePage()">Open plans</button>
+      <button class="contributor-card-btn" type="button" id="contributor-refresh-btn" onclick="refreshContributorSidebar()">Refresh</button>
+    </div>
+  </section>
 
   <button class="new-chat-btn" onclick="newChat()">
     <i class="ph ph-plus-circle" style="font-size:16px"></i>
