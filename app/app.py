@@ -73,6 +73,8 @@ for d in [
     d.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__, static_folder=str(STATIC_DIR), template_folder=str(TEMPLATE_DIR))
+_APP_BOOTSTRAPPED = False
+_APP_BOOTSTRAP_LOCK = threading.Lock()
 
 if str(MODEL_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_SCRIPTS_DIR))
@@ -95,6 +97,7 @@ except Exception:
 
 @app.before_request
 def require_admin_key_for_panel():
+    bootstrap_app_runtime()
     path = str(request.path or "")
     if path == "/model-panel" or path.startswith("/api/model_panel"):
         if not admin_access_granted():
@@ -432,6 +435,20 @@ def get_contributor_status(user_id):
         "penalty": penalty,
         "plans": CONTRIBUTOR_PLAN_RULES,
     }
+
+def bootstrap_app_runtime():
+    global _APP_BOOTSTRAPPED
+    if _APP_BOOTSTRAPPED:
+        return
+    with _APP_BOOTSTRAP_LOCK:
+        if _APP_BOOTSTRAPPED:
+            return
+        init_db()
+        try:
+            ensure_model_registry()
+        except Exception:
+            pass
+        _APP_BOOTSTRAPPED = True
 
 # ── 웹 검색 모듈 ────────────────────────────────────────────────────
 SEARCH_SOURCES = [
