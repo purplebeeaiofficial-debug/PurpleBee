@@ -62,6 +62,7 @@ foreach ($page in $landingPages) {
 $staticFiles = @(
   "purple-bee-browser-runtime.js",
   "purple-bee-engine.js",
+  "purple-bee-inference-worker.js",
   "purple-bee-local.js",
   "purple-bee-model.bin"
 )

@@ -240,7 +240,7 @@
   }
   .pbx-assets-backdrop.open{display:flex}
   .pbx-assets-dialog{
-    width:min(920px,calc(100vw - 32px));max-height:min(88vh,900px);overflow:auto;background:var(--card);
+    width:min(980px,calc(100vw - 24px));max-height:min(90vh,900px);overflow:auto;background:var(--card);
     border:1px solid var(--border);border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.35)
   }
   .pbx-assets-header{
@@ -290,6 +290,11 @@
   body.theme-light .pbx-assets-backdrop{background:rgba(15,23,42,.24)}
   body.theme-light .pbx-assets-dialog{box-shadow:0 24px 80px rgba(15,23,42,.18)}
 
+  @media(max-width:980px){
+    .pbx-assets-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .pbx-assets-list{grid-template-columns:1fr}
+  }
+
   @media(max-width:768px){
     #sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);transition:transform var(--transition);z-index:50}
     #sidebar.mobile-open{transform:translateX(0)}
@@ -301,6 +306,7 @@
     .settings-body{padding:18px}
     .pbx-assets-header{padding:18px 18px 14px}
     .pbx-assets-content{padding:16px}
+    .pbx-assets-dialog{width:min(100vw - 16px,980px);max-height:min(92vh,900px);border-radius:20px}
     .pbx-assets-mini-grid,.pbx-assets-list{grid-template-columns:1fr}
     .pbx-assets-actions{justify-content:stretch}
     .pbx-assets-btn{width:100%}
@@ -685,6 +691,6 @@
 
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260405s"></script>
+  <script src="/static/purple-bee-local.js?v=20260407b"></script>
 </body>
 </html>

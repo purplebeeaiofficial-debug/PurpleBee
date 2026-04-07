@@ -122,16 +122,22 @@
     model: null,
     runtimeKind: "none",
     loading: null,
+    inferenceWorker: null,
+    inferenceWorkerPromise: null,
+    inferenceRequestId: 0,
+    installedPackage: null,
+    deviceProfile: null,
+    lastError: "",
   };
 
   const UI_STRINGS = {
     ko: {
-      logoSubtitle: "서버 런타임",
+      logoSubtitle: "내 기기 준비형 런타임",
       newChat: "새 대화 시작",
       history: "최근 대화",
       settings: "설정",
       attach: "자료 첨부",
-      homeSubtitle: "외부 AI 없이 이 웹사이트에서 동작하며, 첨부 자료와 최근 대화를 바탕으로 답하는 Purple Bee입니다.",
+      homeSubtitle: "질문을 시작하기 전에 AI 준비물을 한 번 설치하면, 이 기기 안에서 더 안정적으로 답하도록 준비하는 Purple Bee입니다.",
       card1Title: "문서 요약",
       card1Desc: "PDF, 텍스트, 코드 파일을 읽고 핵심만 정리",
       card2Title: "문제 해결",
@@ -141,8 +147,8 @@
       card4Title: "대화 이어서",
       card4Desc: "이 웹사이트 세션에 저장된 최근 대화를 이어서 진행",
       inputPlaceholder: "질문을 입력하고 파일, 문서, 스크린샷을 함께 보내 보세요. (Enter 전송, Shift+Enter 줄바꿈)",
-      localBadge: "서버 연산",
-      modelSubtitle: "공개 Purple Bee 서버에서 답변을 생성하는 엔진",
+      localBadge: "내 기기 연산",
+      modelSubtitle: "설치된 Purple Bee 1.3이 이 기기에서 백그라운드로 답변하는 엔진",
       deepThinkLabel: "정밀 분석",
       deepThinkSubtitle: "첨부 자료와 최근 대화를 더 길게 검토",
       footerNote: "Purple Bee는 실수를 할 수 있습니다. 잘못된 정보는 해당 답변에 신고를 해주세요.",
@@ -8626,6 +8632,7 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   function resetRuntimeEngine() {
+    pbxTerminateInferenceWorker();
     engine.browserRuntime = null;
     engine.model = null;
     engine.loading = null;
@@ -8640,121 +8647,21 @@ async function generateReasonedChatReply(prompt, language) {
   function getLocalStatusMessage(status) {
     if (status === "loading") {
       return getActiveUiLanguage() === "ko"
-        ? "로컬 Purple Bee Runtime 연결을 확인하는 중입니다..."
-        : "Checking the local Purple Bee Runtime connection...";
+        ? "이 기기에 설치된 Purple Bee 1.3을 준비하는 중입니다..."
+        : "Preparing Purple Bee 1.3 on this device...";
     }
     if (status === "error") {
       return getActiveUiLanguage() === "ko"
-        ? "로컬 Purple Bee Runtime이 필요합니다. Purple_Bee_AI_실행.bat을 실행해 주세요."
-        : "Local Purple Bee Runtime is required. Run Purple_Bee_AI_실행.bat first.";
+        ? "이 기기의 Purple Bee 1.3 준비 상태를 확인하지 못했습니다."
+        : "Purple Bee 1.3 could not be prepared on this device.";
     }
     return getActiveUiLanguage() === "ko"
-      ? "이 기기의 로컬 Purple Bee Runtime에 연결됩니다."
-      : "Connected through the local Purple Bee Runtime on this device.";
+      ? "이 기기에 설치된 Purple Bee 1.3이 백그라운드에서 답변합니다."
+      : "Purple Bee 1.3 is answering from this device in the background.";
   }
 
   async function ensureEngineReady() {
-    if (engine.model && engine.runtimeKind === "local-runtime") {
-      return engine;
-    }
-    if (engine.loading) {
-      return engine.loading;
-    }
-    engine.loading = (async () => {
-      setEngineStatus("loading", getRuntimeModelLabel(), getLocalStatusMessage("loading"));
-      await pbxResolveLocalRuntime(true);
-      return engine;
-    })().finally(() => {
-      engine.loading = null;
-    });
-    return engine.loading;
-  }
-
-  function pbxRuntimeTimeouts() {
-    const askedUserCount = state.history.filter((entry) => entry && entry.role === "user").length;
-    const isFirstTurn = askedUserCount <= 1;
-    return {
-      isFirstTurn,
-      modelMs: isFirstTurn ? 45000 : 22000,
-      replyMs: isFirstTurn ? 60000 : 30000,
-    };
-  }
-
-  async function generateReasonedChatReply(prompt, language) {
-    try {
-      await ensureEngineReady();
-    } catch (error) {
-      engine.lastError = String(error && error.message ? error.message : error || "runtime init failed");
-      return "";
-    }
-    if (!engine.localRuntimeBase) return "";
-
-    const trimmedPrompt = trim(prompt);
-    if (!trimmedPrompt) return "";
-
-    const history = state.history
-      .slice(-8)
-      .filter((entry) => entry && entry.content)
-      .map((entry) => ({ role: entry.role, content: trim(entry.content) }));
-
-    const generated = await Promise.race([
-      pbxBackendBuildReplyToBase(engine.localRuntimeBase, trimmedPrompt, history),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("local-runtime-timeout")), pbxRuntimeTimeouts().modelMs)),
-    ]).catch((error) => {
-      engine.lastError = String(error && error.message ? error.message : error || "local runtime timeout");
-      return "";
-    });
-
-    const cleaned = cleanupBrowserModelReply(generated, trimmedPrompt);
-    if (!cleaned) return "";
-    if (pbxLooksBrokenText(cleaned)) return "";
-    if (!isLanguageCompatible(cleaned, language)) return "";
-    if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) return "";
-    return cleaned;
-  }
-
-  async function tryModelFirstReply(prompt, language) {
-    const loweredPrompt = lower(prompt);
-    if (!trim(prompt)) return "";
-    if (isWebsiteSearchPrompt(loweredPrompt) || isWeatherQuestion(loweredPrompt)) return "";
-    const generated = await generateReasonedChatReply(prompt, language);
-    const cleaned = cleanupBrowserModelReply(generated, prompt);
-    if (!cleaned) return "";
-    if (pbxLooksBrokenText(cleaned)) return "";
-    if (!isLanguageCompatible(cleaned, language)) return "";
-    return cleaned;
-  }
-
-  function resetRuntimeEngine() {
-    engine.browserRuntime = null;
-    engine.model = { kind: "server-runtime" };
-    engine.loading = null;
-    engine.runtimeKind = "server-runtime";
-    engine.lastError = "";
-    engine.localRuntimeBase = "";
-    engine.localRuntimeStatus = null;
-    engine.localRuntimeCheckedAt = 0;
-    engine._localRuntimeProbe = null;
-  }
-
-  function getLocalStatusMessage(status) {
-    if (status === "loading") {
-      return getActiveUiLanguage() === "ko"
-        ? "Purple Bee 서버 런타임에 연결하는 중입니다..."
-        : "Connecting to the Purple Bee server runtime...";
-    }
-    if (status === "error") {
-      return getActiveUiLanguage() === "ko"
-        ? "서버 런타임 응답이 없습니다."
-        : "The server runtime is not responding.";
-    }
-    return getActiveUiLanguage() === "ko"
-      ? "공개 Purple Bee 서버 런타임으로 답변합니다."
-      : "Answers are generated by the public Purple Bee server runtime.";
-  }
-
-  async function ensureEngineReady() {
-    if (engine.runtimeKind === "server-runtime" && engine.model) {
+    if (engine.runtimeKind === "browser-worker-runtime" && engine.inferenceWorker && engine.model) {
       return engine;
     }
     if (engine.loading) {
@@ -8763,18 +8670,16 @@ async function generateReasonedChatReply(prompt, language) {
     engine.loading = (async () => {
       setEngineStatus("loading", getRuntimeModelLabel(), getLocalStatusMessage("loading"));
       try {
-        const response = await fetch("/api/health", { cache: "no-store" });
-        if (!response.ok) throw new Error(`server-health-${response.status}`);
-        engine.browserRuntime = null;
-        engine.model = { kind: "server-runtime" };
-        engine.runtimeKind = "server-runtime";
+        const plan = await pbxFetchPackagePlan();
+        await pbxEnsureInferenceWorker(plan);
         engine.lastError = "";
         setEngineStatus("ready", getRuntimeModelLabel(), getLocalStatusMessage("ready"));
       } catch (error) {
+        pbxTerminateInferenceWorker();
         engine.browserRuntime = null;
         engine.model = null;
         engine.runtimeKind = "error";
-        engine.lastError = String(error && error.message ? error.message : error || "server runtime failed");
+        engine.lastError = String(error && error.message ? error.message : error || "browser worker runtime failed");
         setEngineStatus("error", getRuntimeModelLabel(), getLocalStatusMessage("error"));
       }
       return engine;
@@ -8789,35 +8694,43 @@ async function generateReasonedChatReply(prompt, language) {
     const isFirstTurn = askedUserCount <= 1;
     return {
       isFirstTurn,
-      modelMs: isFirstTurn ? 20000 : 12000,
-      replyMs: isFirstTurn ? 26000 : 16000,
+      modelMs: isFirstTurn ? 120000 : 45000,
+      replyMs: isFirstTurn ? 140000 : 60000,
     };
   }
 
-  async function generateReasonedChatReply(prompt, _language) {
+  async function generateReasonedChatReply(prompt, language) {
     try {
       await ensureEngineReady();
     } catch (error) {
-      engine.lastError = String(error && error.message ? error.message : error || "server runtime init failed");
+      engine.lastError = String(error && error.message ? error.message : error || "browser worker runtime init failed");
       return "";
     }
-    if (!engine.model) return "";
+    if (!engine.model || !engine.inferenceWorker) return "";
 
-    const history = state.history
-      .slice(-8)
-      .filter((entry) => entry && entry.content)
-      .map((entry) => ({ role: entry.role, content: trim(entry.content) }));
+    const promptVariant = buildBrowserModelPrompt(prompt, language);
+    const profiles = [
+      { maxNewTokens: 48, temperature: 0.35, topK: 14, topP: 0.88 },
+      { maxNewTokens: 64, temperature: 0.42, topK: 18, topP: 0.90 },
+    ];
 
-    try {
-      const generated = await Promise.race([
-        pbxBackendBuildReply(prompt, history),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("server-reply-timeout")), pbxRuntimeTimeouts().replyMs)),
-      ]);
-      return cleanupBrowserModelReply(generated, prompt);
-    } catch (error) {
-      engine.lastError = String(error && error.message ? error.message : error || "server reply failed");
-      return "";
+    for (const profile of profiles) {
+      try {
+        const result = await pbxWorkerRequest(engine.inferenceWorker, "generate", {
+          prompt: promptVariant,
+          options: profile,
+        }, pbxRuntimeTimeouts().modelMs);
+        const cleaned = cleanupBrowserModelReply(result && result.text ? result.text : "", prompt);
+        if (!cleaned) continue;
+        if (pbxLooksBrokenText(cleaned)) continue;
+        if (!isLanguageCompatible(cleaned, language)) continue;
+        if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
+        return cleaned;
+      } catch (error) {
+        engine.lastError = String(error && error.message ? error.message : error || "browser worker reply failed");
+      }
     }
+    return "";
   }
 
   async function tryModelFirstReply(prompt, language) {
@@ -8828,12 +8741,15 @@ async function generateReasonedChatReply(prompt, language) {
     const cleaned = cleanupBrowserModelReply(generated, prompt);
     if (!cleaned) return "";
     if (pbxLooksBrokenText(cleaned)) return "";
+    if (!isLanguageCompatible(cleaned, language)) return "";
     return cleaned;
   }
 
   const PBX_INSTALL_DB_NAME = "pb_install_db_v1";
   const PBX_INSTALL_STORE = "handles";
   const PBX_INSTALL_KEY = "purple_bee_assets_dir";
+  const PBX_RUNTIME_DB_NAME = "pb_runtime_assets_v1";
+  const PBX_RUNTIME_STORE = "packages";
 
   function pbxOpenInstallDb() {
     return new Promise((resolve, reject) => {
@@ -8871,6 +8787,57 @@ async function generateReasonedChatReply(prompt, language) {
     });
   }
 
+  function pbxOpenRuntimeDb() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(PBX_RUNTIME_DB_NAME, 1);
+      request.onupgradeneeded = function () {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(PBX_RUNTIME_STORE)) {
+          db.createObjectStore(PBX_RUNTIME_STORE);
+        }
+      };
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = function () { reject(request.error || new Error("runtime-db-open-failed")); };
+    });
+  }
+
+  async function pbxRuntimeStoreGet(key) {
+    const db = await pbxOpenRuntimeDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PBX_RUNTIME_STORE, "readonly");
+      const store = tx.objectStore(PBX_RUNTIME_STORE);
+      const request = store.get(key);
+      request.onsuccess = function () { resolve(request.result || null); };
+      request.onerror = function () { reject(request.error || new Error("runtime-db-get-failed")); };
+    });
+  }
+
+  async function pbxRuntimeStoreSet(key, value) {
+    const db = await pbxOpenRuntimeDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(PBX_RUNTIME_STORE, "readwrite");
+      const store = tx.objectStore(PBX_RUNTIME_STORE);
+      const request = store.put(value, key);
+      request.onsuccess = function () { resolve(true); };
+      request.onerror = function () { reject(request.error || new Error("runtime-db-set-failed")); };
+    });
+  }
+
+  async function pbxGetInstalledRuntimePackage(modelId) {
+    try {
+      const payload = await pbxRuntimeStoreGet(String(modelId || "purple-bee-1-3"));
+      return payload || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function pbxSaveInstalledRuntimePackage(modelId, payload) {
+    await pbxRuntimeStoreSet(String(modelId || "purple-bee-1-3"), payload);
+    engine.installedPackage = payload || null;
+    return true;
+  }
+
   async function pbxLoadAssetsDirectoryHandle() {
     try {
       return await pbxInstallStoreGet(PBX_INSTALL_KEY);
@@ -8896,6 +8863,181 @@ async function generateReasonedChatReply(prompt, language) {
     } catch (_error) {
       return "denied";
     }
+  }
+
+  function pbxFormatMb(value) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number) || number <= 0) return "-";
+    return `${Math.round(number)} MB`;
+  }
+
+  async function pbxDetectDeviceProfile(plan) {
+    const storage = (navigator.storage && navigator.storage.estimate)
+      ? await navigator.storage.estimate().catch(() => null)
+      : null;
+    const freeBytes = Number(storage && storage.quota ? (storage.quota - (storage.usage || 0)) : 0);
+    const freeStorageMb = Math.max(0, Math.floor(freeBytes / (1024 * 1024)));
+    const memoryGb = Number(navigator.deviceMemory || 0);
+    const cpuThreads = Number(navigator.hardwareConcurrency || 0);
+    const minimum = {
+      memory_gb: 4,
+      cpu_threads: 4,
+      free_storage_mb: 350,
+      ...(plan?.requirements?.minimum || {}),
+    };
+    const recommended = {
+      memory_gb: 8,
+      cpu_threads: 8,
+      free_storage_mb: 700,
+      ...(plan?.requirements?.recommended || {}),
+    };
+    const featureSupport = {
+      worker: typeof Worker !== "undefined",
+      indexedDb: typeof indexedDB !== "undefined",
+      directoryPicker: typeof window.showDirectoryPicker === "function",
+    };
+    const meetsMinimum = (
+      featureSupport.worker &&
+      featureSupport.indexedDb &&
+      memoryGb >= Number(minimum.memory_gb || 0) &&
+      cpuThreads >= Number(minimum.cpu_threads || 0) &&
+      freeStorageMb >= Number(minimum.free_storage_mb || 0)
+    );
+    const meetsRecommended = (
+      meetsMinimum &&
+      memoryGb >= Number(recommended.memory_gb || 0) &&
+      cpuThreads >= Number(recommended.cpu_threads || 0) &&
+      freeStorageMb >= Number(recommended.free_storage_mb || 0)
+    );
+
+    return {
+      memoryGb,
+      cpuThreads,
+      freeStorageMb,
+      featureSupport,
+      minimum,
+      recommended,
+      meetsMinimum,
+      meetsRecommended,
+      tier: !featureSupport.worker || !featureSupport.indexedDb ? "unsupported" : meetsRecommended ? "recommended" : meetsMinimum ? "minimum" : "low",
+    };
+  }
+
+  async function pbxReadRuntimeBlob(url) {
+    const response = await fetch(url, { cache: "force-cache" });
+    if (!response.ok) {
+      throw new Error(`runtime-asset-${response.status}`);
+    }
+    return await response.blob();
+  }
+
+  async function pbxFetchRuntimeManifest(plan) {
+    const response = await fetch(`/api/runtime/browser-manifest?model_id=${encodeURIComponent(plan?.model_id || "purple-bee-1-3")}`, {
+      cache: "no-store",
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`browser-manifest-${response.status}`);
+    return await response.json();
+  }
+
+  async function pbxWriteBlobFile(handle, filename, blob) {
+    const fileHandle = await handle.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  }
+
+  async function pbxLoadRuntimePackageState(plan) {
+    const modelId = String(plan?.model_id || (getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3"));
+    const saved = await pbxGetInstalledRuntimePackage(modelId);
+    if (!saved || !saved.manifest || !saved.assets || !saved.assets.onnx || !saved.assets.tokenizer) {
+      return { installed: false, reason: "runtime-missing", packageState: saved };
+    }
+    const installedVersion = pbxNormalizeVersionTag(saved.asset_version);
+    const latestVersion = pbxNormalizeVersionTag(plan?.asset_version);
+    return {
+      installed: true,
+      needsUpdate: Boolean(latestVersion && installedVersion && latestVersion !== installedVersion),
+      packageState: saved,
+      assetVersion: installedVersion || latestVersion,
+    };
+  }
+
+  function pbxTerminateInferenceWorker() {
+    try {
+      if (engine.inferenceWorker) engine.inferenceWorker.terminate();
+    } catch (_error) {}
+    engine.inferenceWorker = null;
+    engine.inferenceWorkerPromise = null;
+  }
+
+  function pbxWorkerRequest(worker, type, payload, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const requestId = `req_${Date.now()}_${++engine.inferenceRequestId}`;
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`${type}-timeout`));
+      }, timeoutMs);
+
+      function cleanup() {
+        clearTimeout(timer);
+        worker.removeEventListener("message", onMessage);
+        worker.removeEventListener("error", onError);
+      }
+
+      function onError(event) {
+        cleanup();
+        reject(new Error(event?.message || `${type}-worker-error`));
+      }
+
+      function onMessage(event) {
+        const data = event && event.data && typeof event.data === "object" ? event.data : {};
+        if (String(data?.payload?.requestId || data?.requestId || "") !== requestId) return;
+        cleanup();
+        if (data.type === "error") {
+          reject(new Error(String(data?.payload?.message || "worker-error")));
+          return;
+        }
+        resolve(data.payload || {});
+      }
+
+      worker.addEventListener("message", onMessage);
+      worker.addEventListener("error", onError);
+      worker.postMessage({ type, requestId, payload });
+    });
+  }
+
+  async function pbxEnsureInferenceWorker(plan) {
+    if (engine.inferenceWorker && engine.inferenceWorkerPromise) {
+      return engine.inferenceWorkerPromise;
+    }
+    const runtimeState = await pbxLoadRuntimePackageState(plan);
+    if (!runtimeState.installed) {
+      throw new Error(runtimeState.reason || "runtime-missing");
+    }
+    const pkg = runtimeState.packageState;
+    const worker = new Worker(`/static/purple-bee-inference-worker.js?v=20260407a`);
+    engine.inferenceWorker = worker;
+    engine.inferenceWorkerPromise = pbxWorkerRequest(worker, "init", {
+      manifest: pkg.manifest,
+      assets: {
+        onnx: pkg.assets.onnx,
+        tokenizer: pkg.assets.tokenizer,
+        onnx_data: pkg.assets.onnx_data || null,
+      },
+    }, 120000).then((result) => {
+      engine.runtimeKind = "browser-worker-runtime";
+      engine.model = { kind: "browser-worker-runtime", modelId: pkg.model_id || "purple-bee-1-3" };
+      engine.lastError = "";
+      return result;
+    }).catch((error) => {
+      pbxTerminateInferenceWorker();
+      engine.runtimeKind = "error";
+      engine.model = null;
+      engine.lastError = String(error && error.message ? error.message : error || "worker-init-failed");
+      throw error;
+    });
+    return engine.inferenceWorkerPromise;
   }
 
   async function pbxWriteInstallManifest(handle) {
@@ -8967,8 +9109,9 @@ async function generateReasonedChatReply(prompt, language) {
   function pbxInstallGuideText(reason) {
     const ko = {
       unsupported: "이 브라우저에서는 AI 준비물 폴더 확인 기능을 지원하지 않아요. 최신 Edge에서 접속해 주세요.",
-      "no-folder-linked": "AI 준비물 폴더가 아직 연결되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 폴더를 연결해 주세요.",
-      "permission-needed": "AI 준비물 폴더 권한이 끊어졌어요. 상단의 'AI 준비물' 버튼을 눌러 다시 연결해 주세요.",
+      "runtime-missing": "이 기기에 Purple Bee 준비물이 아직 설치되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 먼저 설치해 주세요.",
+      "no-folder-linked": "AI 준비물 폴더가 아직 연결되지 않았어요. 상단의 'AI 준비물' 버튼을 눌러 폴더를 연결하면 설치 상태를 더 쉽게 관리할 수 있어요.",
+      "permission-needed": "AI 준비물 폴더 권한이 끊어졌어요. 다만 브라우저 안에 설치된 모델은 그대로일 수 있으니, 필요하면 상단의 'AI 준비물' 버튼으로 다시 연결해 주세요.",
       "manifest-missing": "선택한 폴더에 Purple Bee 설치 마커가 없어요. 상단의 'AI 준비물' 버튼으로 다시 연결해 주세요.",
       "invalid-manifest": "연결된 폴더가 Purple Bee 준비물 폴더가 아니에요. 올바른 폴더를 다시 연결해 주세요.",
       default: "AI 준비물 상태를 확인하지 못했어요. 상단의 'AI 준비물' 버튼을 눌러 확인해 주세요.",
@@ -8976,8 +9119,28 @@ async function generateReasonedChatReply(prompt, language) {
     return ko[reason] || ko.default;
   }
 
-  function pbxResolveInstallState(plan, verify) {
+  function pbxResolveInstallState(plan, verify, deviceProfile) {
     const latestVersion = pbxNormalizeVersionTag(plan?.asset_version);
+    if (deviceProfile && deviceProfile.tier === "unsupported") {
+      return {
+        kind: "error",
+        title: "이 브라우저에서는 준비가 어려워요",
+        body: "Worker 또는 IndexedDB가 없어 이 사이트의 로컬 추론 준비를 진행할 수 없어요. 최신 Edge 또는 Chrome에서 다시 열어 주세요.",
+        cta: "지원 필요",
+        needsUpdate: false,
+      };
+    }
+
+    if (deviceProfile && deviceProfile.tier === "low") {
+      return {
+        kind: "warn",
+        title: "이 기기는 최소 사양에 가까워요",
+        body: "설치는 가능하지만 첫 로딩과 긴 답변이 더 느릴 수 있어요. 다른 앱을 조금 닫아 두면 더 안정적일 수 있습니다.",
+        cta: "저사양",
+        needsUpdate: false,
+      };
+    }
+
     if (!verify || !verify.installed) {
       return {
         kind: "warn",
@@ -9002,19 +9165,35 @@ async function generateReasonedChatReply(prompt, language) {
     return {
       kind: "ok",
       title: "지금 바로 써도 괜찮아요",
-      body: "준비물 폴더가 정상적으로 연결되어 있고, 현재 사이트 버전과도 맞아요. 필요할 때만 다시 열어서 업데이트를 확인하면 됩니다.",
+      body: "이 기기에 필요한 모델 준비물이 설치되어 있고 현재 사이트 버전과도 맞아요. 필요할 때만 다시 열어서 업데이트를 확인하면 됩니다.",
       cta: "최신 상태",
       needsUpdate: false,
     };
   }
 
   async function pbxEnsureAiAssetsInstalled(repairPermission = false) {
-    if (!("indexedDB" in window) || !("showDirectoryPicker" in window)) {
+    if (!("indexedDB" in window)) {
       return { installed: false, reason: "unsupported" };
     }
+    const plan = await pbxFetchPackagePlan().catch(() => null);
+    const runtimeState = await pbxLoadRuntimePackageState(plan);
+    if (!runtimeState.installed) {
+      return { installed: false, reason: runtimeState.reason || "runtime-missing", runtimeState };
+    }
     const handle = await pbxLoadAssetsDirectoryHandle();
-    if (!handle) return { installed: false, reason: "no-folder-linked" };
-    return pbxVerifyAssetsFolder(handle, repairPermission);
+    if (!handle) {
+      return { installed: true, reason: "no-folder-linked", runtimeState, folderLinked: false };
+    }
+    const folderState = await pbxVerifyAssetsFolder(handle, repairPermission);
+    return {
+      installed: true,
+      reason: folderState.installed ? "" : folderState.reason || "",
+      runtimeState,
+      folderState,
+      folderLinked: folderState.installed,
+      assetVersion: runtimeState.assetVersion,
+      packageState: runtimeState.packageState,
+    };
   }
 
   async function linkAiAssetsFolder() {
@@ -9077,7 +9256,7 @@ async function generateReasonedChatReply(prompt, language) {
     return await response.text();
   }
 
-  async function pbxInstallAssetsToFolder(handle, plan) {
+  async function pbxInstallAssetsToFolder(handle, plan, runtimeManifest = null, runtimeAssets = null) {
     const installedAt = new Date().toISOString();
     const modelId = String(plan?.model_id || (getSelectedRuntimeModelId ? getSelectedRuntimeModelId() : "purple-bee-1-3"));
     const displayName = String(plan?.display_name || (getRuntimeModelLabel ? getRuntimeModelLabel() : "Purple Bee 1.3"));
@@ -9085,13 +9264,13 @@ async function generateReasonedChatReply(prompt, language) {
       family_name: "Purple Bee",
       model_id: modelId,
       display_name: displayName,
-      runtime_mode: "public-server-runtime",
+      runtime_mode: "browser-worker-runtime",
       linked_at: installedAt,
       installed_at: installedAt,
       asset_version: String(plan?.asset_version || "current"),
       website_origin: window.location.origin,
       backend_mode: plan?.backend?.configured ? "public-purple-bee-backend" : "worker-server-runtime",
-      note: "This folder stores the Purple Bee website install/update metadata for this browser.",
+      note: "This folder stores the Purple Bee install metadata and mirrored runtime assets for this browser.",
     };
     await pbxWriteJsonFile(handle, "purple-bee-package.json", manifest);
 
@@ -9108,7 +9287,16 @@ async function generateReasonedChatReply(prompt, language) {
     const assets = Array.isArray(plan?.assets) ? plan.assets : [];
     for (const asset of assets) {
       if (!asset || !asset.filename || String(asset.filename) === "purple-bee-package.json") continue;
-      if (String(asset.kind || "").startsWith("download-") && asset.url) {
+      if (runtimeManifest && asset.filename === "purple-bee-browser-manifest.json") {
+        await pbxWriteJsonFile(handle, asset.filename, runtimeManifest);
+        written.push({ filename: asset.filename, kind: asset.kind, generated: true });
+      } else if (runtimeAssets && asset.filename === "purple-bee-1-3-int8.onnx" && runtimeAssets.onnx) {
+        await pbxWriteBlobFile(handle, asset.filename, runtimeAssets.onnx);
+        written.push({ filename: asset.filename, kind: asset.kind, bytes: runtimeAssets.onnx.size || 0 });
+      } else if (runtimeAssets && asset.filename === "tokenizer.json" && runtimeAssets.tokenizer) {
+        await pbxWriteBlobFile(handle, asset.filename, runtimeAssets.tokenizer);
+        written.push({ filename: asset.filename, kind: asset.kind, bytes: runtimeAssets.tokenizer.size || 0 });
+      } else if (String(asset.kind || "").startsWith("download-") && asset.url) {
         const text = await pbxFetchTextAsset(asset.url);
         await pbxWriteTextFile(handle, asset.filename, text);
         written.push({ filename: asset.filename, kind: asset.kind, url: asset.url });
@@ -9175,6 +9363,29 @@ async function generateReasonedChatReply(prompt, language) {
           <div class="pbx-assets-files-card">
             <div class="pbx-assets-files-head">
               <div>
+                <div class="pbx-assets-files-title">이 기기 상태</div>
+                <div id="pbx-assets-device-summary" class="pbx-assets-files-sub">메모리, CPU, 저장 공간을 확인하는 중이에요.</div>
+              </div>
+              <div id="pbx-assets-device-pill" class="pbx-assets-help">확인 중</div>
+            </div>
+            <div class="pbx-assets-mini-grid">
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">메모리</div>
+                <div id="pbx-assets-memory" class="pbx-assets-mini-value">-</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">CPU 스레드</div>
+                <div id="pbx-assets-cpu" class="pbx-assets-mini-value">-</div>
+              </div>
+              <div class="pbx-assets-mini">
+                <div class="pbx-assets-mini-label">남은 저장 공간</div>
+                <div id="pbx-assets-storage" class="pbx-assets-mini-value">-</div>
+              </div>
+            </div>
+          </div>
+          <div class="pbx-assets-files-card">
+            <div class="pbx-assets-files-head">
+              <div>
                 <div class="pbx-assets-files-title">이번에 준비되는 파일</div>
                 <div id="pbx-assets-model-summary" class="pbx-assets-files-sub"></div>
               </div>
@@ -9225,6 +9436,42 @@ async function generateReasonedChatReply(prompt, language) {
     body.textContent = text;
   }
 
+  function pbxRenderDeviceProfile(profile) {
+    const summary = document.getElementById("pbx-assets-device-summary");
+    const pill = document.getElementById("pbx-assets-device-pill");
+    const memory = document.getElementById("pbx-assets-memory");
+    const cpu = document.getElementById("pbx-assets-cpu");
+    const storage = document.getElementById("pbx-assets-storage");
+    if (memory) memory.textContent = profile?.memoryGb ? `${profile.memoryGb} GB` : "알 수 없음";
+    if (cpu) cpu.textContent = profile?.cpuThreads ? `${profile.cpuThreads} threads` : "알 수 없음";
+    if (storage) storage.textContent = pbxFormatMb(profile?.freeStorageMb);
+    if (!summary || !pill) return;
+
+    if (!profile) {
+      summary.textContent = "이 기기 상태를 아직 확인하지 못했어요.";
+      pill.textContent = "확인 중";
+      return;
+    }
+
+    if (profile.tier === "recommended") {
+      pill.textContent = "권장 사양";
+      summary.textContent = "현재 기기 성능이면 Purple Bee 1.3을 비교적 안정적으로 준비하고 실행할 수 있어요.";
+      return;
+    }
+    if (profile.tier === "minimum") {
+      pill.textContent = "최소 사양";
+      summary.textContent = "설치와 실행은 가능하지만 첫 준비와 긴 답변은 조금 더 느릴 수 있어요.";
+      return;
+    }
+    if (profile.tier === "low") {
+      pill.textContent = "저사양 주의";
+      summary.textContent = `최소 권장은 메모리 ${profile.minimum.memory_gb}GB / ${profile.minimum.cpu_threads}스레드 / 저장 공간 ${profile.minimum.free_storage_mb}MB예요. 지금 기기에서는 느릴 수 있어요.`;
+      return;
+    }
+    pill.textContent = "지원 필요";
+    summary.textContent = "이 브라우저에서는 Worker 또는 저장 기능이 부족해서 설치를 진행하기 어려워요. 최신 Edge에서 다시 시도해 주세요.";
+  }
+
   function pbxRenderAssetsList(plan) {
     const list = document.getElementById("pbx-assets-list");
     const summary = document.getElementById("pbx-assets-model-summary");
@@ -9232,14 +9479,15 @@ async function generateReasonedChatReply(prompt, language) {
     if (!list || !summary) return;
     const assets = Array.isArray(plan?.assets) ? plan.assets : [];
     if (modelName) modelName.textContent = String(plan?.display_name || "Purple Bee 1.3");
-    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} 기준으로 ${assets.length}개 파일을 준비해요. 연결 후 설치를 누르면 필요한 파일만 덮어써서 맞춰줍니다.`;
+    const downloadMb = Number(plan?.download?.estimated_mb || 108);
+    summary.textContent = `${String(plan?.display_name || "Purple Bee 1.3")} 기준으로 ${assets.length}개 파일을 준비해요. 첫 설치는 약 ${downloadMb || "?"}MB 정도 내려받고, 이후에는 필요한 파일만 업데이트합니다.`;
     list.innerHTML = assets.map((asset) => `
       <div class="pbx-assets-item">
         <div class="pbx-assets-item-icon"><i class="ph ph-file-text"></i></div>
         <div class="pbx-assets-item-main">
           <div class="pbx-assets-item-name">${String(asset.filename || "")}</div>
           <div class="pbx-assets-item-desc">${String(asset.description || "")}</div>
-          <div class="pbx-assets-item-kind">${String(asset.kind || "")}</div>
+          <div class="pbx-assets-item-kind">${String(asset.kind || "")}${asset.bytes ? ` · ${pbxFormatMb(Math.ceil(Number(asset.bytes || 0) / (1024 * 1024)))}` : ""}</div>
         </div>
       </div>
     `).join("");
@@ -9252,11 +9500,12 @@ async function generateReasonedChatReply(prompt, language) {
     try {
       const plan = await pbxFetchPackagePlan();
       const status = await pbxEnsureAiAssetsInstalled(false);
-      const resolved = pbxResolveInstallState(plan, status);
+      const deviceProfile = await pbxDetectDeviceProfile(plan);
+      const resolved = pbxResolveInstallState(plan, status.runtimeState || status, deviceProfile);
       button.style.opacity = "1";
       button.title = resolved.body;
       if (label) {
-        label.textContent = resolved.needsUpdate ? "업데이트 필요" : status.installed ? "AI 준비물 연결됨" : "AI 준비물";
+        label.textContent = resolved.needsUpdate ? "업데이트 필요" : status.installed ? "AI 준비 완료" : "AI 준비물";
       }
     } catch (_error) {
       button.style.opacity = ".92";
@@ -9269,26 +9518,33 @@ async function generateReasonedChatReply(prompt, language) {
     modal.classList.add("open");
     pbxSetAssetsModalStatus("loading", "준비 상태를 확인하고 있어요", "잠시만 기다려 주세요.");
     try {
-      const [plan, handle] = await Promise.all([
+      const [plan, handle, deviceProfile] = await Promise.all([
         pbxFetchPackagePlan(),
         pbxLoadAssetsDirectoryHandle(),
+        pbxFetchPackagePlan().then((payload) => pbxDetectDeviceProfile(payload)).catch(() => null),
       ]);
       modal._pbxPlan = plan;
       pbxRenderAssetsList(plan);
-      const verify = handle ? await pbxVerifyAssetsFolder(handle, false) : { installed: false, reason: "no-folder-linked" };
-      const resolved = pbxResolveInstallState(plan, verify.installed ? verify : { installed: false, reason: reason || verify.reason });
+      pbxRenderDeviceProfile(deviceProfile);
+      const runtimeState = await pbxLoadRuntimePackageState(plan);
+      const folderState = handle ? await pbxVerifyAssetsFolder(handle, false) : { installed: false, reason: "no-folder-linked" };
+      const resolved = pbxResolveInstallState(plan, runtimeState, deviceProfile);
       pbxSetAssetsModalStatus(resolved.kind, resolved.title, resolved.body);
       const installState = document.getElementById("pbx-assets-install-state");
       const versionState = document.getElementById("pbx-assets-version-state");
       const installBtn = document.getElementById("pbx-assets-install-btn");
-      if (installState) installState.textContent = verify.installed ? "연결 완료" : "설치 필요";
+      if (installState) {
+        installState.textContent = runtimeState.installed
+          ? (folderState.installed ? "설치 + 폴더 연결 완료" : "설치 완료")
+          : "설치 필요";
+      }
       if (versionState) {
-        versionState.textContent = verify.installed
-          ? `${pbxNormalizeVersionTag(verify.assetVersion || "-")} → ${pbxNormalizeVersionTag(plan?.asset_version || "-")}`
+        versionState.textContent = runtimeState.installed
+          ? `${pbxNormalizeVersionTag(runtimeState.assetVersion || "-")} → ${pbxNormalizeVersionTag(plan?.asset_version || "-")}`
           : pbxNormalizeVersionTag(plan?.asset_version || "확인 중");
       }
       if (installBtn) {
-        installBtn.textContent = resolved.needsUpdate ? "준비물 업데이트" : verify.installed ? "다시 설치/점검" : "준비물 설치";
+        installBtn.textContent = resolved.needsUpdate ? "준비물 업데이트" : runtimeState.installed ? "설치 상태 점검" : "준비물 설치";
       }
     } catch (_error) {
       pbxSetAssetsModalStatus("error", "준비 목록을 불러오지 못했어요", "사이트에서 최신 준비물 목록을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
@@ -9311,7 +9567,7 @@ async function generateReasonedChatReply(prompt, language) {
         }
       }
       await pbxSaveAssetsDirectoryHandle(handle);
-      pbxSetAssetsModalStatus("ok", "폴더를 연결했어요", "좋아요. 이제 아래 버튼으로 준비물 설치나 업데이트를 진행하면 돼요.");
+      pbxSetAssetsModalStatus("ok", "폴더를 연결했어요", "좋아요. 이 폴더는 사용자가 준비물 상태를 직접 확인하거나 업데이트할 때 쓰게 될 거예요.");
       await pbxRefreshAssetsButtonState();
       await pbxOpenAssetsSetupModal();
     } catch (_error) {
@@ -9331,9 +9587,29 @@ async function generateReasonedChatReply(prompt, language) {
         return;
       }
       const plan = document.getElementById("pbx-assets-modal")?._pbxPlan || await pbxFetchPackagePlan();
-      pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "필요한 파일을 확인해서 설치하거나 업데이트하고 있어요.");
-      await pbxInstallAssetsToFolder(handle, plan);
-      pbxSetAssetsModalStatus("ok", "설치/업데이트가 끝났어요", "이제 현재 사이트 기준으로 준비물이 맞춰졌어요. 바로 질문을 이어가면 됩니다.");
+      pbxSetAssetsModalStatus("loading", "준비물을 맞추는 중이에요", "모델 파일을 내려받고, 이 기기에 저장하고, 선택한 폴더와도 맞춰 두고 있어요. 첫 설치는 조금 더 걸릴 수 있어요.");
+      const manifest = await pbxFetchRuntimeManifest(plan);
+      const onnxBlob = await pbxReadRuntimeBlob(manifest?.browser_assets?.onnx);
+      const tokenizerBlob = await pbxReadRuntimeBlob(manifest?.browser_assets?.tokenizer);
+      const onnxDataBlob = manifest?.browser_assets?.onnx_data ? await pbxReadRuntimeBlob(manifest.browser_assets.onnx_data) : null;
+      const installedAt = new Date().toISOString();
+      const packagePayload = {
+        family_name: "Purple Bee",
+        model_id: String(plan?.model_id || "purple-bee-1-3"),
+        display_name: String(plan?.display_name || "Purple Bee 1.3"),
+        asset_version: String(plan?.asset_version || "current"),
+        installed_at: installedAt,
+        manifest,
+        assets: {
+          onnx: onnxBlob,
+          tokenizer: tokenizerBlob,
+          onnx_data: onnxDataBlob,
+        },
+      };
+      await pbxSaveInstalledRuntimePackage(packagePayload.model_id, packagePayload);
+      await pbxInstallAssetsToFolder(handle, plan, manifest, packagePayload.assets);
+      pbxTerminateInferenceWorker();
+      pbxSetAssetsModalStatus("ok", "설치/업데이트가 끝났어요", "이 기기에 모델 준비물을 저장했고, 폴더에도 설치 상태를 맞춰뒀어요. 이제 바로 질문을 이어가면 됩니다.");
       await pbxRefreshAssetsButtonState();
       showToast(getActiveUiLanguage() === "ko" ? "AI 준비물 설치가 완료됐어요." : "AI assets are ready.");
       await pbxOpenAssetsSetupModal();
@@ -9401,8 +9677,12 @@ async function generateReasonedChatReply(prompt, language) {
         await streamToBubble(bubble, failureEntry.content);
         return;
       }
+      if (installStatus.reason === "permission-needed") {
+        showToast("AI 준비물 폴더 권한은 끊어졌지만, 이 브라우저 안에 설치된 모델로는 계속 답할 수 있어요.");
+      }
       const latestPlan = await pbxFetchPackagePlan().catch(() => null);
-      const resolvedInstall = pbxResolveInstallState(latestPlan, installStatus);
+      const deviceProfile = await pbxDetectDeviceProfile(latestPlan).catch(() => null);
+      const resolvedInstall = pbxResolveInstallState(latestPlan, installStatus.runtimeState || installStatus, deviceProfile);
       if (resolvedInstall.needsUpdate) {
         showToast("AI 준비물 업데이트가 있어요. 지금 답변은 가능하지만, 상단 버튼에서 최신 상태로 맞출 수 있어요.");
       }
