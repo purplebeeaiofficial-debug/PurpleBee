@@ -28,10 +28,6 @@ BASE_DIR = Path(__file__).parent
 PROJECT_ROOT = BASE_DIR.parent
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATE_DIR = BASE_DIR / "templates"
-DB_PATH = BASE_DIR / "data" / "purplebee.db"
-MODEL_PATH = BASE_DIR / "data" / "model_state.json"
-CORPUS_PATH = BASE_DIR / "data" / "corpus.jsonl"
-LOG_PATH = BASE_DIR / "data" / "training_log.json"
 MODEL_ROOT = PROJECT_ROOT / "Model"
 MODEL_VERSIONS_DIR = MODEL_ROOT / "versions"
 MODEL_REGISTRY_PATH = MODEL_ROOT / "registry.json"
@@ -41,7 +37,6 @@ MODEL_CORPORA_DIR = MODEL_ROOT / "corpora"
 MODEL_CAPABILITIES_DIR = MODEL_ROOT / "capabilities"
 MODEL_STATUS_DIR = MODEL_ROOT / "status"
 MODEL_EVALS_DIR = MODEL_ROOT / "evals"
-ADMIN_CONFIG_PATH = BASE_DIR / "data" / "admin_config.json"
 DEFAULT_MODEL_BLUEPRINT_PATH = MODEL_CONFIGS_DIR / "purple_bee_100m.json"
 SEED_CORPUS_PATH = MODEL_CORPORA_DIR / "purple_bee_seed_v1.txt"
 CAPABILITY_MANIFEST_PATH = MODEL_CAPABILITIES_DIR / "capability_manifest.json"
@@ -56,8 +51,36 @@ RUNTIME_DIALOGUE_SEED_PATHS = [
 LOCAL_RUNTIME_MANAGED_DIR = PROJECT_ROOT / "Data" / "Runtime_Managed"
 LOCAL_RUNTIME_MANIFEST_PATH = LOCAL_RUNTIME_MANAGED_DIR / "runtime-manifest.json"
 
+def resolve_app_data_dir():
+    configured = str(os.environ.get("PURPLE_BEE_DATA_DIR") or "").strip()
+    candidates = []
+    if configured:
+        candidates.append(Path(configured))
+    candidates.append(BASE_DIR / "data")
+    if os.name != "nt":
+        candidates.append(Path("/tmp/purple-bee-data"))
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".pb_write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return candidate
+        except Exception:
+            continue
+    fallback = BASE_DIR / "data"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+APP_DATA_DIR = resolve_app_data_dir()
+DB_PATH = APP_DATA_DIR / "purplebee.db"
+MODEL_PATH = APP_DATA_DIR / "model_state.json"
+CORPUS_PATH = APP_DATA_DIR / "corpus.jsonl"
+LOG_PATH = APP_DATA_DIR / "training_log.json"
+ADMIN_CONFIG_PATH = APP_DATA_DIR / "admin_config.json"
+
 for d in [
-    BASE_DIR / "data",
+    APP_DATA_DIR,
     STATIC_DIR,
     TEMPLATE_DIR,
     MODEL_ROOT,
@@ -713,7 +736,7 @@ class SimpleTransformerLM:
             }
             MODEL_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
             # 전체 모델은 pickle로 저장 (더 큰 파일)
-            pkl_path = BASE_DIR / "data" / "model_weights.pkl"
+            pkl_path = APP_DATA_DIR / "model_weights.pkl"
             with open(pkl_path, "wb") as f:
                 pickle.dump({
                     "vocab": self.vocab,
@@ -731,7 +754,7 @@ class SimpleTransformerLM:
 
     def load(self):
         try:
-            pkl_path = BASE_DIR / "data" / "model_weights.pkl"
+            pkl_path = APP_DATA_DIR / "model_weights.pkl"
             if pkl_path.exists():
                 with open(pkl_path, "rb") as f:
                     state = pickle.load(f)
@@ -994,7 +1017,7 @@ def large_model_torch_available(model_id=None):
     )
 
 def runtime_asset_cache_dir_for(model_id):
-    path = BASE_DIR / "data" / "runtime_assets" / str(model_id or "purple-bee-1-3")
+    path = APP_DATA_DIR / "runtime_assets" / str(model_id or "purple-bee-1-3")
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -1949,7 +1972,7 @@ def stats_for_version(model_id):
 def collect_model_artifact_paths():
     return {
         "state_json": MODEL_PATH,
-        "weights_pickle": BASE_DIR / "data" / "model_weights.pkl",
+        "weights_pickle": APP_DATA_DIR / "model_weights.pkl",
         "browser_model_bin": STATIC_DIR / "purple-bee-model.bin",
         "browser_engine_js": STATIC_DIR / "purple-bee-engine.js",
         "browser_local_js": STATIC_DIR / "purple-bee-local.js",
@@ -2168,7 +2191,7 @@ def load_version_into_live_runtime(model_id):
         raise FileNotFoundError("선택한 모델 버전의 아티팩트를 찾을 수 없습니다.")
 
     for artifact in artifacts_dir.glob("*"):
-        target = BASE_DIR / "data" / artifact.name
+        target = APP_DATA_DIR / artifact.name
         shutil.copy2(artifact, target)
     if browser_dir.exists():
         for asset in browser_dir.glob("*"):
