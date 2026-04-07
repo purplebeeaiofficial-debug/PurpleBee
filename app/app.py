@@ -5,6 +5,7 @@ Purple Bee - 메인 Flask 서버
 
 import os
 import sys
+import copy
 import json
 import time
 import threading
@@ -5468,6 +5469,31 @@ def render_site_marketing(page_key: str, locale: str):
     bundle = SITE_COPY.get(locale, SITE_COPY["en-US"])
     path_suffix = "/" if page_key == "home" else f"/{page_key}/"
     template_name = "purplebee-pricing-page.html" if page_key == "pricing" else "purplebee-site-page.html"
+    page = copy.deepcopy(bundle["pages"][page_key])
+    if page_key == "pricing":
+        pricing_copy = {
+            "ko-KR": {
+                "Free": {"lead": "기본 질문과 내 기기 연산으로 시작하는 플랜입니다.", "rule": "유지 조건 없음", "cta_label": "Purple Bee 열기"},
+                "Basic": {"lead": "내 기기 연산에 보조 연산을 더할 수 있는 첫 단계입니다.", "rule": "월 8시간 유지", "cta_label": "Purple Bee 열기"},
+                "Plus": {"lead": "가장 많이 선택하는 핵심 플랜입니다.", "rule": "주 10시간 · 월 40시간 유지", "cta_label": "Purple Bee 열기"},
+                "Pro": {"lead": "가장 높은 우선순위와 대형 작업 대응을 위한 플랜입니다.", "rule": "주 20시간 · 월 80시간 유지", "cta_label": "Purple Bee 열기"},
+            },
+            "en-US": {
+                "Free": {"lead": "A lightweight plan for basic AI chat and local compute.", "rule": "No maintenance required", "cta_label": "Open Purple Bee"},
+                "Basic": {"lead": "The first tier that adds assist compute to your own device.", "rule": "8h per month", "cta_label": "Open Purple Bee"},
+                "Plus": {"lead": "The core plan most users choose.", "rule": "10h/week · 40h/month", "cta_label": "Open Purple Bee"},
+                "Pro": {"lead": "The highest priority tier for bigger workloads.", "rule": "20h/week · 80h/month", "cta_label": "Open Purple Bee"},
+            },
+            "ja-JP": {
+                "Free": {"lead": "基本質問とローカル演算から始めるプランです。", "rule": "維持条件なし", "cta_label": "Purple Bee を開く"},
+                "Basic": {"lead": "自分のデバイス演算に補助演算を追加できる最初の段階です。", "rule": "月 8 時間維持", "cta_label": "Purple Bee を開く"},
+                "Plus": {"lead": "もっとも多く選ばれる中心プランです。", "rule": "週 10 時間・月 40 時間維持", "cta_label": "Purple Bee を開く"},
+                "Pro": {"lead": "最上位優先度と大規模作業向けのプランです。", "rule": "週 20 時間・月 80 時間維持", "cta_label": "Purple Bee を開く"},
+            },
+        }
+        local_pricing = pricing_copy.get(locale, pricing_copy["en-US"])
+        for item in page.get("plans", []):
+            item.update(local_pricing.get(item.get("name"), {}))
     return render_template(
         template_name,
         site_locale=locale,
@@ -5479,7 +5505,7 @@ def render_site_marketing(page_key: str, locale: str):
         footer_copy=bundle["footer"],
         brand_badge=bundle["brand_badge"],
         page_key=page_key,
-        page=bundle["pages"][page_key],
+        page=page,
         contributor_ui=contributor_ui_copy(locale),
     )
 

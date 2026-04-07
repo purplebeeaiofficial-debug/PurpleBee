@@ -31,6 +31,18 @@ function createObjectUrlFromBlob(blob, mimeType = "application/octet-stream") {
   return url;
 }
 
+function fileNameFromSource(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    const pathname = String(parsed.pathname || "");
+    return decodeURIComponent(pathname.split("/").filter(Boolean).pop() || "");
+  } catch (_error) {
+    return decodeURIComponent(raw.split("#")[0].split("?")[0].split("/").filter(Boolean).pop() || "");
+  }
+}
+
 async function ensureRuntimeScriptsLoaded() {
   if (self.PurpleBeeBrowserRuntime && self.ort) return;
   importScripts(
@@ -74,6 +86,9 @@ async function initializeRuntime(payload) {
       onnx: onnxUrl,
       tokenizer: tokenizerUrl,
       onnx_data: onnxDataUrl,
+      onnx_filename: fileNameFromSource(manifest?.browser_assets?.onnx) || "model.onnx",
+      tokenizer_filename: fileNameFromSource(manifest?.browser_assets?.tokenizer) || "tokenizer.json",
+      onnx_data_filename: fileNameFromSource(manifest?.browser_assets?.onnx_data) || "model.onnx.data",
     },
     runtime: {
       provider_preference: ["wasm"],

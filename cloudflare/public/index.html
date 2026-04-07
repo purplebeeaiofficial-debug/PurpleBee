@@ -571,51 +571,51 @@
 
   <button class="new-chat-btn" onclick="newChat()">
     <i class="ph ph-plus-circle" style="font-size:16px"></i>
-    <span id="new-chat-label">??????쒖옉</span>
+    <span id="new-chat-label">새 대화 시작</span>
   </button>
 
-  <div class="sidebar-section-label" id="history-section-label">理쒓렐 ???/div>
+  <div class="sidebar-section-label" id="history-section-label">최근 대화</div>
   <div id="chat-history-list"></div>
   <div style="height:16px;flex-shrink:0"></div>
 </aside>
 
 <main id="main">
   <header id="topbar">
-    <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="?ъ씠?쒕컮">
+    <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="사이드바">
       <i class="ph ph-sidebar-simple" style="font-size:20px"></i>
     </button>
-    <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="紐⑤뜽 紐⑸줉">
+    <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="모델 목록">
       <span class="model-dot" id="engine-dot"></span>
       <span id="engine-label">Purple Bee 1.3</span>
     </div>
     <div class="topbar-right">
-      <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 以鍮꾨Ъ ?대뜑 ?곌껐" id="ai-assets-btn">
+      <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 준비물 폴더 연결" id="ai-assets-btn">
         <i class="ph ph-hard-drives" style="font-size:18px"></i>
-        <span id="ai-assets-label">AI 以鍮꾨Ъ</span>
+        <span id="ai-assets-label">AI 준비물</span>
       </button>
-      <button class="topbar-btn" onclick="openFilePicker()" title="?뚯씪, 臾몄꽌, ?ㅽ겕由곗꺑 泥⑤?" id="attach-topbar-btn">
+      <button class="topbar-btn" onclick="openFilePicker()" title="파일, 문서, 스크린샷 첨부" id="attach-topbar-btn">
         <i class="ph ph-paperclip" style="font-size:18px"></i>
-        <span id="attach-topbar-label">?먮즺 泥⑤?</span>
+        <span id="attach-topbar-label">자료 첨부</span>
       </button>
-      <button class="topbar-btn" type="button" onclick="loginWithGoogle()" title="Google 濡쒓렇?? id="google-login-btn">
+      <button class="topbar-btn" type="button" onclick="loginWithGoogle()" title="Google 로그인" id="google-login-btn">
         <i class="ph ph-google-logo" style="font-size:18px"></i>
-        <span id="google-login-label">Google 濡쒓렇??/span>
+        <span id="google-login-label">Google 로그인</span>
       </button>
       <div class="profile-wrap">
-        <button class="topbar-btn icon-only" type="button" onclick="toggleProfileMenu(event)" title="怨꾩젙 硫붾돱" id="profile-menu-btn">
+        <button class="topbar-btn icon-only" type="button" onclick="toggleProfileMenu(event)" title="계정 메뉴" id="profile-menu-btn">
           <i class="ph ph-gear-six" style="font-size:18px"></i>
         </button>
         <div class="profile-menu" id="profile-menu">
           <div class="profile-head">
-            <div id="profile-head-title">濡쒓렇???꾩슂</div>
-            <div class="profile-email" id="profile-email">Google 怨꾩젙???곌껐?섎㈃ ??붿? 硫붾え由щ? ?ъ슜?먮퀎濡??좎??⑸땲??</div>
+            <div id="profile-head-title">로그인 필요</div>
+            <div class="profile-email" id="profile-email">Google 계정을 연결하면 대화와 메모리를 사용자별로 유지합니다.</div>
           </div>
           <button class="profile-item" type="button" onclick="openSettings()">
-            <span><i class="ph ph-gear-six"></i> ?ㅼ젙</span>
+            <span><i class="ph ph-gear-six"></i> 설정</span>
             <i class="ph ph-caret-right"></i>
           </button>
           <button class="profile-item" type="button" onclick="openLanguageFromMenu()">
-            <span><i class="ph ph-globe"></i> ?몄뼱</span>
+            <span><i class="ph ph-globe"></i> 언어</span>
             <i class="ph ph-caret-right"></i>
           </button>
           <div class="profile-sep"></div>
@@ -899,64 +899,64 @@
 <div class="history-context-menu" id="history-context-menu">
   <button class="history-context-item" type="button" onclick="renameConversationFromMenu()">
     <i class="ph ph-pencil-simple"></i>
-    <span>梨꾪똿諛??대쫫 ?몄쭛</span>
+    <span>채팅방 이름 편집</span>
   </button>
   <button class="history-context-item" type="button" onclick="deleteConversationFromMenu()">
     <i class="ph ph-trash"></i>
-    <span>梨꾪똿諛???젣</span>
+    <span>채팅방 삭제</span>
   </button>
 </div>
 
 <div class="consent-backdrop" id="consent-backdrop">
   <section class="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
     <div class="consent-head">
-      <div class="consent-title" id="consent-title">?쒖옉 ?꾩뿉 ?꾩닔 ?숈쓽瑜??뺤씤??二쇱꽭??/div>
-      <div class="consent-subtitle">Purple Bee???ㅼ튂??以鍮꾨Ъ怨?湲곗뿬 湲곕컲 援щ룆 援ъ“瑜??④퍡 ?ㅻ（湲??뚮Ц?? ?쒕퉬???쎄?怨??먯썝 ?ъ슜 踰붿쐞瑜?遺꾨━?댁꽌 癒쇱? ?덈궡?⑸땲?? ?꾨옒 ????ぉ? 紐⑤몢 ?꾩닔?낅땲??</div>
+      <div class="consent-title" id="consent-title">시작 전에 필수 동의를 확인해 주세요</div>
+      <div class="consent-subtitle">Purple Bee는 서비스 범위와 자원 사용 범위를 먼저 분리해 안내합니다. 아래 3개 항목은 모두 필수입니다.</div>
     </div>
     <div class="consent-body">
       <div class="consent-legal-grid">
         <div class="consent-legal-card">
-          <strong>?대뼡 ?먯썝???곕굹??</strong>
-          <span>CPU, GPU, RAM, ???怨듦컙, ?ㅽ듃?뚰겕???쇰?瑜??곹븳 ?뺤콉 ?덉뿉???ъ슜?⑸땲??</span>
+          <strong>어떤 자원을 쓰나요?</strong>
+          <span>CPU, GPU, RAM, 저장 공간, 네트워크 사용 범위를 상황별로 나눠 안내합니다.</span>
         </div>
         <div class="consent-legal-card">
-          <strong>?몄젣 ?곕굹??</strong>
-          <span>以鍮꾨Ъ ?ㅼ튂 ?쒖?, 湲곗뿬 援щ룆??耳?寃쎌슦 ?덉빟???쒓컙 ?숈븞留??ъ슜?⑸땲??</span>
+          <strong>언제 사용하나요?</strong>
+          <span>준비물 설치, 앱 연동, 기여 예약 시간 등 명시된 조건에서만 사용됩니다.</span>
         </div>
         <div class="consent-legal-card">
-          <strong>?몄젣 硫덉텛?섏슂?</strong>
-          <span>?덉쟾 湲곗???踰쀬뼱?섍굅???ъ슜?먭? ?ㅼ떆 ?묒뾽???쒖옉?섎㈃ ?먮룞?쇰줈 ?쇱떆?뺤??섍굅??以묐떒?⑸땲??</span>
+          <strong>언제 멈추나요?</strong>
+          <span>안전 기준을 벗어나거나 사용자가 다시 작업을 시작하면 자동으로 일시정지 또는 중단됩니다.</span>
         </div>
       </div>
       <div class="consent-checks">
         <label class="consent-check">
           <input type="checkbox" id="consent-terms" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[?꾩닔] ?댁슜?쎄????숈쓽?⑸땲??/div>
-            <div class="consent-check-desc">?쒕퉬??踰붿쐞, 梨낆엫 踰붿쐞, 以묐떒 議곌굔???ㅻ챸?섎뒗 臾몄꽌?낅땲??</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/terms/" target="_blank" rel="noopener">?댁슜?쎄? 蹂닿린</a></div>
+            <div class="consent-check-title">[필수] 이용약관에 동의합니다</div>
+            <div class="consent-check-desc">서비스 범위, 책임 범위, 중단 조건을 설명하는 문서입니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/terms/" target="_blank" rel="noopener">이용약관 보기</a></div>
           </div>
         </label>
         <label class="consent-check">
           <input type="checkbox" id="consent-resource" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[?꾩닔] 而댄벂???먯썝 ?ъ슜???숈쓽?⑸땲??/div>
-            <div class="consent-check-desc">?대뼡 ?먯썝?? ?몄젣, ?대뼡 ?곹븳?쇰줈 ?곕뒗吏? ?먮룞 以묐떒 議곌굔???곕줈 ?덈궡?⑸땲??</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/resource-use/" target="_blank" rel="noopener">?먯썝 ?ъ슜 ?숈쓽 蹂닿린</a></div>
+            <div class="consent-check-title">[필수] 컴퓨터 자원 사용에 동의합니다</div>
+            <div class="consent-check-desc">어떤 자원을 언제 어떤 조건에서 사용하는지와 자동 중단 조건을 안내합니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/resource-use/" target="_blank" rel="noopener">자원 사용 안내 보기</a></div>
           </div>
         </label>
         <label class="consent-check">
           <input type="checkbox" id="consent-privacy" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[?꾩닔] 媛쒖씤?뺣낫 泥섎━諛⑹묠???숈쓽?⑸땲??/div>
-            <div class="consent-check-desc">濡쒓렇?? ?몄뀡, 硫붾え由? 援щ룆 ?곹깭瑜??대뼸寃???ν븯怨??ㅻ（?붿? ?ㅻ챸?⑸땲??</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/privacy/" target="_blank" rel="noopener">媛쒖씤?뺣낫 泥섎━諛⑹묠 蹂닿린</a></div>
+            <div class="consent-check-title">[필수] 개인정보 처리방침에 동의합니다</div>
+            <div class="consent-check-desc">로그인, 설정, 대화 기록, 기여 상태 데이터의 처리 범위를 설명합니다.</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/privacy/" target="_blank" rel="noopener">개인정보 처리방침 보기</a></div>
           </div>
         </label>
       </div>
       <div class="consent-actions">
-        <button type="button" class="consent-btn" onclick="openConsentDocs()">?뺤콉 臾몄꽌 ?ㅼ떆 蹂닿린</button>
-        <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>?쒖옉?섍린</button>
+        <button type="button" class="consent-btn" onclick="openConsentDocs()">정책 문서 다시 보기</button>
+        <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>시작하기</button>
       </div>
     </div>
   </section>
@@ -988,8 +988,8 @@
 
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260408a"></script>
-  <script src="/static/purple-bee-contributor-ui.js?v=20260408a"></script></body>
+  <script src="/static/purple-bee-local.js?v=20260408c"></script>
+  <script src="/static/purple-bee-contributor-ui.js?v=20260408c"></script></body>
 </html>
 
 

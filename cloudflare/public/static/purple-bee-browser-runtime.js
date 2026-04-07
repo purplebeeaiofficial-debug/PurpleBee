@@ -414,6 +414,11 @@
       const tokenizerUrl = this.manifest?.browser_assets?.tokenizer;
       const onnxUrl = this.manifest?.browser_assets?.onnx;
       const onnxDataUrl = this.manifest?.browser_assets?.onnx_data;
+      const onnxDataFileName = String(
+        this.manifest?.browser_assets?.onnx_data_filename
+          || fileNameFromUrl(onnxDataUrl)
+          || "model.onnx.data"
+      ).trim();
       if (!tokenizerUrl || !onnxUrl) throw new Error("browser assets are incomplete");
 
       const tokenizerResponse = await fetch(tokenizerUrl, { cache: "force-cache" });
@@ -424,6 +429,17 @@
       this.stoi = this.tokenizerState.stoi;
       this.itos = this.tokenizerState.itos;
       this.effectiveVocabSize = this.tokenizerState.size;
+
+      const onnxResponse = await fetch(onnxUrl, { cache: "force-cache" });
+      if (!onnxResponse.ok) throw new Error(`onnx fetch failed: ${onnxResponse.status}`);
+      const onnxBytes = new Uint8Array(await onnxResponse.arrayBuffer());
+
+      let onnxDataBytes = null;
+      if (onnxDataUrl) {
+        const onnxDataResponse = await fetch(onnxDataUrl, { cache: "force-cache" });
+        if (!onnxDataResponse.ok) throw new Error(`onnx-data fetch failed: ${onnxDataResponse.status}`);
+        onnxDataBytes = new Uint8Array(await onnxDataResponse.arrayBuffer());
+      }
 
       if (window.ort.env && window.ort.env.wasm) {
         window.ort.env.wasm.wasmPaths = "/static/vendor/onnxruntime-web/";
@@ -460,17 +476,16 @@
             logSeverityLevel: 4,
             logVerbosityLevel: 0,
           };
-          const externalDataPath = fileNameFromUrl(onnxDataUrl);
-          if (onnxDataUrl && externalDataPath) {
+          if (onnxDataBytes && onnxDataFileName) {
             sessionOptions.externalData = [
               {
-                path: externalDataPath,
-                data: onnxDataUrl,
+                path: onnxDataFileName,
+                data: onnxDataBytes,
               },
             ];
           }
 
-          this.session = await window.ort.InferenceSession.create(onnxUrl, sessionOptions);
+          this.session = await window.ort.InferenceSession.create(onnxBytes, sessionOptions);
           this.provider = provider;
           const outputMeta = this.session.outputMetadata || {};
           const firstOutput = outputMeta[Object.keys(outputMeta)[0]] || {};
