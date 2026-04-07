@@ -16,6 +16,7 @@ import sqlite3
 import shutil
 import importlib.util
 import secrets
+import traceback
 from types import SimpleNamespace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -5482,120 +5483,144 @@ def contributor_plans_api():
 
 @app.route("/api/contributor/status")
 def contributor_status_api():
-    user_id = str(request.args.get("user_id", "")).strip()
-    if not user_id:
-        return jsonify({"ok": False, "error": "user_id_required"}), 400
-    payload = get_contributor_status(user_id)
-    if not payload:
-        return jsonify({"ok": False, "error": "user_not_found"}), 404
-    return jsonify({"ok": True, **payload})
+    try:
+        user_id = str(request.args.get("user_id", "")).strip()
+        if not user_id:
+            return jsonify({"ok": False, "error": "user_id_required"}), 400
+        payload = get_contributor_status(user_id)
+        if not payload:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+        return jsonify({"ok": True, **payload})
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": "contributor_status_failed",
+            "message": str(exc),
+            "traceback": traceback.format_exc().splitlines()[-8:],
+        }), 500
 
 @app.route("/api/contributor/quote", methods=["POST"])
 def contributor_quote_api():
-    data = request.get_json(silent=True) or {}
-    user_id = str(data.get("user_id", "")).strip()
-    if not user_id:
-        return jsonify({"ok": False, "error": "user_id_required"}), 400
-    plan = normalize_contributor_plan(data.get("plan"))
-    hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
-    device_profile = data.get("device_profile") or {}
-    account = ensure_contributor_account(user_id, data.get("display_name") or "")
-    quote = compute_contributor_quote(plan, hours, device_profile)
-    conn = db_connect()
-    c = conn.cursor()
-    c.execute(
-        """UPDATE contributor_accounts
-           SET display_name=?, hardware_json=?, latest_quote_json=?, updated_at=?
-           WHERE user_id=?""",
-        (
-            str(data.get("display_name") or account.get("display_name") or ""),
-            json.dumps(device_profile, ensure_ascii=False),
-            json.dumps(quote, ensure_ascii=False),
-            now_iso(),
-            user_id,
-        ),
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True, "quote": quote})
+    try:
+        data = request.get_json(silent=True) or {}
+        user_id = str(data.get("user_id", "")).strip()
+        if not user_id:
+            return jsonify({"ok": False, "error": "user_id_required"}), 400
+        plan = normalize_contributor_plan(data.get("plan"))
+        hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
+        device_profile = data.get("device_profile") or {}
+        account = ensure_contributor_account(user_id, data.get("display_name") or "")
+        quote = compute_contributor_quote(plan, hours, device_profile)
+        conn = db_connect()
+        c = conn.cursor()
+        c.execute(
+            """UPDATE contributor_accounts
+               SET display_name=?, hardware_json=?, latest_quote_json=?, updated_at=?
+               WHERE user_id=?""",
+            (
+                str(data.get("display_name") or (account or {}).get("display_name") or ""),
+                json.dumps(device_profile, ensure_ascii=False),
+                json.dumps(quote, ensure_ascii=False),
+                now_iso(),
+                user_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True, "quote": quote})
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": "contributor_quote_failed",
+            "message": str(exc),
+            "traceback": traceback.format_exc().splitlines()[-8:],
+        }), 500
 
 @app.route("/api/contributor/reserve", methods=["POST"])
 def contributor_reserve_api():
-    data = request.get_json(silent=True) or {}
-    user_id = str(data.get("user_id", "")).strip()
-    if not user_id:
-        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    try:
+        data = request.get_json(silent=True) or {}
+        user_id = str(data.get("user_id", "")).strip()
+        if not user_id:
+            return jsonify({"ok": False, "error": "user_id_required"}), 400
 
-    plan = normalize_contributor_plan(data.get("plan"))
-    hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
-    starts_at = parse_iso(data.get("starts_at")) or datetime.now()
-    cpu_cap = max(20, min(int(data.get("cpu_cap") or 70), 90))
-    gpu_cap = max(20, min(int(data.get("gpu_cap") or 70), 90))
-    device_profile = data.get("device_profile") or {}
-    display_name = str(data.get("display_name") or "").strip()
+        plan = normalize_contributor_plan(data.get("plan"))
+        hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
+        starts_at = parse_iso(data.get("starts_at")) or datetime.now()
+        cpu_cap = max(20, min(int(data.get("cpu_cap") or 70), 90))
+        gpu_cap = max(20, min(int(data.get("gpu_cap") or 70), 90))
+        device_profile = data.get("device_profile") or {}
+        display_name = str(data.get("display_name") or "").strip()
 
-    if plan != "Free" and hours < CONTRIBUTOR_PLAN_RULES[plan]["min_hours"]:
+        if plan != "Free" and hours < CONTRIBUTOR_PLAN_RULES[plan]["min_hours"]:
+            return jsonify({
+                "ok": False,
+                "error": "insufficient_hours",
+                "message": f"{plan} 플랜은 최소 {CONTRIBUTOR_PLAN_RULES[plan]['min_hours']}시간 예약이 필요합니다.",
+            }), 400
+
+        account = ensure_contributor_account(user_id, display_name)
+        quote = compute_contributor_quote(plan, hours, device_profile)
+        ends_at = starts_at + timedelta(hours=hours)
+        premium_until = ends_at + timedelta(days=quote["premium_days"])
+
+        conn = db_connect()
+        c = conn.cursor()
+        c.execute(
+            """INSERT INTO contributor_reservations
+               (user_id, plan, starts_at, ends_at, hours, premium_days, hardware_multiplier, cpu_cap, gpu_cap, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)""",
+            (
+                user_id,
+                plan,
+                starts_at.isoformat(timespec="seconds"),
+                ends_at.isoformat(timespec="seconds"),
+                hours,
+                quote["premium_days"],
+                quote["hardware_multiplier"],
+                cpu_cap,
+                gpu_cap,
+                now_iso(),
+            ),
+        )
+        c.execute(
+            """UPDATE contributor_accounts
+               SET display_name=?, plan=?, contributor_status=?, premium_until=?, hardware_json=?, latest_quote_json=?, updated_at=?
+               WHERE user_id=?""",
+            (
+                display_name or (account or {}).get("display_name") or "",
+                plan,
+                "scheduled" if plan != "Free" else "inactive",
+                premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
+                json.dumps(device_profile, ensure_ascii=False),
+                json.dumps(quote, ensure_ascii=False),
+                now_iso(),
+                user_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "ok": True,
+            "message": "기여 예약이 저장되었습니다.",
+            "reservation": {
+                "plan": plan,
+                "starts_at": starts_at.isoformat(timespec="seconds"),
+                "ends_at": ends_at.isoformat(timespec="seconds"),
+                "hours": hours,
+                "cpu_cap": cpu_cap,
+                "gpu_cap": gpu_cap,
+            },
+            "quote": quote,
+            "premium_until": premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
+        })
+    except Exception as exc:
         return jsonify({
             "ok": False,
-            "error": "insufficient_hours",
-            "message": f"{plan} 플랜은 최소 {CONTRIBUTOR_PLAN_RULES[plan]['min_hours']}시간 예약이 필요합니다.",
-        }), 400
-
-    account = ensure_contributor_account(user_id, display_name)
-    quote = compute_contributor_quote(plan, hours, device_profile)
-    ends_at = starts_at + timedelta(hours=hours)
-    premium_until = ends_at + timedelta(days=quote["premium_days"])
-
-    conn = db_connect()
-    c = conn.cursor()
-    c.execute(
-        """INSERT INTO contributor_reservations
-           (user_id, plan, starts_at, ends_at, hours, premium_days, hardware_multiplier, cpu_cap, gpu_cap, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)""",
-        (
-            user_id,
-            plan,
-            starts_at.isoformat(timespec="seconds"),
-            ends_at.isoformat(timespec="seconds"),
-            hours,
-            quote["premium_days"],
-            quote["hardware_multiplier"],
-            cpu_cap,
-            gpu_cap,
-            now_iso(),
-        ),
-    )
-    c.execute(
-        """UPDATE contributor_accounts
-           SET display_name=?, plan=?, contributor_status=?, premium_until=?, hardware_json=?, latest_quote_json=?, updated_at=?
-           WHERE user_id=?""",
-        (
-            display_name or account.get("display_name") or "",
-            plan,
-            "scheduled" if plan != "Free" else "inactive",
-            premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
-            json.dumps(device_profile, ensure_ascii=False),
-            json.dumps(quote, ensure_ascii=False),
-            now_iso(),
-            user_id,
-        ),
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({
-        "ok": True,
-        "message": "기여 예약이 저장되었습니다.",
-        "reservation": {
-            "plan": plan,
-            "starts_at": starts_at.isoformat(timespec="seconds"),
-            "ends_at": ends_at.isoformat(timespec="seconds"),
-            "hours": hours,
-            "cpu_cap": cpu_cap,
-            "gpu_cap": gpu_cap,
-        },
-        "quote": quote,
-        "premium_until": premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
-    })
+            "error": "contributor_reserve_failed",
+            "message": str(exc),
+            "traceback": traceback.format_exc().splitlines()[-8:],
+        }), 500
 
 
 @app.route("/api/pbx_chat", methods=["POST", "OPTIONS"])
