@@ -218,6 +218,16 @@ def init_db():
         last_heartbeat_at TEXT,
         updated_at TEXT DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_link_codes (
+        code TEXT PRIMARY KEY,
+        user_id TEXT,
+        display_name TEXT,
+        plan TEXT DEFAULT 'Basic',
+        created_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT,
+        used_at TEXT,
+        device_id TEXT
+    )""")
     c.execute("""CREATE TABLE IF NOT EXISTS contributor_ledger (
         user_id TEXT PRIMARY KEY,
         raw_minutes REAL DEFAULT 0,
@@ -231,10 +241,42 @@ def init_db():
     conn.close()
 
 CONTRIBUTOR_PLAN_RULES = {
-    "Free": {"premium_days": 0, "min_hours": 0, "priority": "standard", "queue_boost": 1.0},
-    "Basic": {"premium_days": 1, "min_hours": 1, "priority": "priority", "queue_boost": 1.15},
-    "Plus": {"premium_days": 7, "min_hours": 5, "priority": "priority-plus", "queue_boost": 1.4},
-    "Pro": {"premium_days": 30, "min_hours": 12, "priority": "priority-pro", "queue_boost": 1.8},
+    "Free": {
+        "monthly_required_hours": 0,
+        "weekly_required_hours": 0,
+        "min_hours": 0,
+        "priority": "standard",
+        "queue_boost": 1.0,
+        "billing_cycle": "monthly",
+        "compute_modes": ["local"],
+    },
+    "Basic": {
+        "monthly_required_hours": 8,
+        "weekly_required_hours": 2,
+        "min_hours": 2,
+        "priority": "priority-basic",
+        "queue_boost": 1.18,
+        "billing_cycle": "monthly",
+        "compute_modes": ["local", "hybrid"],
+    },
+    "Plus": {
+        "monthly_required_hours": 40,
+        "weekly_required_hours": 10,
+        "min_hours": 10,
+        "priority": "priority-plus",
+        "queue_boost": 1.45,
+        "billing_cycle": "monthly",
+        "compute_modes": ["local", "hybrid", "distributed"],
+    },
+    "Pro": {
+        "monthly_required_hours": 80,
+        "weekly_required_hours": 20,
+        "min_hours": 20,
+        "priority": "priority-pro",
+        "queue_boost": 1.8,
+        "billing_cycle": "monthly",
+        "compute_modes": ["local", "hybrid", "distributed"],
+    },
 }
 
 def db_connect():
@@ -598,44 +640,34 @@ def evaluate_contributor_subscription(user_id):
     account = ensure_contributor_account(user_id)
     if not ledger or not account:
         return None
-    available = max(float(ledger["effective_minutes"] or 0) - float(ledger["consumed_effective_minutes"] or 0), 0.0)
-    awarded_days = 0
-    consumed = 0
-    target_plan = "Free"
-    if available >= 720:
-        awarded_days, consumed, target_plan = 30, 720, "Pro"
-    elif available >= 300:
-        awarded_days, consumed, target_plan = 7, 300, "Plus"
-    elif available >= 60:
-        awarded_days, consumed, target_plan = 1, 60, "Basic"
+    total_effective_hours = round(float(ledger["effective_minutes"] or 0) / 60.0, 2)
+    monthly_plan = "Free"
+    for plan in ("Pro", "Plus", "Basic"):
+        if total_effective_hours >= float(CONTRIBUTOR_PLAN_RULES[plan]["monthly_required_hours"]):
+            monthly_plan = plan
+            break
     premium_until = account.get("premium_until")
-    if awarded_days:
+    if monthly_plan != "Free":
         base = parse_iso(premium_until) or datetime.now()
         if base < datetime.now():
             base = datetime.now()
-        premium_until_value = (base + timedelta(days=awarded_days)).isoformat(timespec="seconds")
+        premium_until = (base + timedelta(days=30)).isoformat(timespec="seconds")
         conn = db_connect()
         c = conn.cursor()
-        c.execute(
-            """UPDATE contributor_ledger
-               SET consumed_effective_minutes = consumed_effective_minutes + ?, updated_at=?
-               WHERE user_id=?""",
-            (consumed, now_iso(), user_id),
-        )
         c.execute(
             """UPDATE contributor_accounts
                SET plan=?, contributor_status='active', premium_until=?, updated_at=?
                WHERE user_id=?""",
-            (target_plan, premium_until_value, now_iso(), user_id),
+            (monthly_plan, premium_until, now_iso(), user_id),
         )
         conn.commit()
         conn.close()
-        premium_until = premium_until_value
         account = ensure_contributor_account(user_id)
     return {
-        "awarded_days": awarded_days,
-        "consumed_effective_minutes": consumed,
+        "awarded_days": 30 if monthly_plan != "Free" else 0,
+        "consumed_effective_minutes": 0,
         "premium_until": premium_until,
+        "monthly_plan": monthly_plan,
         "account": account,
         "ledger": ensure_contributor_ledger(user_id),
     }
@@ -650,13 +682,98 @@ def contributor_client_base_url():
         return origin.rstrip("/")
     return request.url_root.rstrip("/")
 
+def contributor_windows_client_dir():
+    return CONTRIBUTOR_MVP_DIR / "windows_client"
+
+def contributor_windows_dist_dir():
+    return contributor_windows_client_dir() / "dist"
+
+def contributor_windows_build_dir():
+    return contributor_windows_client_dir() / "build"
+
+def contributor_windows_assets_dir():
+    return contributor_windows_client_dir() / "assets"
+
+def contributor_windows_exe_path():
+    return contributor_windows_dist_dir() / "PurpleBeeContributor.exe"
+
+def contributor_downloads_dir():
+    target = STATIC_DIR / "downloads"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+def contributor_public_exe_path():
+    return contributor_downloads_dir() / "PurpleBeeContributor.exe"
+
+def contributor_public_icon_path():
+    return contributor_downloads_dir() / "purple-bee-contributor-icon.png"
+
+def generate_contributor_link_code(user_id, display_name="", plan="Basic"):
+    user_id = trim(user_id)
+    if not user_id:
+        return None
+    code = "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
+    expires_at = (datetime.now() + timedelta(minutes=15)).isoformat(timespec="seconds")
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """INSERT OR REPLACE INTO contributor_link_codes
+           (code, user_id, display_name, plan, created_at, expires_at, used_at, device_id)
+           VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)""",
+        (code, user_id, trim(display_name), normalize_contributor_plan(plan), now_iso(), expires_at),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "code": code,
+        "user_id": user_id,
+        "display_name": trim(display_name),
+        "plan": normalize_contributor_plan(plan),
+        "expires_at": expires_at,
+    }
+
+def consume_contributor_link_code(code, device_id=""):
+    code = trim(code).upper()
+    if not code:
+        return None
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """SELECT code, user_id, display_name, plan, created_at, expires_at, used_at, device_id
+           FROM contributor_link_codes WHERE code=?""",
+        (code,),
+    )
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return None
+    expires_at = parse_iso(row[5])
+    if row[6] or (expires_at and expires_at < datetime.now()):
+        conn.close()
+        return None
+    c.execute(
+        """UPDATE contributor_link_codes
+           SET used_at=?, device_id=? WHERE code=?""",
+        (now_iso(), trim(device_id), code),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "code": row[0],
+        "user_id": row[1],
+        "display_name": row[2] or "",
+        "plan": normalize_contributor_plan(row[3]),
+        "created_at": row[4],
+        "expires_at": row[5],
+    }
+
 def build_contributor_client_config(user_id, display_name="", reservation=None):
     return {
         "serverBaseUrl": contributor_client_base_url(),
         "userId": trim(user_id),
         "displayName": trim(display_name),
-        "deviceName": "Purple Bee Contributor Device",
-        "clientVersion": "1.0.0",
+        "deviceName": "Purple Bee Contributor",
+        "clientVersion": "2.0.0",
         "caps": {
             "cpuMaxPercent": 70,
             "gpuMaxPercent": 70,
@@ -664,34 +781,88 @@ def build_contributor_client_config(user_id, display_name="", reservation=None):
         "reservation": reservation or {},
         "heartbeatIntervalMs": 30000,
         "claimIntervalMs": 20000,
+        "plans": CONTRIBUTOR_PLAN_RULES,
     }
 
-def build_contributor_client_zip(user_id, display_name="", reservation=None):
-    config_payload = build_contributor_client_config(user_id, display_name, reservation)
-    memory = io.BytesIO()
-    with zipfile.ZipFile(memory, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(
-            "README.txt",
-            "\n".join([
-                "Purple Bee Contributor App",
-                "",
-                "1. npm install",
-                "2. node src/index.js",
-                "",
-                "This package links your device to Purple Bee contributor subscription.",
-                "Use the downloaded config.json as-is unless you need to adjust the reservation window.",
-            ]),
+def contributor_plan_copy(plan, locale="ko-KR"):
+    plan = normalize_contributor_plan(plan)
+    rules = CONTRIBUTOR_PLAN_RULES[plan]
+    if locale == "ko-KR":
+        if plan == "Free":
+            return {
+                "headline": "기본 사용",
+                "summary": "내 기기 연산으로 Purple Bee를 바로 시작합니다.",
+            }
+        if plan == "Basic":
+            return {
+                "headline": "월 8시간 기여 유지",
+                "summary": "기본적인 서버 보조 연산과 우선순위 향상을 여는 첫 단계입니다.",
+            }
+        if plan == "Plus":
+            return {
+                "headline": "주 10시간 / 월 40시간 유지",
+                "summary": "빠른 응답과 더 넓은 모델 접근을 위한 주력 플랜입니다.",
+            }
+        return {
+            "headline": "주 20시간 / 월 80시간 유지",
+            "summary": "최대 우선순위와 가장 넓은 보조 연산 범위를 위한 상위 플랜입니다.",
+        }
+    return {
+        "headline": f"{rules['monthly_required_hours']}h / month",
+        "summary": f"{plan} unlocks contributor-backed server assist and a higher priority queue.",
+    }
+
+def copy_if_newer(source, target):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists() or source.stat().st_mtime > target.stat().st_mtime:
+        shutil.copy2(source, target)
+
+def sync_contributor_public_assets():
+    exe_path = contributor_windows_exe_path()
+    icon_path = contributor_windows_assets_dir() / "purple-bee-contributor-icon.png"
+    if exe_path.exists():
+        copy_if_newer(exe_path, contributor_public_exe_path())
+    if icon_path.exists():
+        copy_if_newer(icon_path, contributor_public_icon_path())
+
+def build_contributor_client_download():
+    sync_contributor_public_assets()
+    public_path = contributor_public_exe_path()
+    if public_path.exists():
+        return public_path
+    source_script = contributor_windows_client_dir() / "purple_bee_contributor_app.py"
+    if not source_script.exists():
+        return None
+    contributor_windows_dist_dir().mkdir(parents=True, exist_ok=True)
+    contributor_windows_build_dir().mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            [
+                "pyinstaller",
+                "--noconfirm",
+                "--clean",
+                "--onefile",
+                "--windowed",
+                "--name",
+                "PurpleBeeContributor",
+                "--distpath",
+                str(contributor_windows_dist_dir()),
+                "--workpath",
+                str(contributor_windows_build_dir()),
+                "--specpath",
+                str(contributor_windows_client_dir()),
+                str(source_script),
+            ],
+            check=True,
+            cwd=str(BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
-        archive.writestr("client/config.json", json.dumps(config_payload, ensure_ascii=False, indent=2))
-        for path in CONTRIBUTOR_CLIENT_DIR.rglob("*"):
-            if path.is_file() and path.name != "config.example.json":
-                archive.write(path, arcname=f"client/{path.relative_to(CONTRIBUTOR_CLIENT_DIR).as_posix()}")
-        archive.write(CONTRIBUTOR_CLIENT_DIR / "config.example.json", arcname="client/config.example.json")
-        for path in CONTRIBUTOR_WORKER_DIR.rglob("*"):
-            if path.is_file():
-                archive.write(path, arcname=f"worker/{path.relative_to(CONTRIBUTOR_WORKER_DIR).as_posix()}")
-    memory.seek(0)
-    return memory
+    except Exception:
+        return None
+    sync_contributor_public_assets()
+    return public_path if public_path.exists() else None
 
 def build_device_score(device_profile):
     memory_gb = max(float(device_profile.get("memory_gb") or 0), 0.0)
@@ -732,24 +903,30 @@ def compute_contributor_quote(plan, raw_hours, device_profile):
     elif device_score >= 0.9:
         multiplier = 0.95
     effective_hours = round(raw_hours * multiplier, 2)
-    premium_days = max(rules["premium_days"], 0)
-    if plan == "Free":
-        premium_days = 0
-    elif raw_hours < rules["min_hours"]:
-        premium_days = 0
-    queue_mode = {
-        "Free": "standard",
-        "Basic": "priority",
-        "Plus": "priority-plus",
-        "Pro": "priority-pro",
-    }[plan]
+    monthly_required = float(rules["monthly_required_hours"] or 0)
+    weekly_required = float(rules["weekly_required_hours"] or 0)
+    qualifies = plan == "Free" or raw_hours >= float(rules["min_hours"] or 0)
+    queue_mode = rules["priority"]
+    recommended_plan = "Free"
+    if device_score >= 2.2 and raw_hours >= CONTRIBUTOR_PLAN_RULES["Pro"]["min_hours"]:
+        recommended_plan = "Pro"
+    elif device_score >= 1.3 and raw_hours >= CONTRIBUTOR_PLAN_RULES["Plus"]["min_hours"]:
+        recommended_plan = "Plus"
+    elif raw_hours >= CONTRIBUTOR_PLAN_RULES["Basic"]["min_hours"]:
+        recommended_plan = "Basic"
     return {
         "plan": plan,
         "raw_hours": raw_hours,
         "effective_hours": effective_hours,
-        "premium_days": premium_days,
+        "premium_days": 30 if plan != "Free" and qualifies else 0,
         "hardware_multiplier": multiplier,
         "queue_mode": queue_mode,
+        "qualifies": qualifies,
+        "recommended_plan": recommended_plan,
+        "monthly_required_hours": monthly_required,
+        "weekly_required_hours": weekly_required,
+        "billing_cycle": rules["billing_cycle"],
+        "compute_modes": rules["compute_modes"],
         "device_profile": {
             "memory_gb": memory_gb,
             "cpu_threads": cpu_threads,
@@ -801,9 +978,14 @@ def get_contributor_status(user_id):
         "updated_at": penalty_row[5] if penalty_row else None,
     }
     premium_active = bool(account["premium_until"] and parse_iso(account["premium_until"]) and parse_iso(account["premium_until"]) > datetime.now())
+    total_effective_hours = round(float(ledger.get("effective_minutes") or 0) / 60.0, 2)
+    plan_rules = CONTRIBUTOR_PLAN_RULES.get(normalize_contributor_plan(account.get("plan")), CONTRIBUTOR_PLAN_RULES["Free"])
     return {
         "account": account,
         "ledger": ledger,
+        "total_effective_hours": total_effective_hours,
+        "monthly_requirement_hours": float(plan_rules.get("monthly_required_hours") or 0),
+        "weekly_requirement_hours": float(plan_rules.get("weekly_required_hours") or 0),
         "premium_active": premium_active,
         "reservations": reservations,
         "penalty": penalty,
@@ -5037,27 +5219,16 @@ SITE_COPY = {
             },
             "pricing": {
                 "eyebrow": "Pricing",
-                "title": "Free부터 Pro까지, 그리고 기여 기반 구독",
-                "description": "기본 사용은 무료로 제공하고, 더 빠른 응답과 상위 모델 접근이 필요한 사용자는 기여 시간을 예약해 프리미엄 구독을 활성화할 수 있도록 설계합니다.",
+                "title": "Free부터 Pro까지, 월간 플랜을 명확하게 비교합니다.",
+                "description": "이 페이지는 월간 플랜 구성과 기본 혜택만 소개합니다. 기여 앱 설치와 예약 설정은 채팅 화면 안의 별도 흐름에서 이어집니다.",
                 "badges": ["Free", "Basic", "Plus", "Pro"],
                 "plans": [
-                    {"name": "Free", "price": "₩0", "meta": "기본 사용", "badge": "Free", "features": ["기본 AI 사용", "낮은 우선순위", "경량 모델 중심", "요청 횟수 제한"]},
-                    {"name": "Basic", "price": "1시간 기여", "meta": "1일 혜택", "badge": "Basic", "features": ["응답 대기시간 단축", "요청 제한 완화", "기여 예약 가능", "기본 분산 보조 연산"]},
-                    {"name": "Plus", "price": "5시간 기여", "meta": "7일 혜택", "badge": "Plus", "recommended": True, "features": ["상위 우선순위", "최신 모델 접근", "요청 제한 사실상 해제", "분산 보조 연산 가중치 상향"]},
-                    {"name": "Pro", "price": "확장 기여", "meta": "확장 혜택", "badge": "Pro", "features": ["최상위 우선순위", "고급 기능 우선 적용", "다중 세션/대형 작업 대응", "장기 기여형 운용"]},
+                    {"name": "Free", "price": "₩0", "meta": "월", "badge": "Free", "features": ["기본 AI 대화", "내 기기 연산", "표준 우선순위", "기본 사용 한도"]},
+                    {"name": "Basic", "price": "₩9,900", "meta": "월", "badge": "Basic", "features": ["보조 연산 모드 선택", "응답 제한 완화", "월 8시간 유지 조건", "기여 앱 설치 가능"]},
+                    {"name": "Plus", "price": "₩29,000", "meta": "월", "badge": "Plus", "recommended": True, "features": ["상위 우선순위", "더 넓은 모델 접근", "주 10시간 · 월 40시간 유지", "하이브리드/보조 연산"]},
+                    {"name": "Pro", "price": "₩79,000", "meta": "월", "badge": "Pro", "features": ["최상위 우선순위", "대형 작업 대응", "주 20시간 · 월 80시간 유지", "강한 보조 연산 배정"]},
                 ],
-                "sections": [
-                    {
-                        "title": "분산 기여 구독은 어떻게 동작하나요?",
-                        "text": "예를 들어 구독 사용자 100명, 동시 사용 300명 상황이라면, 모든 사용자는 자기 기기에서 먼저 실행하고, 상위 플랜 사용자는 추가로 기여 네트워크의 보조 연산을 함께 받습니다.",
-                        "bullets": [
-                            "자기 기기 우선 실행은 모든 플랜에 공통",
-                            "기여 노드는 상위 플랜 요청에 가중치를 더 높게 배정",
-                            "실패 노드는 즉시 제외하고 작업을 재분배",
-                            "CPU/GPU 상한과 네트워크 상태를 기준으로 안전하게 배정",
-                        ],
-                    }
-                ],
+                "sections": [],
             },
         },
         "policies": {
@@ -5155,18 +5326,16 @@ SITE_COPY = {
             },
             "pricing": {
                 "eyebrow": "Pricing",
-                "title": "From Free to Pro, with contribution-based upgrades",
-                "description": "Core access starts free. Higher tiers are activated through reserved contribution time and device efficiency.",
+                "title": "Compare Free through Pro with clear monthly plans.",
+                "description": "This page focuses on monthly plans only. Contributor app setup and reservation stay inside the chat experience.",
                 "badges": ["Free", "Basic", "Plus", "Pro"],
                 "plans": [
-                    {"name": "Free", "price": "$0", "meta": "base access", "badge": "Free", "features": ["Basic AI access", "Lower priority queue", "Lightweight models", "Usage limits"]},
-                    {"name": "Basic", "price": "1 hour contribution", "meta": "1 day benefits", "badge": "Basic", "features": ["Faster queue", "Softer request limits", "Contribution scheduling", "Basic distributed assist"]},
-                    {"name": "Plus", "price": "5 hours contribution", "meta": "7 day benefits", "badge": "Plus", "recommended": True, "features": ["Higher priority", "Latest model access", "Much looser limits", "Stronger distributed assist"]},
-                    {"name": "Pro", "price": "extended contribution", "meta": "extended benefits", "badge": "Pro", "features": ["Top priority", "Advanced features", "Large jobs and sessions", "Long-run contribution mode"]},
+                    {"name": "Free", "price": "$0", "meta": "month", "badge": "Free", "features": ["Basic AI chat", "Local compute", "Standard priority", "Base usage limits"]},
+                    {"name": "Basic", "price": "$9", "meta": "month", "badge": "Basic", "features": ["Assist compute modes", "Softer limits", "8h monthly maintenance", "Contributor app access"]},
+                    {"name": "Plus", "price": "$29", "meta": "month", "badge": "Plus", "recommended": True, "features": ["Higher priority", "Broader model access", "10h/week · 40h/month", "Hybrid and assist compute"]},
+                    {"name": "Pro", "price": "$79", "meta": "month", "badge": "Pro", "features": ["Top priority", "Large-job support", "20h/week · 80h/month", "Strong assist allocation"]},
                 ],
-                "sections": [
-                    {"title": "How distributed contribution scales", "text": "If 300 users are active and 100 contributors are available, each request still starts on the local device first. Higher plans can then receive extra distributed assist from contributor nodes.", "bullets": ["Local-device-first by default", "Weighted assignment for higher plans", "Automatic reassignment on node failure", "CPU/GPU/network-aware safety checks"]},
-                ],
+                "sections": [],
             },
         },
         "policies": {
@@ -5236,18 +5405,16 @@ SITE_COPY = {
             },
             "pricing": {
                 "eyebrow": "Pricing",
-                "title": "Free から Pro まで、そして貢献型アップグレード",
-                "description": "基本利用は無料。より速い応答や上位モデル利用は、予約した貢献時間によって有効化されます。",
+                "title": "Free から Pro まで、月額プランを明確に比較します。",
+                "description": "このページでは月額プランのみを紹介します。貢献アプリの導入と予約はチャット画面内で続行します。",
                 "badges": ["Free", "Basic", "Plus", "Pro"],
                 "plans": [
-                    {"name": "Free", "price": "¥0", "meta": "基本利用", "badge": "Free", "features": ["基本 AI 利用", "低優先キュー", "軽量モデル中心", "利用回数制限"]},
-                    {"name": "Basic", "price": "1時間貢献", "meta": "1日特典", "badge": "Basic", "features": ["待ち時間短縮", "利用制限緩和", "貢献予約", "基本分散補助"]},
-                    {"name": "Plus", "price": "5時間貢献", "meta": "7日特典", "badge": "Plus", "recommended": True, "features": ["高優先度", "最新モデル利用", "大幅な制限緩和", "強い分散補助"]},
-                    {"name": "Pro", "price": "拡張貢献", "meta": "拡張特典", "badge": "Pro", "features": ["最上位優先度", "高度機能", "大規模リクエスト対応", "長時間貢献モード"]},
+                    {"name": "Free", "price": "¥0", "meta": "月", "badge": "Free", "features": ["基本 AI 会話", "ローカル演算", "標準優先度", "基本利用上限"]},
+                    {"name": "Basic", "price": "¥900", "meta": "月", "badge": "Basic", "features": ["補助演算モード", "利用制限緩和", "月 8 時間維持", "貢献アプリ利用"]},
+                    {"name": "Plus", "price": "¥2,900", "meta": "月", "badge": "Plus", "recommended": True, "features": ["高優先度", "より広いモデル利用", "週 10 時間・月 40 時間", "ハイブリッド補助演算"]},
+                    {"name": "Pro", "price": "¥7,900", "meta": "月", "badge": "Pro", "features": ["最上位優先度", "大規模処理対応", "週 20 時間・月 80 時間", "強い補助演算配分"]},
                 ],
-                "sections": [
-                    {"title": "分散貢献の動作", "text": "同時利用 300 人・貢献ノード 100 台でも、各リクエストはまずローカル実行を開始し、上位プランに対して追加の分散補助を割り当てます。", "bullets": ["ローカル実行が常に先", "上位プランほど高い重み", "失敗ノードは自動除外", "CPU/GPU/ネットワークを考慮した安全判定"]},
-                ],
+                "sections": [],
             },
         },
         "policies": {
@@ -5915,13 +6082,19 @@ def contributor_reserve_api():
             return jsonify({
                 "ok": False,
                 "error": "insufficient_hours",
-                "message": f"{plan} 플랜은 최소 {CONTRIBUTOR_PLAN_RULES[plan]['min_hours']}시간 예약이 필요합니다.",
+                "message": f"{plan} 플랜은 최소 {CONTRIBUTOR_PLAN_RULES[plan]['min_hours']}시간 이상 예약해야 합니다.",
             }), 400
 
         account = ensure_contributor_account(user_id, display_name)
+        if plan != "Free" and not get_contributor_devices(user_id):
+            return jsonify({
+                "ok": False,
+                "error": "device_not_linked",
+                "message": "기여 앱 설치와 연동 확인 후에 예약할 수 있습니다.",
+            }), 400
         quote = compute_contributor_quote(plan, hours, device_profile)
         ends_at = starts_at + timedelta(hours=hours)
-        premium_until = ends_at + timedelta(days=quote["premium_days"])
+        premium_until = ends_at + timedelta(days=30 if plan != "Free" else 0)
 
         conn = db_connect()
         c = conn.cursor()
@@ -5935,7 +6108,7 @@ def contributor_reserve_api():
                 starts_at.isoformat(timespec="seconds"),
                 ends_at.isoformat(timespec="seconds"),
                 hours,
-                quote["premium_days"],
+                30 if plan != "Free" else 0,
                 quote["hardware_multiplier"],
                 cpu_cap,
                 gpu_cap,
@@ -5991,6 +6164,18 @@ def contributor_client_config_api():
     payload = build_contributor_client_config(user_id, display_name)
     return jsonify({"ok": True, "config": payload})
 
+@app.route("/api/contributor/link-code", methods=["POST"])
+def contributor_link_code_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("user_id") or data.get("userId"))
+    display_name = trim(data.get("display_name") or data.get("displayName"))
+    plan = normalize_contributor_plan(data.get("plan") or "Basic")
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    ensure_contributor_account(user_id, display_name)
+    payload = generate_contributor_link_code(user_id, display_name, plan)
+    return jsonify({"ok": True, "link_code": payload})
+
 @app.route("/api/contributor/client/download")
 def contributor_client_download_api():
     user_id = trim(request.args.get("user_id"))
@@ -5998,13 +6183,62 @@ def contributor_client_download_api():
     if not user_id:
         return jsonify({"ok": False, "error": "user_id_required"}), 400
     ensure_contributor_account(user_id, display_name)
-    archive = build_contributor_client_zip(user_id, display_name)
+    exe_path = build_contributor_client_download()
+    if not exe_path or not Path(exe_path).exists():
+        return jsonify({
+            "ok": False,
+            "error": "contributor_app_unavailable",
+            "message": "기여 앱 설치 파일이 아직 준비되지 않았습니다.",
+        }), 503
     return send_file(
-        archive,
-        mimetype="application/zip",
+        str(exe_path),
+        mimetype="application/vnd.microsoft.portable-executable",
         as_attachment=True,
-        download_name=f"purple-bee-contributor-{user_id[:18] or 'client'}.zip",
+        download_name="PurpleBeeContributor.exe",
     )
+
+@app.route("/api/contributor/client/link", methods=["POST"])
+def contributor_client_link_api():
+    data = request.get_json(silent=True) or {}
+    device_id = trim(data.get("device_id") or data.get("deviceId") or f"pbxdev_{secrets.token_hex(6)}")
+    link_code = trim(data.get("link_code") or data.get("linkCode")).upper()
+    device_name = trim(data.get("device_name") or data.get("deviceName") or "Purple Bee Contributor")
+    client_version = trim(data.get("client_version") or data.get("clientVersion") or "2.0.0")
+    hardware = data.get("hardware") or data.get("hardware_json") or {}
+    runtime = data.get("runtime") or data.get("runtime_json") or {}
+    if not link_code:
+        return jsonify({"ok": False, "error": "link_code_required"}), 400
+    payload = consume_contributor_link_code(link_code, device_id=device_id)
+    if not payload:
+        return jsonify({"ok": False, "error": "invalid_or_expired_link_code", "message": "연동 코드를 다시 발급해 주세요."}), 400
+    account = ensure_contributor_account(payload["user_id"], payload["display_name"])
+    device = upsert_contributor_device(
+        device_id=device_id,
+        user_id=payload["user_id"],
+        device_name=device_name,
+        client_version=client_version,
+        hardware=hardware,
+        runtime=runtime,
+        caps={"linkedPlan": payload["plan"], "autoStart": bool(data.get("auto_start"))},
+        status="linked",
+    )
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """UPDATE contributor_accounts
+           SET plan=?, contributor_status='linked', hardware_json=?, updated_at=?
+           WHERE user_id=?""",
+        (payload["plan"], json.dumps(normalize_device_profile(hardware), ensure_ascii=False), now_iso(), payload["user_id"]),
+    )
+    conn.commit()
+    conn.close()
+    account = ensure_contributor_account(payload["user_id"], payload["display_name"])
+    return jsonify({
+        "ok": True,
+        "device": device,
+        "account": account,
+        "config": build_contributor_client_config(payload["user_id"], payload["display_name"]),
+    })
 
 @app.route("/api/contributor/client/register", methods=["POST"])
 def contributor_client_register_api():

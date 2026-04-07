@@ -1,154 +1,30 @@
-<!DOCTYPE html>
-<html lang="ko">
+﻿<!DOCTYPE html>
+<html lang="{{ site_lang }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Purple Bee | Pricing</title>
 <style>
-  :root{--bg:#f7f8fc;--panel:#fff;--text:#111827;--sub:#5b6476;--line:#dde3ef;--accent:#7c3aed;--surface:#f8fafc;--shadow:0 22px 70px rgba(15,23,42,.08)}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:"Noto Sans KR","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 12% -10%, rgba(196,181,253,.72), transparent 32%),radial-gradient(circle at 92% 0%, rgba(125,211,252,.4), transparent 28%),var(--bg)}
-  a{text-decoration:none;color:inherit}
-  .wrap{width:min(1220px,calc(100% - 32px));margin:0 auto}
-  header{position:sticky;top:0;z-index:20;background:rgba(247,248,252,.88);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
-  .nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 0}
-  .brand{display:flex;align-items:center;gap:12px;font-size:24px;font-weight:900;letter-spacing:-.04em}
-  .brand-mark{width:14px;height:14px;border-radius:999px;background:linear-gradient(135deg,#7c3aed,#ec4899)}
-  .brand-badge{padding:5px 10px;border-radius:999px;background:#dcfce7;color:#065f46;font-size:11px;font-weight:900}
-  .menu{display:flex;gap:18px;flex-wrap:wrap}
-  .menu a{font-size:14px;font-weight:800;color:var(--sub)}
-  .menu a.active,.menu a:hover{color:var(--text)}
-  .cta{padding:11px 16px;border-radius:999px;background:#111827;color:#fff;font-size:13px;font-weight:800}
-  main{padding:34px 0 40px}
-  .hero{padding:8px 0 18px}
-  .eyebrow{display:inline-flex;padding:8px 12px;border-radius:999px;background:rgba(124,58,237,.08);color:#5b21b6;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
-  h1{margin-top:16px;font-size:clamp(38px,5vw,64px);line-height:1.04;letter-spacing:-.08em;max-width:950px}
-  .hero-copy{margin-top:16px;max-width:850px;font-size:18px;line-height:1.72;color:var(--sub)}
-  .hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
-  .hero-badge{padding:9px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800}
-  .plans-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
-  .plan-card{background:#fff;border:1px solid var(--line);border-radius:28px;padding:26px;display:flex;flex-direction:column;min-height:520px;box-shadow:var(--shadow)}
-  .plan-card.recommended{border-color:rgba(124,58,237,.28);box-shadow:0 22px 70px rgba(124,58,237,.12)}
-  .plan-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .plan-name{font-size:28px;font-weight:900;letter-spacing:-.05em}
-  .plan-badge{padding:6px 10px;border-radius:999px;background:rgba(124,58,237,.1);color:#5b21b6;font-size:11px;font-weight:900}
-  .plan-price{margin-top:18px;font-size:44px;font-weight:900;letter-spacing:-.07em}
-  .plan-price small{font-size:14px;color:var(--sub);font-weight:800}
-  .plan-copy{margin-top:12px;min-height:72px;font-size:14px;line-height:1.75;color:var(--sub)}
-  .plan-cta{margin-top:18px;width:100%;padding:13px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px;font-weight:900;text-align:center}
-  .plan-card.recommended .plan-cta{background:#111827;color:#fff;border-color:#111827}
-  .plan-list{margin-top:18px;display:grid;gap:10px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.68}
-  .plan-foot{margin-top:auto;padding-top:18px;font-size:12px;line-height:1.6;color:var(--sub)}
-  .step-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:24px}
-  .step-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:15px 16px;box-shadow:var(--shadow)}
-  .step-chip{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:rgba(124,58,237,.1);color:#5b21b6;font-size:12px;font-weight:900}
-  .step-card strong{display:block;margin-top:12px;font-size:15px}
-  .step-card p{margin-top:6px;font-size:13px;line-height:1.65;color:var(--sub)}
-  .policy-links{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 10px}
-  .policy-link{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
-  footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 0 24px;color:var(--sub);font-size:13px}
-  @media (max-width:1160px){.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.step-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media (max-width:760px){.menu{display:none}.plans-grid,.step-row{grid-template-columns:1fr}h1{font-size:40px}.hero-copy{font-size:16px}}
+:root{--bg:#f7f8fc;--panel:#fff;--text:#111827;--muted:#5b6472;--line:#dfe5f2;--accent:#7c3aed;--soft:#ede9fe;--shadow:0 18px 60px rgba(15,23,42,.08)}
+*{box-sizing:border-box;margin:0;padding:0} body{font-family:"Noto Sans KR","Segoe UI",sans-serif;background:linear-gradient(180deg,#fbfbfe 0%,#f3f6ff 100%);color:var(--text)} a{text-decoration:none;color:inherit}
+.wrap{width:min(1200px,calc(100% - 32px));margin:0 auto}.nav{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:76px}.brand{display:flex;align-items:center;gap:12px;font-weight:900;font-size:24px}.dot{width:14px;height:14px;border-radius:999px;background:linear-gradient(135deg,#7c3aed,#ec4899)}
+header{position:sticky;top:0;background:rgba(247,248,252,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)} .menu{display:flex;gap:18px;flex-wrap:wrap}.menu a{font-size:14px;font-weight:800;color:var(--muted)}.menu a.active,.menu a:hover{color:var(--text)}
+.cta{padding:11px 16px;border-radius:999px;background:#111827;color:#fff;font-size:13px;font-weight:800}.locale{display:flex;gap:8px}.locale a{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--muted)}.locale a.active{background:var(--soft);color:#5b21b6}
+main{padding:36px 0 40px}.hero{padding:8px 0 22px}.eyebrow{display:inline-flex;padding:8px 12px;border-radius:999px;background:var(--soft);color:#5b21b6;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+h1{margin-top:16px;font-size:clamp(38px,5vw,64px);line-height:1.02;letter-spacing:-.08em;max-width:900px}.hero p{margin-top:16px;font-size:18px;line-height:1.75;color:var(--muted);max-width:840px}.hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.hero-badges span{padding:9px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:26px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:510px}.card.reco{border-color:rgba(124,58,237,.28);box-shadow:0 20px 70px rgba(124,58,237,.14)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}.name{font-size:28px;font-weight:900;letter-spacing:-.05em}.badge{padding:6px 10px;border-radius:999px;background:var(--soft);color:#5b21b6;font-size:11px;font-weight:900}.price{margin-top:18px;font-size:42px;font-weight:900;letter-spacing:-.07em}.price small{font-size:14px;color:var(--muted);font-weight:800}.copy{margin-top:12px;min-height:74px;font-size:14px;line-height:1.75;color:var(--muted)}.cta-btn{margin-top:18px;display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:999px;border:1px solid var(--line);font-size:14px;font-weight:900;background:#fff}.reco .cta-btn{background:#111827;color:#fff;border-color:#111827}.list{margin-top:18px;padding-left:18px;display:grid;gap:10px;font-size:13px;line-height:1.65;color:var(--muted)}.foot{margin-top:auto;padding-top:18px;font-size:12px;line-height:1.6;color:var(--muted)}
+.policy{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.policy a{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--muted)} footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:22px 0 28px;color:var(--muted);font-size:13px}
+@media (max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}} @media (max-width:760px){.menu{display:none}.grid{grid-template-columns:1fr}.hero p{font-size:16px}}
 </style>
 </head>
 <body>
-  <header>
-    <div class="wrap nav">
-      <a class="brand" href="/ko-KR/index/purple-bee/"><span class="brand-mark"></span><span>Purple Bee</span><span class="brand-badge">Free</span></a>
-      <nav class="menu">
-        <a href="/ko-KR/index/purple-bee/">소개</a>
-        <a href="/ko-KR/index/purple-bee/features/">기능</a>
-        <a href="/ko-KR/index/purple-bee/safety/">안전</a>
-        <a href="/ko-KR/index/purple-bee/architecture/">아키텍처</a>
-        <a class="active" href="/ko-KR/index/purple-bee/pricing/">요금</a>
-      </nav>
-      <a class="cta" href="/">채팅 열기</a>
-    </div>
-  </header>
-  <main class="wrap">
-    <section class="hero">
-      <span class="eyebrow">Pricing</span>
-      <h1>Free부터 Pro까지, 필요한 범위만 또렷하게 선택하세요.</h1>
-      <p class="hero-copy">Purple Bee는 가볍게 시작할 수 있는 무료 플랜과 더 빠른 응답, 더 넓은 작업 범위를 위한 업그레이드 플랜을 제공합니다. 기여 기반 혜택은 플랜을 선택한 뒤 별도 상태 화면에서 진행합니다.</p>
-      <div class="hero-badges">
-        <span class="hero-badge">기본 플랜 무료 제공</span>
-        <span class="hero-badge">업그레이드 단계 명확 분리</span>
-        <span class="hero-badge">기여 구독은 별도 상태 화면에서 관리</span>
-      </div>
-    </section>
-
-    <section class="plans-grid">
-      <article class="plan-card">
-        <div class="plan-top"><div class="plan-name">Free</div><span class="plan-badge">기본</span></div>
-        <div class="plan-price">무료 <small>/ 기본 제공</small></div>
-        <div class="plan-copy">일상 질문과 기본 분석을 가볍게 시작하는 무료 플랜입니다.</div>
-        <a class="plan-cta" href="/">바로 시작</a>
-        <ul class="plan-list">
-          <li>기본 AI 대화</li>
-          <li>표준 우선순위</li>
-          <li>내 기기 연산 중심</li>
-          <li>기본 요청 제한</li>
-        </ul>
-        <div class="plan-foot">무료 플랜은 기본 대화와 내 기기 연산을 중심으로 사용합니다.</div>
-      </article>
-      <article class="plan-card">
-        <div class="plan-top"><div class="plan-name">Basic</div><span class="plan-badge">첫 업그레이드</span></div>
-        <div class="plan-price">1시간 기여 <small>/ 1일 혜택</small></div>
-        <div class="plan-copy">응답 속도를 높이고, 기여 앱을 통한 분산 보조 연산을 처음 열 수 있는 단계입니다.</div>
-        <a class="plan-cta" href="/">Basic 선택</a>
-        <ul class="plan-list">
-          <li>Free보다 빠른 우선순위</li>
-          <li>응답 길이 제한 완화</li>
-          <li>기여 구독 시작 가능</li>
-          <li>내 기기 + 보조 연산 모드</li>
-        </ul>
-        <div class="plan-foot">Basic부터 기여 앱 설치와 동기화가 끝나면 예약 단계로 이어집니다.</div>
-      </article>
-      <article class="plan-card recommended">
-        <div class="plan-top"><div class="plan-name">Plus</div><span class="plan-badge">권장</span></div>
-        <div class="plan-price">5시간 기여 <small>/ 7일 혜택</small></div>
-        <div class="plan-copy">더 넓은 작업 범위와 더 안정적인 보조 연산 배정을 제공하는 메인 플랜입니다.</div>
-        <a class="plan-cta" href="/">Plus 선택</a>
-        <ul class="plan-list">
-          <li>상위 우선순위</li>
-          <li>최신 모델 접근 폭 확대</li>
-          <li>요청 제한 대폭 완화</li>
-          <li>기여 효율 가중치 상향</li>
-        </ul>
-        <div class="plan-foot">Plus는 더 빠른 응답과 더 넓은 사용 범위를 위한 중심 플랜입니다.</div>
-      </article>
-      <article class="plan-card">
-        <div class="plan-top"><div class="plan-name">Pro</div><span class="plan-badge">상위</span></div>
-        <div class="plan-price">장기 기여 <small>/ 장기 혜택</small></div>
-        <div class="plan-copy">가장 높은 우선순위와 가장 넓은 작업 범위를 위한 상위 플랜입니다.</div>
-        <a class="plan-cta" href="/">Pro 선택</a>
-        <ul class="plan-list">
-          <li>최상위 우선순위</li>
-          <li>고급 기능 우선 접근</li>
-          <li>대규모 요청 범위</li>
-          <li>장기 기여 예약 운영</li>
-        </ul>
-        <div class="plan-foot">Pro는 응답 여유와 가용 범위를 가장 크게 확보하는 플랜입니다.</div>
-      </article>
-    </section>
-
-    <section class="step-row">
-      <article class="step-card"><span class="step-chip">1</span><strong>플랜 선택</strong><p>요금 페이지에서는 구독제 종류와 혜택만 또렷하게 비교합니다.</p></article>
-      <article class="step-card"><span class="step-chip">2</span><strong>기여 앱 설치</strong><p>유료 플랜을 선택한 뒤에만 기여 앱 설치 단계로 넘어갑니다.</p></article>
-      <article class="step-card"><span class="step-chip">3</span><strong>연동 확인</strong><p>앱과 사이트가 같은 계정으로 연결돼야 예약이 열립니다.</p></article>
-      <article class="step-card"><span class="step-chip">4</span><strong>성능 판정</strong><p>CPU, GPU, 메모리, 저장 공간을 기준으로 기여 효율을 계산합니다.</p></article>
-      <article class="step-card"><span class="step-chip">5</span><strong>기여 예약</strong><p>상태 화면에서 시간을 예약하면 프리미엄 상태가 자동으로 반영됩니다.</p></article>
-    </section>
-
-    <section class="policy-links">
-      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/terms/">이용약관</a>
-      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/privacy/">개인정보 처리방침</a>
-      <a class="policy-link" href="/ko-KR/index/purple-bee/legal/resource-use/">컴퓨터 자원 사용 동의</a>
-    </section>
-  </main>
-  <footer class="wrap">
-    <span>© 2026 Purple Bee</span>
-    <span>구독제 비교와 기여 구독 관리는 단계별로 분리해 제공합니다.</span>
-  </footer>
+<header><div class="wrap nav"><a class="brand" href="{{ base_prefix }}/"><span class="dot"></span><span>Purple Bee</span></a><nav class="menu"><a href="{{ base_prefix }}/">{{ nav.home }}</a><a href="{{ base_prefix }}/features/">{{ nav.features }}</a><a href="{{ base_prefix }}/safety/">{{ nav.safety }}</a><a href="{{ base_prefix }}/architecture/">{{ nav.architecture }}</a><a class="active" href="{{ base_prefix }}/pricing/">{{ nav.pricing }}</a></nav><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><div class="locale">{% for item in locale_links %}<a class="{{ 'active' if item.locale == site_locale else '' }}" href="{{ item.href }}">{{ item.label }}</a>{% endfor %}</div><a class="cta" href="/">{{ nav.open_chat }}</a></div></div></header>
+<main class="wrap">
+<section class="hero"><span class="eyebrow">Pricing</span><h1>Free부터 Pro까지, 필요한 범위만 명확하게 고를 수 있습니다.</h1><p>Purple Bee의 요금 화면은 월간 플랜 비교에만 집중합니다. 어떤 플랜을 선택할지 먼저 정하고, 실제 기여 앱 설치와 연동은 제품 안에서 이어집니다.</p><div class="hero-badges"><span>기본 플랜 무료 제공</span><span>월간 유지 조건 안내</span><span>플랜 비교 전용 화면</span></div></section>
+<section class="grid">{% for plan in page.plans %}<article class="card {{ 'reco' if plan.recommended else '' }}"><div class="top"><div class="name">{{ plan.name }}</div><span class="badge">{{ plan.badge }}</span></div><div class="price">{{ plan.price }}{% if plan.meta %}<small>/ {{ plan.meta }}</small>{% endif %}</div><div class="copy">{{ plan.description }}</div><a class="cta-btn" href="/">{{ plan.cta_label }}</a><ul class="list">{% for feature in plan.features %}<li>{{ feature }}</li>{% endfor %}</ul><div class="foot">{{ plan.footnote }}</div></article>{% endfor %}</section>
+<section class="policy"><a href="{{ base_prefix }}/legal/terms/">{{ policy_labels.terms }}</a><a href="{{ base_prefix }}/legal/privacy/">{{ policy_labels.privacy }}</a><a href="{{ base_prefix }}/legal/resource-use/">{{ policy_labels.resource_use }}</a></section>
+</main>
+<footer class="wrap"><span>© 2026 Purple Bee</span><span>{{ footer_copy }}</span></footer>
 </body>
 </html>

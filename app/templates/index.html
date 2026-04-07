@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -76,12 +76,12 @@
   .contributor-card-device-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
   .contributor-card-device-value{
     margin-top:6px;font-size:12px;font-weight:700;color:var(--text);line-height:1.45;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;word-break:break-word
   }
   .contributor-card-tail{
     display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px
   }
-  .contributor-card-hint{font-size:11px;color:var(--text-3);line-height:1.55;max-width:170px}
+  .contributor-card-hint{font-size:11px;color:var(--text-3);line-height:1.55;max-width:170px;overflow-wrap:anywhere}
   .contributor-card-arrow{
     width:28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;
     background:rgba(139,92,246,.1);color:var(--accent-light);flex-shrink:0
@@ -91,7 +91,7 @@
   }
   .contributor-hub-backdrop.open{display:flex}
   .contributor-hub-dialog{
-    width:min(1180px,calc(100vw - 24px));height:min(88vh,920px);background:var(--card);border:1px solid var(--border);border-radius:24px;
+    width:min(1120px,calc(100vw - 24px));max-height:min(88vh,920px);background:var(--card);border:1px solid var(--border);border-radius:24px;
     box-shadow:0 24px 80px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden
   }
   .contributor-hub-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}
@@ -100,8 +100,64 @@
   .contributor-hub-close{
     width:40px;height:40px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0
   }
-  .contributor-hub-frame{flex:1;width:100%;border:none;background:#fff}
+  .contributor-hub-body{flex:1;overflow:auto;padding:18px 20px 20px;background:var(--bg)}
   .contributor-hub-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text-2)}
+  .contributor-hub-section{display:none}
+  .contributor-hub-section.active{display:block}
+  .contributor-plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .contributor-plan-card,.contributor-status-card{
+    background:var(--card);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 48px rgba(0,0,0,.12)
+  }
+  .contributor-plan-card{padding:22px;display:flex;flex-direction:column;min-height:470px}
+  .contributor-plan-card.active{border-color:rgba(139,92,246,.5);box-shadow:0 20px 54px rgba(139,92,246,.16)}
+  .contributor-plan-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .contributor-plan-name{font-size:26px;font-weight:900;letter-spacing:-.04em}
+  .contributor-plan-badge{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(139,92,246,.1);color:var(--accent-light);font-size:11px;font-weight:800}
+  .contributor-plan-price{margin-top:16px;font-size:40px;font-weight:900;letter-spacing:-.06em}
+  .contributor-plan-price small{font-size:13px;color:var(--text-2);font-weight:700}
+  .contributor-plan-copy{margin-top:12px;font-size:14px;line-height:1.7;color:var(--text-2);min-height:74px}
+  .contributor-plan-list{margin-top:16px;padding-left:18px;display:grid;gap:8px;font-size:13px;line-height:1.6;color:var(--text-2)}
+  .contributor-plan-btn{
+    margin-top:18px;display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:46px;padding:12px 16px;border-radius:999px;
+    border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-weight:800;cursor:pointer
+  }
+  .contributor-plan-card.active .contributor-plan-btn{background:linear-gradient(135deg,var(--accent),#a855f7);border:none;color:#fff}
+  .contributor-plan-foot{margin-top:auto;padding-top:18px;font-size:12px;line-height:1.6;color:var(--text-3)}
+  .contributor-status-shell{display:grid;grid-template-columns:1.08fr .92fr;gap:16px}
+  .contributor-status-card{padding:22px}
+  .contributor-status-title{font-size:28px;font-weight:900;letter-spacing:-.05em}
+  .contributor-status-copy{margin-top:10px;font-size:14px;line-height:1.7;color:var(--text-2)}
+  .contributor-status-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}
+  .contributor-status-step{padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
+  .contributor-status-step-chip{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:rgba(139,92,246,.1);color:var(--accent-light);font-size:12px;font-weight:900}
+  .contributor-status-step strong{display:block;margin-top:10px;font-size:14px}
+  .contributor-status-step p{margin-top:6px;font-size:12px;line-height:1.55;color:var(--text-2)}
+  .contributor-status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}
+  .contributor-status-stat{padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
+  .contributor-status-stat-label{font-size:11px;font-weight:800;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
+  .contributor-status-stat-value{margin-top:8px;font-size:20px;font-weight:900;letter-spacing:-.03em}
+  .contributor-status-stat-copy{margin-top:6px;font-size:12px;line-height:1.55;color:var(--text-2)}
+  .contributor-status-detail{margin-top:18px;display:grid;gap:10px}
+  .contributor-status-detail-item{padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
+  .contributor-status-detail-item strong{display:block;font-size:13px;font-weight:800}
+  .contributor-status-detail-item p{margin-top:6px;font-size:12px;line-height:1.6;color:var(--text-2)}
+  .contributor-status-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+  .contributor-status-field{display:flex;flex-direction:column;gap:8px}
+  .contributor-status-field.full{grid-column:1/-1}
+  .contributor-status-field label{font-size:11px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em}
+  .contributor-status-field input,.contributor-status-field select{
+    width:100%;min-height:46px;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px
+  }
+  .contributor-status-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .contributor-status-btn{
+    display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text);font-size:14px;font-weight:800;cursor:pointer
+  }
+  .contributor-status-btn.primary{background:linear-gradient(135deg,var(--accent),#a855f7);border:none;color:#fff}
+  .contributor-status-btn:disabled{opacity:.55;cursor:not-allowed}
+  .contributor-status-banner{margin-top:18px;padding:16px 18px;border-radius:18px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(59,130,246,.08));border:1px solid rgba(139,92,246,.14)}
+  .contributor-status-banner strong{display:block;font-size:14px}
+  .contributor-status-banner p{margin-top:6px;font-size:12px;line-height:1.6;color:var(--text-2)}
   .sidebar-section-label{padding:16px 18px 6px;font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0}
   #chat-history-list{flex:1;overflow-y:auto;padding:0 8px}
   .history-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background var(--transition),color var(--transition);display:flex;align-items:center;gap:8px}
@@ -424,7 +480,9 @@
     .pbx-assets-mini-grid,.pbx-assets-list,.pbx-assets-model-picker{grid-template-columns:1fr}
     .pbx-assets-actions{justify-content:stretch}
     .pbx-assets-btn{width:100%}
-    .contributor-hub-dialog{width:min(100vw - 16px,1180px);height:min(92vh,920px);border-radius:20px}
+    .contributor-hub-dialog{width:min(100vw - 16px,1120px);max-height:min(92vh,920px);border-radius:20px}
+    .contributor-plan-grid,.contributor-status-shell,.contributor-status-grid,.contributor-status-steps,.contributor-status-fields{grid-template-columns:1fr}
+    .contributor-hub-body{padding:16px}
   }
 </style>
 </head>
@@ -460,14 +518,14 @@
     </svg>
     <div>
       <div class="logo-text">Purple Bee</div>
-      <div class="logo-sub" id="logo-subtitle">온디바이스 런타임</div>
+      <div class="logo-sub" id="logo-subtitle">온디바이스 준비 및 기여 구독</div>
     </div>
   </div>
 
   <a class="upgrade-plan-btn" id="upgrade-plan-btn" href="/index/purple-bee/pricing/" onclick="openUpgradePage(event)">
     <div class="upgrade-plan-copy">
-      <span class="upgrade-plan-title" id="upgrade-plan-title">⚡ Upgrade</span>
-      <span class="upgrade-plan-sub" id="upgrade-plan-sub">Open plans and contributor benefits</span>
+      <span class="upgrade-plan-title" id="upgrade-plan-title">⚡ 플랜 업그레이드</span>
+      <span class="upgrade-plan-sub" id="upgrade-plan-sub">월간 플랜과 유지 조건을 비교해 보세요.</span>
     </div>
     <i class="ph ph-arrow-up-right" style="font-size:16px;color:var(--accent-light)"></i>
   </a>
@@ -475,36 +533,36 @@
   <section class="contributor-card" id="contributor-card" onclick="openContributorHub('status')">
     <div class="contributor-card-head">
       <div>
-        <div class="contributor-card-title" id="contributor-card-title">Contributor subscription</div>
-        <div class="contributor-card-sub" id="contributor-card-sub">Connect a plan and reserve contribution time.</div>
+        <div class="contributor-card-title" id="contributor-card-title">✨ 기여 구독 상태</div>
+        <div class="contributor-card-sub" id="contributor-card-sub">연결 기기와 다음 기여 예약만 간단히 보여줍니다.</div>
       </div>
       <span class="contributor-card-pill" id="contributor-card-pill">Free</span>
     </div>
     <div class="contributor-card-grid">
       <div class="contributor-card-stat">
-        <div class="contributor-card-stat-label" id="contributor-stat-plan-label">Plan</div>
+        <div class="contributor-card-stat-label" id="contributor-stat-plan-label">플랜</div>
         <div class="contributor-card-stat-value" id="contributor-plan-value">Free</div>
       </div>
       <div class="contributor-card-stat">
-        <div class="contributor-card-stat-label" id="contributor-stat-premium-label">Premium</div>
-        <div class="contributor-card-stat-value" id="contributor-premium-value">Inactive</div>
+        <div class="contributor-card-stat-label" id="contributor-stat-premium-label">프리미엄</div>
+        <div class="contributor-card-stat-value" id="contributor-premium-value">비활성</div>
       </div>
       <div class="contributor-card-stat">
-        <div class="contributor-card-stat-label" id="contributor-stat-queue-label">Queue</div>
-        <div class="contributor-card-stat-value" id="contributor-queue-value">Standard</div>
+        <div class="contributor-card-stat-label" id="contributor-stat-queue-label">큐</div>
+        <div class="contributor-card-stat-value" id="contributor-queue-value">기본</div>
       </div>
       <div class="contributor-card-stat">
-        <div class="contributor-card-stat-label" id="contributor-stat-next-label">Next window</div>
-        <div class="contributor-card-stat-value" id="contributor-next-value">None</div>
+        <div class="contributor-card-stat-label" id="contributor-stat-next-label">다음 기여</div>
+        <div class="contributor-card-stat-value" id="contributor-next-value">없음</div>
       </div>
     </div>
-    <div class="contributor-card-note" id="contributor-card-note">Reserve contribution time to unlock higher plans and priority routing.</div>
+    <div class="contributor-card-note" id="contributor-card-note">기여 앱 설치와 연동이 완료된 뒤 구독 예약을 진행할 수 있습니다.</div>
     <div class="contributor-card-device">
-      <div class="contributor-card-device-label" id="contributor-device-label">Linked device</div>
-      <div class="contributor-card-device-value" id="contributor-device-value">No device linked yet.</div>
+      <div class="contributor-card-device-label" id="contributor-device-label">연결된 기기</div>
+      <div class="contributor-card-device-value" id="contributor-device-value">아직 연결된 기기가 없습니다.</div>
     </div>
     <div class="contributor-card-tail">
-      <div class="contributor-card-hint" id="contributor-card-hint">카드를 누르면 기기 연결과 예약 상태를 볼 수 있어요.</div>
+      <div class="contributor-card-hint" id="contributor-card-hint">눌러서 기여 앱 설치, 연동, 예약을 이어서 진행하세요.</div>
       <div class="contributor-card-arrow">
         <i class="ph ph-arrow-right" style="font-size:15px"></i>
       </div>
@@ -513,56 +571,56 @@
 
   <button class="new-chat-btn" onclick="newChat()">
     <i class="ph ph-plus-circle" style="font-size:16px"></i>
-    <span id="new-chat-label">새 대화 시작</span>
+    <span id="new-chat-label">??????쒖옉</span>
   </button>
 
-  <div class="sidebar-section-label" id="history-section-label">최근 대화</div>
+  <div class="sidebar-section-label" id="history-section-label">理쒓렐 ???/div>
   <div id="chat-history-list"></div>
   <div style="height:16px;flex-shrink:0"></div>
 </aside>
 
 <main id="main">
   <header id="topbar">
-    <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="사이드바">
+    <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="?ъ씠?쒕컮">
       <i class="ph ph-sidebar-simple" style="font-size:20px"></i>
     </button>
-    <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="모델 목록">
+    <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="紐⑤뜽 紐⑸줉">
       <span class="model-dot" id="engine-dot"></span>
       <span id="engine-label">Purple Bee 1.3</span>
     </div>
     <div class="topbar-right">
-      <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 준비물 폴더 연결" id="ai-assets-btn">
+      <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 以鍮꾨Ъ ?대뜑 ?곌껐" id="ai-assets-btn">
         <i class="ph ph-hard-drives" style="font-size:18px"></i>
-        <span id="ai-assets-label">AI 준비물</span>
+        <span id="ai-assets-label">AI 以鍮꾨Ъ</span>
       </button>
-      <button class="topbar-btn" onclick="openFilePicker()" title="파일, 문서, 스크린샷 첨부" id="attach-topbar-btn">
+      <button class="topbar-btn" onclick="openFilePicker()" title="?뚯씪, 臾몄꽌, ?ㅽ겕由곗꺑 泥⑤?" id="attach-topbar-btn">
         <i class="ph ph-paperclip" style="font-size:18px"></i>
-        <span id="attach-topbar-label">자료 첨부</span>
+        <span id="attach-topbar-label">?먮즺 泥⑤?</span>
       </button>
-      <button class="topbar-btn" type="button" onclick="loginWithGoogle()" title="Google 로그인" id="google-login-btn">
+      <button class="topbar-btn" type="button" onclick="loginWithGoogle()" title="Google 濡쒓렇?? id="google-login-btn">
         <i class="ph ph-google-logo" style="font-size:18px"></i>
-        <span id="google-login-label">Google 로그인</span>
+        <span id="google-login-label">Google 濡쒓렇??/span>
       </button>
       <div class="profile-wrap">
-        <button class="topbar-btn icon-only" type="button" onclick="toggleProfileMenu(event)" title="계정 메뉴" id="profile-menu-btn">
+        <button class="topbar-btn icon-only" type="button" onclick="toggleProfileMenu(event)" title="怨꾩젙 硫붾돱" id="profile-menu-btn">
           <i class="ph ph-gear-six" style="font-size:18px"></i>
         </button>
         <div class="profile-menu" id="profile-menu">
           <div class="profile-head">
-            <div id="profile-head-title">로그인 필요</div>
-            <div class="profile-email" id="profile-email">Google 계정을 연결하면 대화와 메모리를 사용자별로 유지합니다.</div>
+            <div id="profile-head-title">濡쒓렇???꾩슂</div>
+            <div class="profile-email" id="profile-email">Google 怨꾩젙???곌껐?섎㈃ ??붿? 硫붾え由щ? ?ъ슜?먮퀎濡??좎??⑸땲??</div>
           </div>
           <button class="profile-item" type="button" onclick="openSettings()">
-            <span><i class="ph ph-gear-six"></i> 설정</span>
+            <span><i class="ph ph-gear-six"></i> ?ㅼ젙</span>
             <i class="ph ph-caret-right"></i>
           </button>
           <button class="profile-item" type="button" onclick="openLanguageFromMenu()">
-            <span><i class="ph ph-globe"></i> 언어</span>
+            <span><i class="ph ph-globe"></i> ?몄뼱</span>
             <i class="ph ph-caret-right"></i>
           </button>
           <div class="profile-sep"></div>
           <button class="profile-item profile-item-danger" id="profile-logout-btn" type="button" onclick="logoutUser()">
-            <span><i class="ph ph-sign-out"></i> 로그아웃</span>
+            <span><i class="ph ph-sign-out"></i> 濡쒓렇?꾩썐</span>
           </button>
         </div>
       </div>
@@ -593,27 +651,27 @@
         </svg>
       </div>
       <div class="home-title">Purple Bee</div>
-      <div class="home-subtitle" id="home-subtitle">오늘은 어떤 이야기를 같이 풀어볼까요?</div>
+      <div class="home-subtitle" id="home-subtitle">?ㅻ뒛? ?대뼡 ?댁빞湲곕? 媛숈씠 ??대낵源뚯슂?</div>
       <div class="home-cards">
         <div class="home-card" onclick="quickAction('summarize-doc')">
-          <div class="home-card-icon">📄</div>
-          <div class="home-card-title" id="home-card-1-title">문서 요약</div>
-          <div class="home-card-desc" id="home-card-1-desc">PDF, 텍스트, 코드 파일을 읽고 핵심만 정리</div>
+          <div class="home-card-icon">?뱞</div>
+          <div class="home-card-title" id="home-card-1-title">臾몄꽌 ?붿빟</div>
+          <div class="home-card-desc" id="home-card-1-desc">PDF, ?띿뒪?? 肄붾뱶 ?뚯씪???쎄퀬 ?듭떖留??뺣━</div>
         </div>
         <div class="home-card" onclick="quickAction('solve-issue')">
-          <div class="home-card-icon">🛠️</div>
-          <div class="home-card-title" id="home-card-2-title">문제 해결</div>
-          <div class="home-card-desc" id="home-card-2-desc">에러 로그, 설정 파일, 코드 조각을 함께 분석</div>
+          <div class="home-card-icon">?썱截?/div>
+          <div class="home-card-title" id="home-card-2-title">臾몄젣 ?닿껐</div>
+          <div class="home-card-desc" id="home-card-2-desc">?먮윭 濡쒓렇, ?ㅼ젙 ?뚯씪, 肄붾뱶 議곌컖???④퍡 遺꾩꽍</div>
         </div>
         <div class="home-card" onclick="quickAction('review-screenshot')">
-          <div class="home-card-icon">🖼️</div>
-          <div class="home-card-title" id="home-card-3-title">화면 캡처 점검</div>
-          <div class="home-card-desc" id="home-card-3-desc">스크린샷과 설명을 함께 보내고 흐름을 점검</div>
+          <div class="home-card-icon">?뼹截?/div>
+          <div class="home-card-title" id="home-card-3-title">?붾㈃ 罹≪쿂 ?먭?</div>
+          <div class="home-card-desc" id="home-card-3-desc">?ㅽ겕由곗꺑怨??ㅻ챸???④퍡 蹂대궡怨??먮쫫???먭?</div>
         </div>
         <div class="home-card" onclick="quickAction('continue-context')">
-          <div class="home-card-icon">🧭</div>
-          <div class="home-card-title" id="home-card-4-title">대화 이어서</div>
-          <div class="home-card-desc" id="home-card-4-desc">이 웹사이트 세션에 저장된 최근 대화를 이어서 진행</div>
+          <div class="home-card-icon">?㎛</div>
+          <div class="home-card-title" id="home-card-4-title">????댁뼱??/div>
+          <div class="home-card-desc" id="home-card-4-desc">???뱀궗?댄듃 ?몄뀡????λ맂 理쒓렐 ??붾? ?댁뼱??吏꾪뻾</div>
         </div>
       </div>
     </div>
@@ -623,12 +681,12 @@
   <div id="compose-area">
     <div id="compose-box">
       <div id="attachment-strip" class="attachment-strip"></div>
-      <textarea id="input-field" placeholder="질문을 입력하고 파일, 문서, 스크린샷을 함께 보내 보세요. (Enter 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
+      <textarea id="input-field" placeholder="吏덈Ц???낅젰?섍퀬 ?뚯씪, 臾몄꽌, ?ㅽ겕由곗꺑???④퍡 蹂대궡 蹂댁꽭?? (Enter ?꾩넚, Shift+Enter 以꾨컮轅?" rows="1"></textarea>
       <input type="file" id="file-input" hidden multiple accept="image/*,.txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.py,.java,.cpp,.c,.cs,.html,.css,.xml,.yml,.yaml,.ini,.log,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
       <div class="compose-footer">
         <div class="compose-left">
           <div style="position:relative">
-            <button class="compose-btn" id="attach-btn" onclick="toggleAttachMenu(event)" title="첨부 메뉴">
+            <button class="compose-btn" id="attach-btn" onclick="toggleAttachMenu(event)" title="泥⑤? 硫붾돱">
               <i class="ph ph-plus-circle" style="font-size:20px"></i>
             </button>
             <div class="attach-menu" id="attach-menu">
@@ -637,8 +695,8 @@
                   <i class="ph ph-file-arrow-up" style="color:var(--blue)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">파일/문서 첨부</div>
-                  <div style="font-size:10px;color:var(--text-3)">텍스트, 코드, PDF, 이미지 파일 추가</div>
+                  <div style="font-size:13px;color:var(--text)">?뚯씪/臾몄꽌 泥⑤?</div>
+                  <div style="font-size:10px;color:var(--text-3)">?띿뒪?? 肄붾뱶, PDF, ?대?吏 ?뚯씪 異붽?</div>
                 </span>
               </button>
               <div class="attach-menu-sep"></div>
@@ -647,8 +705,8 @@
                   <i class="ph ph-image" style="color:var(--green)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">스크린샷 붙여넣기</div>
-                  <div style="font-size:10px;color:var(--text-3)">클립보드 이미지나 Ctrl+V로 화면 캡처 추가</div>
+                  <div style="font-size:13px;color:var(--text)">?ㅽ겕由곗꺑 遺숈뿬?ｊ린</div>
+                  <div style="font-size:10px;color:var(--text-3)">?대┰蹂대뱶 ?대?吏??Ctrl+V濡??붾㈃ 罹≪쿂 異붽?</div>
                 </span>
               </button>
               <div class="attach-menu-sep"></div>
@@ -657,8 +715,8 @@
                   <i class="ph ph-trash" style="color:var(--red)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">첨부 비우기</div>
-                  <div style="font-size:10px;color:var(--text-3)">현재 입력창에 올린 자료를 모두 제거</div>
+                  <div style="font-size:13px;color:var(--text)">泥⑤? 鍮꾩슦湲?/div>
+                  <div style="font-size:10px;color:var(--text-3)">?꾩옱 ?낅젰李쎌뿉 ?щ┛ ?먮즺瑜?紐⑤몢 ?쒓굅</div>
                 </span>
               </button>
             </div>
@@ -666,14 +724,14 @@
 
         <div class="local-mode-badge">
           <i class="ph ph-cpu" style="font-size:12px"></i>
-          <span id="local-badge-label">내 기기 연산</span>
+          <span id="local-badge-label">??湲곌린 ?곗궛</span>
         </div>
         </div>
 
         <span class="char-count" id="char-count">0 / 2000</span>
 
         <div style="position:relative">
-          <button class="compose-btn" id="model-opt-btn" onclick="toggleModelMenu(event)" title="엔진 옵션">
+          <button class="compose-btn" id="model-opt-btn" onclick="toggleModelMenu(event)" title="?붿쭊 ?듭뀡">
             <i class="ph ph-sliders-horizontal" style="font-size:18px"></i>
           </button>
           <div class="model-menu" id="model-menu">
@@ -684,7 +742,7 @@
               </span>
               <span>
                 <div id="current-model-name">Purple Bee 1.3</div>
-                <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">현재 접속한 기기에서 직접 계산하는 엔진</div>
+                <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">?꾩옱 ?묒냽??湲곌린?먯꽌 吏곸젒 怨꾩궛?섎뒗 ?붿쭊</div>
               </span>
             </button>
             <div class="attach-menu-sep" id="model-version-sep-top"></div>
@@ -692,8 +750,8 @@
             <div class="attach-menu-sep" id="model-version-sep-bottom"></div>
             <div class="think-row">
               <div>
-                <div class="think-label" id="deep-think-label">정밀 분석</div>
-                <div class="think-sub" id="deep-think-subtitle">첨부 자료와 최근 대화를 더 길게 검토</div>
+                <div class="think-label" id="deep-think-label">?뺣? 遺꾩꽍</div>
+                <div class="think-sub" id="deep-think-subtitle">泥⑤? ?먮즺? 理쒓렐 ??붾? ??湲멸쾶 寃??/div>
               </div>
               <label class="toggle-sm">
                 <input type="checkbox" id="deep-think-toggle" onchange="toggleDeepThink(this)">
@@ -704,14 +762,14 @@
           </div>
         </div>
 
-        <button id="send-btn" onclick="sendMessage()" title="전송 (Enter)">
+        <button id="send-btn" onclick="sendMessage()" title="?꾩넚 (Enter)">
           <i class="ph ph-paper-plane-right" style="font-size:16px"></i>
         </button>
       </div>
       <div class="local-status-line" id="local-status" style="display:none"></div>
     </div>
     <div style="text-align:center;font-size:10px;color:var(--text-3);margin-top:8px">
-      <span id="footer-note">Purple Bee는 실수를 할 수 있습니다. 잘못된 정보는 해당 답변에 신고를 해주세요.</span>
+      <span id="footer-note">Purple Bee???ㅼ닔瑜??????덉뒿?덈떎. ?섎せ???뺣낫???대떦 ?듬????좉퀬瑜??댁＜?몄슂.</span>
     </div>
   </div>
 </main>
@@ -720,8 +778,8 @@
   <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
     <div class="settings-header">
       <div>
-        <div class="settings-title" id="settings-title">설정</div>
-        <div class="settings-subtitle" id="settings-subtitle">Purple Bee의 UI 언어, 답변 톤, 저장 방식을 이 웹사이트 세션 기준으로 조정합니다.</div>
+        <div class="settings-title" id="settings-title">?ㅼ젙</div>
+        <div class="settings-subtitle" id="settings-subtitle">Purple Bee??UI ?몄뼱, ?듬? ?? ???諛⑹떇?????뱀궗?댄듃 ?몄뀡 湲곗??쇰줈 議곗젙?⑸땲??</div>
       </div>
       <button class="settings-close" type="button" onclick="closeSettings()">
         <i class="ph ph-x" style="font-size:18px"></i>
@@ -729,69 +787,69 @@
     </div>
     <div class="settings-body">
       <div class="settings-card">
-        <h3 id="settings-ui-title">UI와 표시</h3>
-        <p id="settings-ui-desc">버튼, 안내 문구, 홈 카드 같은 인터페이스 언어와 표시 방식을 조절합니다.</p>
+        <h3 id="settings-ui-title">UI? ?쒖떆</h3>
+        <p id="settings-ui-desc">踰꾪듉, ?덈궡 臾멸뎄, ??移대뱶 媛숈? ?명꽣?섏씠???몄뼱? ?쒖떆 諛⑹떇??議곗젅?⑸땲??</p>
         <label class="settings-field">
-          <span class="settings-label" id="settings-ui-language-label">UI 언어</span>
+          <span class="settings-label" id="settings-ui-language-label">UI ?몄뼱</span>
           <select class="settings-select" id="ui-language-select">
-            <option value="auto">자동</option>
-            <option value="ko">한국어</option>
+            <option value="auto">?먮룞</option>
+            <option value="ko">?쒓뎅??/option>
             <option value="en">English</option>
-            <option value="ja">日本語</option>
+            <option value="ja">?ζ쑍沃?/option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-theme-label">테마</span>
+          <span class="settings-label" id="settings-theme-label">?뚮쭏</span>
           <select class="settings-select" id="theme-select">
-            <option value="dark">다크</option>
-            <option value="light">라이트</option>
+            <option value="dark">?ㅽ겕</option>
+            <option value="light">?쇱씠??/option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-typing-label">응답 애니메이션</span>
+          <span class="settings-label" id="settings-typing-label">?묐떟 ?좊땲硫붿씠??/span>
           <select class="settings-select" id="typing-speed-select">
-            <option value="normal">보통</option>
-            <option value="fast">빠르게</option>
-            <option value="instant">즉시 표시</option>
+            <option value="normal">蹂댄넻</option>
+            <option value="fast">鍮좊Ⅴ寃?/option>
+            <option value="instant">利됱떆 ?쒖떆</option>
           </select>
         </label>
       </div>
 
       <div class="settings-card">
-        <h3 id="settings-reply-title">답변 스타일</h3>
-        <p id="settings-reply-desc">질문 언어를 따라가거나, 더 구조적인 형식과 더 일상적인 어투를 고를 수 있습니다.</p>
+        <h3 id="settings-reply-title">?듬? ?ㅽ???/h3>
+        <p id="settings-reply-desc">吏덈Ц ?몄뼱瑜??곕씪媛嫄곕굹, ??援ъ“?곸씤 ?뺤떇怨????쇱긽?곸씤 ?댄닾瑜?怨좊? ???덉뒿?덈떎.</p>
         <label class="settings-field">
-          <span class="settings-label" id="settings-reply-language-label">답변 언어</span>
+          <span class="settings-label" id="settings-reply-language-label">?듬? ?몄뼱</span>
           <select class="settings-select" id="reply-language-select">
-            <option value="auto">질문 언어 따라가기</option>
-            <option value="ko">한국어</option>
+            <option value="auto">吏덈Ц ?몄뼱 ?곕씪媛湲?/option>
+            <option value="ko">?쒓뎅??/option>
             <option value="en">English</option>
-            <option value="ja">日本語</option>
-            <option value="zh">中文</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
+            <option value="ja">?ζ쑍沃?/option>
+            <option value="zh">訝?뻼</option>
+            <option value="es">Espa챰ol</option>
+            <option value="fr">Fran챌ais</option>
             <option value="de">Deutsch</option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-style-label">답변 톤</span>
+          <span class="settings-label" id="settings-style-label">?듬? ??/span>
           <select class="settings-select" id="reply-style-select">
-            <option value="adaptive">자동 조절</option>
-            <option value="balanced">균형형</option>
-            <option value="structured">구조형</option>
-            <option value="casual">대화형</option>
-            <option value="coach">코치형</option>
+            <option value="adaptive">?먮룞 議곗젅</option>
+            <option value="balanced">洹좏삎??/option>
+            <option value="structured">援ъ“??/option>
+            <option value="casual">??뷀삎</option>
+            <option value="coach">肄붿튂??/option>
           </select>
         </label>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-memory-title">저장과 프라이버시</h3>
-        <p id="settings-memory-desc">최근 대화와 사용자 설정은 기본적으로 이 웹사이트 세션에 저장됩니다.</p>
+        <h3 id="settings-memory-title">??κ낵 ?꾨씪?대쾭??/h3>
+        <p id="settings-memory-desc">理쒓렐 ??붿? ?ъ슜???ㅼ젙? 湲곕낯?곸쑝濡????뱀궗?댄듃 ?몄뀡????λ맗?덈떎.</p>
         <div class="settings-row">
           <div>
-            <div class="think-label" id="remember-chat-label">최근 대화 저장</div>
-            <div class="think-sub" id="remember-chat-subtitle">새로고침 후에도 최근 대화를 다시 불러옵니다.</div>
+            <div class="think-label" id="remember-chat-label">理쒓렐 ??????/div>
+            <div class="think-sub" id="remember-chat-subtitle">?덈줈怨좎묠 ?꾩뿉??理쒓렐 ??붾? ?ㅼ떆 遺덈윭?듬땲??</div>
           </div>
           <label class="toggle-sm">
             <input type="checkbox" id="remember-chat-toggle" checked onchange="toggleRememberChats(this)">
@@ -799,39 +857,39 @@
             <div class="thumb"></div>
           </label>
         </div>
-        <div class="settings-help" id="privacy-help">대화 저장을 끄면 새 메시지부터 기록하지 않으며, 원하면 아래 버튼으로 저장된 대화도 바로 지울 수 있습니다.</div>
+        <div class="settings-help" id="privacy-help">?????μ쓣 ?꾨㈃ ??硫붿떆吏遺??湲곕줉?섏? ?딆쑝硫? ?먰븯硫??꾨옒 踰꾪듉?쇰줈 ??λ맂 ??붾룄 諛붾줈 吏?????덉뒿?덈떎.</div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="clearStoredChats()" id="clear-chats-btn">이 웹사이트에 저장된 최근 대화 지우기</button>
+          <button class="settings-action" type="button" onclick="clearStoredChats()" id="clear-chats-btn">???뱀궗?댄듃????λ맂 理쒓렐 ???吏?곌린</button>
         </div>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-memory-bank-title">메모리</h3>
-        <p id="settings-memory-bank-desc">저장해줘/기억해줘 요청으로 기록된 사용자 메모리입니다. 필요할 때 답변 참고에 사용됩니다.</p>
+        <h3 id="settings-memory-bank-title">硫붾え由?/h3>
+        <p id="settings-memory-bank-desc">??ν빐以?湲곗뼲?댁쨾 ?붿껌?쇰줈 湲곕줉???ъ슜??硫붾え由ъ엯?덈떎. ?꾩슂?????듬? 李멸퀬???ъ슜?⑸땲??</p>
         <div class="memory-list" id="memory-list">
-          <div class="memory-empty">저장된 메모리가 아직 없습니다.</div>
+          <div class="memory-empty">??λ맂 硫붾え由ш? ?꾩쭅 ?놁뒿?덈떎.</div>
         </div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="clearAllMemories()" id="clear-memories-btn">저장된 메모리 전체 삭제</button>
+          <button class="settings-action" type="button" onclick="clearAllMemories()" id="clear-memories-btn">??λ맂 硫붾え由??꾩껜 ??젣</button>
         </div>
-        <div class="settings-help" id="memory-help">메모리 삭제는 확인 후 진행됩니다.</div>
+        <div class="settings-help" id="memory-help">硫붾え由???젣???뺤씤 ??吏꾪뻾?⑸땲??</div>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-language-support-title">언어 지원</h3>
-        <p id="settings-language-support-desc">Purple Bee는 질문에 섞여 있는 언어를 감지해 가능한 한 같은 언어로 답하려고 합니다. UI는 대표 언어 프리셋을 제공하고, 답변은 더 넓은 다국어 입력을 따라갑니다.</p>
+        <h3 id="settings-language-support-title">?몄뼱 吏??/h3>
+        <p id="settings-language-support-desc">Purple Bee??吏덈Ц???욎뿬 ?덈뒗 ?몄뼱瑜?媛먯???媛?ν븳 ??媛숈? ?몄뼱濡??듯븯?ㅺ퀬 ?⑸땲?? UI??????몄뼱 ?꾨━?뗭쓣 ?쒓났?섍퀬, ?듬?? ???볦? ?ㅺ뎅???낅젰???곕씪媛묐땲??</p>
         <div class="settings-chips">
           <span class="settings-chip">Korean</span>
           <span class="settings-chip">English</span>
-          <span class="settings-chip">日本語</span>
-          <span class="settings-chip">中文</span>
-          <span class="settings-chip">Español</span>
-          <span class="settings-chip">Français</span>
+          <span class="settings-chip">?ζ쑍沃?/span>
+          <span class="settings-chip">訝?뻼</span>
+          <span class="settings-chip">Espa챰ol</span>
+          <span class="settings-chip">Fran챌ais</span>
           <span class="settings-chip">Deutsch</span>
           <span class="settings-chip">Auto detect</span>
         </div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="logoutUser()" id="settings-logout-btn">로그아웃</button>
+          <button class="settings-action" type="button" onclick="logoutUser()" id="settings-logout-btn">濡쒓렇?꾩썐</button>
         </div>
       </div>
     </div>
@@ -841,64 +899,64 @@
 <div class="history-context-menu" id="history-context-menu">
   <button class="history-context-item" type="button" onclick="renameConversationFromMenu()">
     <i class="ph ph-pencil-simple"></i>
-    <span>채팅방 이름 편집</span>
+    <span>梨꾪똿諛??대쫫 ?몄쭛</span>
   </button>
   <button class="history-context-item" type="button" onclick="deleteConversationFromMenu()">
     <i class="ph ph-trash"></i>
-    <span>채팅방 삭제</span>
+    <span>梨꾪똿諛???젣</span>
   </button>
 </div>
 
 <div class="consent-backdrop" id="consent-backdrop">
   <section class="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-title">
     <div class="consent-head">
-      <div class="consent-title" id="consent-title">시작 전에 필수 동의를 확인해 주세요</div>
-      <div class="consent-subtitle">Purple Bee는 설치형 준비물과 기여 기반 구독 구조를 함께 다루기 때문에, 서비스 약관과 자원 사용 범위를 분리해서 먼저 안내합니다. 아래 세 항목은 모두 필수입니다.</div>
+      <div class="consent-title" id="consent-title">?쒖옉 ?꾩뿉 ?꾩닔 ?숈쓽瑜??뺤씤??二쇱꽭??/div>
+      <div class="consent-subtitle">Purple Bee???ㅼ튂??以鍮꾨Ъ怨?湲곗뿬 湲곕컲 援щ룆 援ъ“瑜??④퍡 ?ㅻ（湲??뚮Ц?? ?쒕퉬???쎄?怨??먯썝 ?ъ슜 踰붿쐞瑜?遺꾨━?댁꽌 癒쇱? ?덈궡?⑸땲?? ?꾨옒 ????ぉ? 紐⑤몢 ?꾩닔?낅땲??</div>
     </div>
     <div class="consent-body">
       <div class="consent-legal-grid">
         <div class="consent-legal-card">
-          <strong>어떤 자원을 쓰나요?</strong>
-          <span>CPU, GPU, RAM, 저장 공간, 네트워크의 일부를 상한 정책 안에서 사용합니다.</span>
+          <strong>?대뼡 ?먯썝???곕굹??</strong>
+          <span>CPU, GPU, RAM, ???怨듦컙, ?ㅽ듃?뚰겕???쇰?瑜??곹븳 ?뺤콉 ?덉뿉???ъ슜?⑸땲??</span>
         </div>
         <div class="consent-legal-card">
-          <strong>언제 쓰나요?</strong>
-          <span>준비물 설치 시와, 기여 구독을 켠 경우 예약된 시간 동안만 사용합니다.</span>
+          <strong>?몄젣 ?곕굹??</strong>
+          <span>以鍮꾨Ъ ?ㅼ튂 ?쒖?, 湲곗뿬 援щ룆??耳?寃쎌슦 ?덉빟???쒓컙 ?숈븞留??ъ슜?⑸땲??</span>
         </div>
         <div class="consent-legal-card">
-          <strong>언제 멈추나요?</strong>
-          <span>안전 기준을 벗어나거나 사용자가 다시 작업을 시작하면 자동으로 일시정지하거나 중단합니다.</span>
+          <strong>?몄젣 硫덉텛?섏슂?</strong>
+          <span>?덉쟾 湲곗???踰쀬뼱?섍굅???ъ슜?먭? ?ㅼ떆 ?묒뾽???쒖옉?섎㈃ ?먮룞?쇰줈 ?쇱떆?뺤??섍굅??以묐떒?⑸땲??</span>
         </div>
       </div>
       <div class="consent-checks">
         <label class="consent-check">
           <input type="checkbox" id="consent-terms" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[필수] 이용약관에 동의합니다</div>
-            <div class="consent-check-desc">서비스 범위, 책임 범위, 중단 조건을 설명하는 문서입니다.</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/terms/" target="_blank" rel="noopener">이용약관 보기</a></div>
+            <div class="consent-check-title">[?꾩닔] ?댁슜?쎄????숈쓽?⑸땲??/div>
+            <div class="consent-check-desc">?쒕퉬??踰붿쐞, 梨낆엫 踰붿쐞, 以묐떒 議곌굔???ㅻ챸?섎뒗 臾몄꽌?낅땲??</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/terms/" target="_blank" rel="noopener">?댁슜?쎄? 蹂닿린</a></div>
           </div>
         </label>
         <label class="consent-check">
           <input type="checkbox" id="consent-resource" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[필수] 컴퓨터 자원 사용에 동의합니다</div>
-            <div class="consent-check-desc">어떤 자원을, 언제, 어떤 상한으로 쓰는지와 자동 중단 조건을 따로 안내합니다.</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/resource-use/" target="_blank" rel="noopener">자원 사용 동의 보기</a></div>
+            <div class="consent-check-title">[?꾩닔] 而댄벂???먯썝 ?ъ슜???숈쓽?⑸땲??/div>
+            <div class="consent-check-desc">?대뼡 ?먯썝?? ?몄젣, ?대뼡 ?곹븳?쇰줈 ?곕뒗吏? ?먮룞 以묐떒 議곌굔???곕줈 ?덈궡?⑸땲??</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/resource-use/" target="_blank" rel="noopener">?먯썝 ?ъ슜 ?숈쓽 蹂닿린</a></div>
           </div>
         </label>
         <label class="consent-check">
           <input type="checkbox" id="consent-privacy" onchange="toggleRequiredConsent()">
           <div class="consent-check-main">
-            <div class="consent-check-title">[필수] 개인정보 처리방침에 동의합니다</div>
-            <div class="consent-check-desc">로그인, 세션, 메모리, 구독 상태를 어떻게 저장하고 다루는지 설명합니다.</div>
-            <div class="consent-check-links"><a href="/index/purple-bee/legal/privacy/" target="_blank" rel="noopener">개인정보 처리방침 보기</a></div>
+            <div class="consent-check-title">[?꾩닔] 媛쒖씤?뺣낫 泥섎━諛⑹묠???숈쓽?⑸땲??/div>
+            <div class="consent-check-desc">濡쒓렇?? ?몄뀡, 硫붾え由? 援щ룆 ?곹깭瑜??대뼸寃???ν븯怨??ㅻ（?붿? ?ㅻ챸?⑸땲??</div>
+            <div class="consent-check-links"><a href="/index/purple-bee/legal/privacy/" target="_blank" rel="noopener">媛쒖씤?뺣낫 泥섎━諛⑹묠 蹂닿린</a></div>
           </div>
         </label>
       </div>
       <div class="consent-actions">
-        <button type="button" class="consent-btn" onclick="openConsentDocs()">정책 문서 다시 보기</button>
-        <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>시작하기</button>
+        <button type="button" class="consent-btn" onclick="openConsentDocs()">?뺤콉 臾몄꽌 ?ㅼ떆 蹂닿린</button>
+        <button type="button" class="consent-btn primary" id="consent-submit-btn" onclick="submitRequiredConsent()" disabled>?쒖옉?섍린</button>
       </div>
     </div>
   </section>
@@ -909,16 +967,19 @@
     <div class="contributor-hub-head">
       <div>
         <div class="contributor-hub-title" id="contributor-hub-title">플랜 업그레이드</div>
-        <div class="contributor-hub-subtitle" id="contributor-hub-subtitle">Free, Basic, Plus, Pro와 기여 기반 업그레이드 상태를 이 화면 안에서 바로 확인하고 관리할 수 있어요.</div>
+        <div class="contributor-hub-subtitle" id="contributor-hub-subtitle">월간 플랜과 유지 조건만 비교합니다.</div>
       </div>
       <button class="contributor-hub-close" type="button" onclick="closeContributorHub()">
         <i class="ph ph-x" style="font-size:18px"></i>
       </button>
     </div>
-    <iframe class="contributor-hub-frame" id="contributor-hub-frame" title="Contributor hub"></iframe>
+    <div class="contributor-hub-body" id="contributor-hub-body">
+      <section class="contributor-hub-section" id="contributor-hub-section-plans"></section>
+      <section class="contributor-hub-section" id="contributor-hub-section-status"></section>
+    </div>
     <div class="contributor-hub-foot">
-      <span id="contributor-hub-foot-left">Free에서는 내 기기 연산만 사용하고, Basic 이상부터 분산 보조 연산 모드를 고를 수 있어요.</span>
-      <span id="contributor-hub-foot-right">정확한 기기 판정과 예약 기여 실행은 기여 앱에서 처리됩니다.</span>
+      <span id="contributor-hub-foot-left">기여 실행은 플랜 선택 뒤 별도 단계에서 이어집니다.</span>
+      <span id="contributor-hub-foot-right">상태는 자동으로 갱신됩니다.</span>
     </div>
   </section>
 </div>
@@ -927,6 +988,8 @@
 
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260407d"></script>
-</body>
+  <script src="/static/purple-bee-local.js?v=20260408a"></script>
+  <script src="/static/purple-bee-contributor-ui.js?v=20260408a"></script></body>
 </html>
+
+

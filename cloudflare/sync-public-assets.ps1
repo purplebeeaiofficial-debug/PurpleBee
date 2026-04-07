@@ -64,6 +64,7 @@ $staticFiles = @(
   "purple-bee-engine.js",
   "purple-bee-inference-worker.js",
   "purple-bee-local.js",
+  "purple-bee-contributor-ui.js",
   "purple-bee-model.bin"
 )
 
