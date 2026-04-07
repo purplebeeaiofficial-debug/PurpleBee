@@ -17,7 +17,7 @@ import shutil
 import importlib.util
 import secrets
 from types import SimpleNamespace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for
 import requests
@@ -139,8 +139,299 @@ def init_db():
         input TEXT, output TEXT, quality REAL DEFAULT 1.0,
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_accounts (
+        user_id TEXT PRIMARY KEY,
+        display_name TEXT,
+        plan TEXT DEFAULT 'Free',
+        contributor_status TEXT DEFAULT 'inactive',
+        premium_until TEXT,
+        hardware_json TEXT,
+        latest_quote_json TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        plan TEXT,
+        starts_at TEXT,
+        ends_at TEXT,
+        hours REAL DEFAULT 0,
+        premium_days INTEGER DEFAULT 0,
+        hardware_multiplier REAL DEFAULT 1.0,
+        cpu_cap INTEGER DEFAULT 70,
+        gpu_cap INTEGER DEFAULT 70,
+        status TEXT DEFAULT 'scheduled',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_penalties (
+        user_id TEXT PRIMARY KEY,
+        strike_count INTEGER DEFAULT 0,
+        warning_count INTEGER DEFAULT 0,
+        cooldown_until TEXT,
+        restriction_until TEXT,
+        latest_reason TEXT,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
     conn.commit()
     conn.close()
+
+CONTRIBUTOR_PLAN_RULES = {
+    "Free": {"premium_days": 0, "min_hours": 0, "priority": "standard", "queue_boost": 1.0},
+    "Basic": {"premium_days": 1, "min_hours": 1, "priority": "priority", "queue_boost": 1.15},
+    "Plus": {"premium_days": 7, "min_hours": 5, "priority": "priority-plus", "queue_boost": 1.4},
+    "Pro": {"premium_days": 30, "min_hours": 12, "priority": "priority-pro", "queue_boost": 1.8},
+}
+
+def db_connect():
+    return sqlite3.connect(DB_PATH)
+
+def now_iso():
+    return datetime.now().isoformat(timespec="seconds")
+
+def parse_iso(value):
+    try:
+        return datetime.fromisoformat(str(value))
+    except Exception:
+        return None
+
+def contributor_ui_copy(locale="ko-KR"):
+    locale = normalize_site_locale(locale) if "normalize_site_locale" in globals() else "ko-KR"
+    bundle = {
+        "ko-KR": {
+            "title": "기여 기반 구독 시작",
+            "subtitle": "기여 시간을 예약하면 Premium 상태를 활성화할 수 있습니다.",
+            "status_title": "현재 상태",
+            "status_free": "현재 Free 상태입니다.",
+            "status_active": "현재 {plan} 활성화 상태입니다.",
+            "reserve_title": "기여 시간 예약",
+            "device_title": "기기 정보",
+            "recommend_title": "추천 배정",
+            "hours": "기여 시간",
+            "starts_at": "시작 시각",
+            "plan": "플랜",
+            "cpu_cap": "CPU 상한",
+            "gpu_cap": "GPU 상한",
+            "submit": "기여 예약하기",
+            "refresh": "상태 새로고침",
+            "history_title": "예정된 기여",
+            "empty_history": "아직 예약된 기여 시간이 없습니다.",
+            "estimated": "예상 혜택",
+            "premium_until": "프리미엄 만료",
+            "device_summary": "브라우저 기준 추정 정보",
+            "queue_summary": "큐 배정",
+            "multiplier": "기여 효율",
+            "success": "기여 예약이 저장되었습니다.",
+        },
+        "en-US": {
+            "title": "Start a contributor subscription",
+            "subtitle": "Reserve contribution time to activate premium access.",
+            "status_title": "Current status",
+            "status_free": "You are currently on Free.",
+            "status_active": "{plan} is currently active.",
+            "reserve_title": "Reserve contribution time",
+            "device_title": "Device profile",
+            "recommend_title": "Recommended allocation",
+            "hours": "Contribution hours",
+            "starts_at": "Starts at",
+            "plan": "Plan",
+            "cpu_cap": "CPU cap",
+            "gpu_cap": "GPU cap",
+            "submit": "Reserve contribution",
+            "refresh": "Refresh status",
+            "history_title": "Upcoming contribution windows",
+            "empty_history": "No contribution window is scheduled yet.",
+            "estimated": "Estimated benefit",
+            "premium_until": "Premium ends",
+            "device_summary": "Browser-estimated device info",
+            "queue_summary": "Queue routing",
+            "multiplier": "Contribution multiplier",
+            "success": "Contribution reservation saved.",
+        },
+        "ja-JP": {
+            "title": "貢献型サブスクリプションを開始",
+            "subtitle": "貢献時間を予約すると Premium 状態を有効化できます。",
+            "status_title": "現在の状態",
+            "status_free": "現在は Free です。",
+            "status_active": "現在 {plan} が有効です。",
+            "reserve_title": "貢献時間を予約",
+            "device_title": "デバイス情報",
+            "recommend_title": "推奨割り当て",
+            "hours": "貢献時間",
+            "starts_at": "開始時刻",
+            "plan": "プラン",
+            "cpu_cap": "CPU 上限",
+            "gpu_cap": "GPU 上限",
+            "submit": "貢献を予約",
+            "refresh": "状態を更新",
+            "history_title": "予定された貢献",
+            "empty_history": "まだ予約された貢献時間はありません。",
+            "estimated": "想定特典",
+            "premium_until": "Premium 終了",
+            "device_summary": "ブラウザ推定の端末情報",
+            "queue_summary": "キュー配分",
+            "multiplier": "貢献効率",
+            "success": "貢献予約を保存しました。",
+        },
+    }
+    return bundle.get(locale, bundle["en-US"])
+
+def normalize_contributor_plan(value):
+    plan = str(value or "Free").strip()
+    return plan if plan in CONTRIBUTOR_PLAN_RULES else "Free"
+
+def ensure_contributor_account(user_id, display_name=""):
+    user_id = str(user_id or "").strip()
+    if not user_id:
+        return None
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        c.execute(
+            """INSERT INTO contributor_accounts
+               (user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at)
+               VALUES (?, ?, 'Free', 'inactive', NULL, NULL, NULL, ?, ?)""",
+            (user_id, display_name or "", now_iso(), now_iso()),
+        )
+        c.execute(
+            """INSERT OR IGNORE INTO contributor_penalties
+               (user_id, strike_count, warning_count, cooldown_until, restriction_until, latest_reason, updated_at)
+               VALUES (?, 0, 0, NULL, NULL, NULL, ?)""",
+            (user_id, now_iso()),
+        )
+        conn.commit()
+        c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "user_id": row[0],
+        "display_name": row[1] or "",
+        "plan": row[2] or "Free",
+        "contributor_status": row[3] or "inactive",
+        "premium_until": row[4],
+        "hardware": json.loads(row[5]) if row[5] else {},
+        "latest_quote": json.loads(row[6]) if row[6] else {},
+        "created_at": row[7],
+        "updated_at": row[8],
+    }
+
+def build_device_score(device_profile):
+    memory_gb = max(float(device_profile.get("memory_gb") or 0), 0.0)
+    cpu_threads = max(int(device_profile.get("cpu_threads") or 0), 0)
+    storage_gb = max(float(device_profile.get("storage_gb") or 0), 0.0)
+    score = 0.0
+    if memory_gb >= 16:
+        score += 1.2
+    elif memory_gb >= 8:
+        score += 0.9
+    elif memory_gb >= 4:
+        score += 0.6
+    if cpu_threads >= 16:
+        score += 1.0
+    elif cpu_threads >= 8:
+        score += 0.8
+    elif cpu_threads >= 4:
+        score += 0.5
+    if storage_gb >= 40:
+        score += 0.4
+    elif storage_gb >= 15:
+        score += 0.2
+    return score
+
+def compute_contributor_quote(plan, raw_hours, device_profile):
+    plan = normalize_contributor_plan(plan)
+    raw_hours = max(float(raw_hours or 0), 0.0)
+    rules = CONTRIBUTOR_PLAN_RULES[plan]
+    memory_gb = max(float(device_profile.get("memory_gb") or 0), 0.0)
+    cpu_threads = max(int(device_profile.get("cpu_threads") or 0), 0)
+    storage_gb = max(float(device_profile.get("storage_gb") or 0), 0.0)
+    device_score = build_device_score(device_profile)
+    multiplier = 0.7
+    if device_score >= 2.2:
+        multiplier = 1.45
+    elif device_score >= 1.5:
+        multiplier = 1.15
+    elif device_score >= 0.9:
+        multiplier = 0.95
+    effective_hours = round(raw_hours * multiplier, 2)
+    premium_days = max(rules["premium_days"], 0)
+    if plan == "Free":
+        premium_days = 0
+    elif raw_hours < rules["min_hours"]:
+        premium_days = 0
+    queue_mode = {
+        "Free": "standard",
+        "Basic": "priority",
+        "Plus": "priority-plus",
+        "Pro": "priority-pro",
+    }[plan]
+    return {
+        "plan": plan,
+        "raw_hours": raw_hours,
+        "effective_hours": effective_hours,
+        "premium_days": premium_days,
+        "hardware_multiplier": multiplier,
+        "queue_mode": queue_mode,
+        "device_profile": {
+            "memory_gb": memory_gb,
+            "cpu_threads": cpu_threads,
+            "storage_gb": storage_gb,
+        },
+    }
+
+def get_contributor_status(user_id):
+    account = ensure_contributor_account(user_id)
+    if not account:
+        return None
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """SELECT id, plan, starts_at, ends_at, hours, premium_days, hardware_multiplier, cpu_cap, gpu_cap, status, created_at
+           FROM contributor_reservations WHERE user_id=? ORDER BY created_at DESC LIMIT 8""",
+        (user_id,),
+    )
+    reservations = [
+        {
+            "id": row[0],
+            "plan": row[1],
+            "starts_at": row[2],
+            "ends_at": row[3],
+            "hours": row[4],
+            "premium_days": row[5],
+            "hardware_multiplier": row[6],
+            "cpu_cap": row[7],
+            "gpu_cap": row[8],
+            "status": row[9],
+            "created_at": row[10],
+        }
+        for row in c.fetchall()
+    ]
+    c.execute(
+        "SELECT strike_count, warning_count, cooldown_until, restriction_until, latest_reason, updated_at FROM contributor_penalties WHERE user_id=?",
+        (user_id,),
+    )
+    penalty_row = c.fetchone()
+    conn.close()
+    penalty = {
+        "strike_count": penalty_row[0] if penalty_row else 0,
+        "warning_count": penalty_row[1] if penalty_row else 0,
+        "cooldown_until": penalty_row[2] if penalty_row else None,
+        "restriction_until": penalty_row[3] if penalty_row else None,
+        "latest_reason": penalty_row[4] if penalty_row else None,
+        "updated_at": penalty_row[5] if penalty_row else None,
+    }
+    premium_active = bool(account["premium_until"] and parse_iso(account["premium_until"]) and parse_iso(account["premium_until"]) > datetime.now())
+    return {
+        "account": account,
+        "premium_active": premium_active,
+        "reservations": reservations,
+        "penalty": penalty,
+        "plans": CONTRIBUTOR_PLAN_RULES,
+    }
 
 # ── 웹 검색 모듈 ────────────────────────────────────────────────────
 SEARCH_SOURCES = [
@@ -4622,6 +4913,7 @@ def render_site_marketing(page_key: str, locale: str):
         brand_badge=bundle["brand_badge"],
         page_key=page_key,
         page=bundle["pages"][page_key],
+        contributor_ui=contributor_ui_copy(locale),
     )
 
 
@@ -5143,6 +5435,127 @@ def chat_once():
     except Exception:
         pass
     return jsonify({"reply": full})
+
+@app.route("/api/contributor/plans")
+def contributor_plans_api():
+    return jsonify({"ok": True, "plans": CONTRIBUTOR_PLAN_RULES})
+
+@app.route("/api/contributor/status")
+def contributor_status_api():
+    user_id = str(request.args.get("user_id", "")).strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    payload = get_contributor_status(user_id)
+    if not payload:
+        return jsonify({"ok": False, "error": "user_not_found"}), 404
+    return jsonify({"ok": True, **payload})
+
+@app.route("/api/contributor/quote", methods=["POST"])
+def contributor_quote_api():
+    data = request.get_json(silent=True) or {}
+    user_id = str(data.get("user_id", "")).strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    plan = normalize_contributor_plan(data.get("plan"))
+    hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
+    device_profile = data.get("device_profile") or {}
+    account = ensure_contributor_account(user_id, data.get("display_name") or "")
+    quote = compute_contributor_quote(plan, hours, device_profile)
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """UPDATE contributor_accounts
+           SET display_name=?, hardware_json=?, latest_quote_json=?, updated_at=?
+           WHERE user_id=?""",
+        (
+            str(data.get("display_name") or account.get("display_name") or ""),
+            json.dumps(device_profile, ensure_ascii=False),
+            json.dumps(quote, ensure_ascii=False),
+            now_iso(),
+            user_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "quote": quote})
+
+@app.route("/api/contributor/reserve", methods=["POST"])
+def contributor_reserve_api():
+    data = request.get_json(silent=True) or {}
+    user_id = str(data.get("user_id", "")).strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+
+    plan = normalize_contributor_plan(data.get("plan"))
+    hours = float(data.get("hours") or CONTRIBUTOR_PLAN_RULES[plan]["min_hours"] or 0)
+    starts_at = parse_iso(data.get("starts_at")) or datetime.now()
+    cpu_cap = max(20, min(int(data.get("cpu_cap") or 70), 90))
+    gpu_cap = max(20, min(int(data.get("gpu_cap") or 70), 90))
+    device_profile = data.get("device_profile") or {}
+    display_name = str(data.get("display_name") or "").strip()
+
+    if plan != "Free" and hours < CONTRIBUTOR_PLAN_RULES[plan]["min_hours"]:
+        return jsonify({
+            "ok": False,
+            "error": "insufficient_hours",
+            "message": f"{plan} 플랜은 최소 {CONTRIBUTOR_PLAN_RULES[plan]['min_hours']}시간 예약이 필요합니다.",
+        }), 400
+
+    account = ensure_contributor_account(user_id, display_name)
+    quote = compute_contributor_quote(plan, hours, device_profile)
+    ends_at = starts_at + timedelta(hours=hours)
+    premium_until = ends_at + timedelta(days=quote["premium_days"])
+
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """INSERT INTO contributor_reservations
+           (user_id, plan, starts_at, ends_at, hours, premium_days, hardware_multiplier, cpu_cap, gpu_cap, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)""",
+        (
+            user_id,
+            plan,
+            starts_at.isoformat(timespec="seconds"),
+            ends_at.isoformat(timespec="seconds"),
+            hours,
+            quote["premium_days"],
+            quote["hardware_multiplier"],
+            cpu_cap,
+            gpu_cap,
+            now_iso(),
+        ),
+    )
+    c.execute(
+        """UPDATE contributor_accounts
+           SET display_name=?, plan=?, contributor_status=?, premium_until=?, hardware_json=?, latest_quote_json=?, updated_at=?
+           WHERE user_id=?""",
+        (
+            display_name or account.get("display_name") or "",
+            plan,
+            "scheduled" if plan != "Free" else "inactive",
+            premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
+            json.dumps(device_profile, ensure_ascii=False),
+            json.dumps(quote, ensure_ascii=False),
+            now_iso(),
+            user_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "ok": True,
+        "message": "기여 예약이 저장되었습니다.",
+        "reservation": {
+            "plan": plan,
+            "starts_at": starts_at.isoformat(timespec="seconds"),
+            "ends_at": ends_at.isoformat(timespec="seconds"),
+            "hours": hours,
+            "cpu_cap": cpu_cap,
+            "gpu_cap": gpu_cap,
+        },
+        "quote": quote,
+        "premium_until": premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
+    })
 
 
 @app.route("/api/pbx_chat", methods=["POST", "OPTIONS"])

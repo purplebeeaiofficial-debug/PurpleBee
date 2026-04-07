@@ -90,6 +90,15 @@ export default {
       return proxyExternalAsset(request, upstreamUrl, "runtime-asset");
     }
 
+    if (url.pathname.startsWith("/api/contributor/")) {
+      const publicBackend = await resolvePublicBackendConfig(request, env);
+      const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
+      if (!upstreamBase) {
+        return jsonResponse({ ok: false, error: "public_backend_not_configured" }, 503, request);
+      }
+      return proxyJsonApi(request, `${upstreamBase}${url.pathname}${url.search || ""}`);
+    }
+
     if (url.pathname === "/api/chat" || url.pathname === "/api/search_sources" || url.pathname === "/api/history") {
       return jsonResponse(
         {
@@ -738,6 +747,31 @@ async function proxyHtmlPage(request, upstreamUrl) {
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "public, max-age=300");
   headers.set("Content-Type", headers.get("Content-Type") || "text/html; charset=UTF-8");
+
+  return new Response(response.body, {
+    status: response.status,
+    headers,
+  });
+}
+
+async function proxyJsonApi(request, upstreamUrl) {
+  const upstreamHeaders = new Headers({
+    Accept: "application/json",
+  });
+  const contentType = request.headers.get("Content-Type");
+  if (contentType) upstreamHeaders.set("Content-Type", contentType);
+
+  const response = await fetch(upstreamUrl, {
+    method: request.method,
+    headers: upstreamHeaders,
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
+    redirect: "follow",
+  });
+
+  const headers = new Headers(response.headers);
+  Object.entries(corsHeaders(request)).forEach(([key, value]) => headers.set(key, value));
+  headers.set("Cache-Control", "no-store");
+  headers.set("Content-Type", headers.get("Content-Type") || "application/json; charset=UTF-8");
 
   return new Response(response.body, {
     status: response.status,

@@ -57,17 +57,42 @@
   .plan-price{margin-top:16px;font-size:36px;font-weight:900;letter-spacing:-.06em}
   .plan-meta{margin-top:8px;font-size:13px;color:var(--sub)}
   .plan ul{margin-top:14px;display:grid;gap:9px;padding-left:18px;color:var(--sub);font-size:13px;line-height:1.65}
+  .plan-actions{margin-top:auto;padding-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .plan-btn{padding:11px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:900;cursor:pointer}
+  .plan-btn.primary{background:#111827;color:#fff;border-color:#111827}
   .policy-links{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 30px}
   .policy-link{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--sub)}
+  .contrib-shell{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin:10px 0 30px}
+  .contrib-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:var(--shadow)}
+  .contrib-card h3{font-size:24px;letter-spacing:-.04em}
+  .contrib-card p{margin-top:8px;color:var(--sub);font-size:14px;line-height:1.7}
+  .contrib-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field.full{grid-column:1 / -1}
+  .field label{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--sub)}
+  .field input,.field select{width:100%;padding:12px 13px;border-radius:14px;border:1px solid var(--line);background:#fff;font-size:14px;color:var(--text)}
+  .field input:focus,.field select:focus{outline:none;border-color:rgba(109,40,217,.35);box-shadow:0 0 0 4px rgba(109,40,217,.08)}
+  .contrib-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .contrib-status{display:grid;gap:12px}
+  .status-row{padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:#fbfcff}
+  .status-row strong{display:block;font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.08em}
+  .status-row span{display:block;margin-top:6px;font-size:16px;font-weight:800}
+  .mini-list{display:grid;gap:10px;margin-top:14px}
+  .mini-item{padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:#fff}
+  .mini-item-title{font-size:13px;font-weight:900}
+  .mini-item-sub{margin-top:4px;font-size:12px;color:var(--sub);line-height:1.6}
+  .inline-note{margin-top:12px;font-size:12px;color:var(--sub)}
   footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 34px;color:var(--sub);font-size:13px}
   @media (max-width:1120px){
     .hero{grid-template-columns:1fr}
     .grid{grid-template-columns:1fr 1fr}
     .plans{grid-template-columns:1fr 1fr}
+    .contrib-shell{grid-template-columns:1fr}
   }
   @media (max-width:760px){
     .menu{display:none}
     .grid,.plans{grid-template-columns:1fr}
+    .contrib-grid{grid-template-columns:1fr}
     .hero-copy{font-size:16px}
     h1{font-size:40px}
   }
@@ -140,8 +165,83 @@
           <li>{{ feature }}</li>
           {% endfor %}
         </ul>
+        <div class="plan-actions">
+          <button class="plan-btn primary" type="button" onclick="openContributorReservation('{{ plan.name }}')">{{ contributor_ui.submit }}</button>
+          <a class="plan-btn" href="/">{{ nav.open_chat }}</a>
+        </div>
       </article>
       {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if page_key == 'pricing' %}
+    <section class="contrib-shell">
+      <article class="contrib-card">
+        <h3>{{ contributor_ui.title }}</h3>
+        <p>{{ contributor_ui.subtitle }}</p>
+        <div class="contrib-grid">
+          <div class="field">
+            <label for="contrib-plan">{{ contributor_ui.plan }}</label>
+            <select id="contrib-plan">
+              {% for plan in page.plans %}
+              <option value="{{ plan.name }}" {% if plan.recommended %}selected{% endif %}>{{ plan.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="contrib-hours">{{ contributor_ui.hours }}</label>
+            <input id="contrib-hours" type="number" min="1" step="1" value="5">
+          </div>
+          <div class="field full">
+            <label for="contrib-start">{{ contributor_ui.starts_at }}</label>
+            <input id="contrib-start" type="datetime-local">
+          </div>
+          <div class="field">
+            <label for="contrib-cpu">{{ contributor_ui.cpu_cap }}</label>
+            <input id="contrib-cpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
+          <div class="field">
+            <label for="contrib-gpu">{{ contributor_ui.gpu_cap }}</label>
+            <input id="contrib-gpu" type="number" min="20" max="90" step="5" value="70">
+          </div>
+        </div>
+        <div class="contrib-actions">
+          <button class="plan-btn primary" type="button" onclick="reserveContributorPlan()">{{ contributor_ui.submit }}</button>
+          <button class="plan-btn" type="button" onclick="refreshContributorStatus()">{{ contributor_ui.refresh }}</button>
+        </div>
+        <div class="inline-note" id="contrib-note"></div>
+      </article>
+
+      <article class="contrib-card">
+        <div class="contrib-status">
+          <div class="status-row">
+            <strong>{{ contributor_ui.status_title }}</strong>
+            <span id="contrib-plan-status">{{ contributor_ui.status_free }}</span>
+          </div>
+          <div class="status-row">
+            <strong>{{ contributor_ui.estimated }}</strong>
+            <span id="contrib-estimate">-</span>
+          </div>
+          <div class="status-row">
+            <strong>{{ contributor_ui.queue_summary }}</strong>
+            <span id="contrib-queue">standard</span>
+          </div>
+          <div class="status-row">
+            <strong>{{ contributor_ui.multiplier }}</strong>
+            <span id="contrib-multiplier">x1.0</span>
+          </div>
+        </div>
+        <div class="mini-list">
+          <div class="mini-item">
+            <div class="mini-item-title">{{ contributor_ui.device_title }}</div>
+            <div class="mini-item-sub" id="contrib-device-summary">{{ contributor_ui.device_summary }}</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-item-title">{{ contributor_ui.history_title }}</div>
+            <div class="mini-item-sub" id="contrib-history">{{ contributor_ui.empty_history }}</div>
+          </div>
+        </div>
+      </article>
     </section>
     {% endif %}
 
@@ -174,5 +274,139 @@
     <div>{{ footer_copy }}</div>
     <div>{{ site_locale }}</div>
   </footer>
+  {% if page_key == 'pricing' %}
+  <script>
+    const contributorUi = {{ contributor_ui|tojson }};
+    const contributorState = {
+      userId: localStorage.getItem("pb_contributor_user_id") || `pb_${Math.random().toString(36).slice(2, 10)}`,
+      displayName: localStorage.getItem("pb_google_display_name") || "",
+    };
+    localStorage.setItem("pb_contributor_user_id", contributorState.userId);
+
+    function setDefaultContributorStart() {
+      const start = document.getElementById("contrib-start");
+      if (!start || start.value) return;
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 30);
+      start.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+
+    async function getDeviceProfile() {
+      let storageGb = 0;
+      if (navigator.storage && navigator.storage.estimate) {
+        try {
+          const estimate = await navigator.storage.estimate();
+          storageGb = Number(((estimate.quota || 0) / 1024 / 1024 / 1024).toFixed(1));
+        } catch (_) {}
+      }
+      const memory = Number(navigator.deviceMemory || 0);
+      const threads = Number(navigator.hardwareConcurrency || 0);
+      return {
+        memory_gb: memory,
+        cpu_threads: threads,
+        storage_gb: storageGb,
+      };
+    }
+
+    function openContributorReservation(planName) {
+      const plan = document.getElementById("contrib-plan");
+      if (plan && planName) {
+        plan.value = planName;
+      }
+      const hours = document.getElementById("contrib-hours");
+      if (hours) {
+        const defaults = { Free: 0, Basic: 1, Plus: 5, Pro: 12 };
+        hours.value = defaults[planName] ?? hours.value;
+      }
+      window.scrollTo({ top: document.body.scrollHeight * 0.45, behavior: "smooth" });
+      refreshContributorQuote();
+    }
+
+    async function refreshContributorQuote() {
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const deviceProfile = await getDeviceProfile();
+        document.getElementById("contrib-device-summary").textContent =
+          `RAM ${deviceProfile.memory_gb || "?"}GB · CPU ${deviceProfile.cpu_threads || "?"} threads · Storage ${deviceProfile.storage_gb || "?"}GB`;
+        const response = await fetch("/api/contributor/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            device_profile: deviceProfile,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const quote = payload.quote || {};
+        document.getElementById("contrib-estimate").textContent = `${quote.plan} · ${quote.premium_days || 0} day(s) premium`;
+        document.getElementById("contrib-queue").textContent = quote.queue_mode || "standard";
+        document.getElementById("contrib-multiplier").textContent = `x${quote.hardware_multiplier || 1}`;
+      } catch (_) {}
+    }
+
+    async function refreshContributorStatus() {
+      try {
+        await refreshContributorQuote();
+        const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorState.userId)}`);
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const account = payload.account || {};
+        document.getElementById("contrib-plan-status").textContent = payload.premium_active
+          ? contributorUi.status_active.replace("{plan}", account.plan || "Plus")
+          : contributorUi.status_free;
+        const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+        document.getElementById("contrib-history").textContent = reservations.length
+          ? reservations.slice(0, 3).map((item) => `${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / ")
+          : contributorUi.empty_history;
+      } catch (_) {}
+    }
+
+    async function reserveContributorPlan() {
+      const note = document.getElementById("contrib-note");
+      note.textContent = "";
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const startsAt = document.getElementById("contrib-start")?.value;
+        const cpuCap = Number(document.getElementById("contrib-cpu")?.value || 70);
+        const gpuCap = Number(document.getElementById("contrib-gpu")?.value || 70);
+        const deviceProfile = await getDeviceProfile();
+        const response = await fetch("/api/contributor/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            starts_at: startsAt,
+            cpu_cap: cpuCap,
+            gpu_cap: gpuCap,
+            device_profile: deviceProfile,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) {
+          note.textContent = payload.message || payload.error || "Unable to save reservation.";
+          return;
+        }
+        note.textContent = contributorUi.success;
+        await refreshContributorStatus();
+      } catch (_) {
+        note.textContent = "Unable to save reservation.";
+      }
+    }
+
+    document.getElementById("contrib-plan")?.addEventListener("change", refreshContributorQuote);
+    document.getElementById("contrib-hours")?.addEventListener("input", refreshContributorQuote);
+    setDefaultContributorStart();
+    refreshContributorStatus().catch(() => {});
+  </script>
+  {% endif %}
 </body>
 </html>
