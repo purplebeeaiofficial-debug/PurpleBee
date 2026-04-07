@@ -207,8 +207,10 @@
         </div>
         <div class="contrib-actions">
           <button class="plan-btn primary" type="button" onclick="reserveContributorPlan()">{{ contributor_ui.submit }}</button>
+          <button class="plan-btn" type="button" onclick="downloadContributorApp()">{{ contributor_ui.download_app }}</button>
           <button class="plan-btn" type="button" onclick="refreshContributorStatus()">{{ contributor_ui.refresh }}</button>
         </div>
+        <div class="inline-note">{{ contributor_ui.download_hint }}</div>
         <div class="inline-note" id="contrib-note"></div>
       </article>
 
@@ -235,6 +237,14 @@
           <div class="mini-item">
             <div class="mini-item-title">{{ contributor_ui.device_title }}</div>
             <div class="mini-item-sub" id="contrib-device-summary">{{ contributor_ui.device_summary }}</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-item-title">{{ contributor_ui.device_linked }}</div>
+            <div class="mini-item-sub" id="contrib-linked-device">{{ contributor_ui.device_missing }}</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-item-title">{{ contributor_ui.device_last_seen }}</div>
+            <div class="mini-item-sub" id="contrib-last-seen">-</div>
           </div>
           <div class="mini-item">
             <div class="mini-item-title">{{ contributor_ui.history_title }}</div>
@@ -283,6 +293,27 @@
     };
     localStorage.setItem("pb_contributor_user_id", contributorState.userId);
 
+    function formatContributorDate(value) {
+      if (!value) return "-";
+      try {
+        return new Date(value).toLocaleString();
+      } catch (_) {
+        return value;
+      }
+    }
+
+    function describeExactDevice(device) {
+      if (!device) return contributorUi.device_missing;
+      const hardware = device.hardware || {};
+      const parts = [];
+      if (device.device_name) parts.push(device.device_name);
+      if (hardware.cpu_model) parts.push(hardware.cpu_model);
+      if (hardware.memory_gb) parts.push(`RAM ${hardware.memory_gb}GB`);
+      if (hardware.cpu_threads) parts.push(`CPU ${hardware.cpu_threads} threads`);
+      if (hardware.gpu_model) parts.push(hardware.gpu_model);
+      return parts.filter(Boolean).join(" · ") || contributorUi.device_missing;
+    }
+
     function setDefaultContributorStart() {
       const start = document.getElementById("contrib-start");
       if (!start || start.value) return;
@@ -320,6 +351,31 @@
       }
       window.scrollTo({ top: document.body.scrollHeight * 0.45, behavior: "smooth" });
       refreshContributorQuote();
+    }
+
+    async function downloadContributorApp() {
+      const note = document.getElementById("contrib-note");
+      contributorState.displayName = localStorage.getItem("pb_google_display_name") || contributorState.displayName || "";
+      note.textContent = "";
+      try {
+        const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(contributorState.userId)}&display_name=${encodeURIComponent(contributorState.displayName || "")}`);
+        if (!response.ok) {
+          note.textContent = "Unable to download contributor app.";
+          return;
+        }
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = `purple-bee-contributor-${contributorState.userId.slice(0, 12)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 1500);
+        note.textContent = contributorUi.download_ready;
+      } catch (_) {
+        note.textContent = "Unable to download contributor app.";
+      }
     }
 
     async function refreshContributorQuote() {
@@ -405,6 +461,116 @@
     document.getElementById("contrib-plan")?.addEventListener("change", refreshContributorQuote);
     document.getElementById("contrib-hours")?.addEventListener("input", refreshContributorQuote);
     setDefaultContributorStart();
+    refreshContributorStatus().catch(() => {});
+  </script>
+  <script>
+    function describeExactDeviceV2(device) {
+      if (!device) return contributorUi.device_missing;
+      const hardware = device.hardware || {};
+      const parts = [];
+      if (device.device_name) parts.push(device.device_name);
+      if (hardware.cpu_model) parts.push(hardware.cpu_model);
+      if (hardware.memory_gb) parts.push(`RAM ${hardware.memory_gb}GB`);
+      if (hardware.cpu_threads) parts.push(`CPU ${hardware.cpu_threads} threads`);
+      if (hardware.gpu_model) parts.push(hardware.gpu_model);
+      return parts.filter(Boolean).join(" · ") || contributorUi.device_missing;
+    }
+
+    async function downloadContributorApp() {
+      const note = document.getElementById("contrib-note");
+      contributorState.displayName = localStorage.getItem("pb_google_display_name") || contributorState.displayName || "";
+      note.textContent = "";
+      try {
+        const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(contributorState.userId)}&display_name=${encodeURIComponent(contributorState.displayName || "")}`);
+        if (!response.ok) {
+          note.textContent = "Unable to download contributor app.";
+          return;
+        }
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = `purple-bee-contributor-${contributorState.userId.slice(0, 12)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 1500);
+        note.textContent = contributorUi.download_ready;
+      } catch (_) {
+        note.textContent = "Unable to download contributor app.";
+      }
+    }
+
+    async function refreshContributorQuote() {
+      try {
+        const plan = document.getElementById("contrib-plan")?.value || "Plus";
+        const hours = Number(document.getElementById("contrib-hours")?.value || 0);
+        const deviceProfile = await getDeviceProfile();
+        const summary = `RAM ${deviceProfile.memory_gb || "?"}GB · CPU ${deviceProfile.cpu_threads || "?"} threads · Storage ${deviceProfile.storage_gb || "?"}GB`;
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (summaryNode && !summaryNode.dataset.exactDevice) {
+          summaryNode.textContent = summary;
+        }
+        const response = await fetch("/api/contributor/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: contributorState.userId,
+            display_name: contributorState.displayName,
+            plan,
+            hours,
+            device_profile: deviceProfile,
+          }),
+        });
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const quote = payload.quote || {};
+        document.getElementById("contrib-estimate").textContent = `${quote.plan} · ${quote.premium_days || 0} day(s) premium`;
+        document.getElementById("contrib-queue").textContent = quote.queue_mode || "standard";
+        document.getElementById("contrib-multiplier").textContent = `x${quote.hardware_multiplier || 1}`;
+      } catch (_) {}
+    }
+
+    async function refreshContributorStatus() {
+      try {
+        await refreshContributorQuote();
+        const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorState.userId)}`);
+        const payload = await response.json();
+        if (!payload.ok) return;
+        const account = payload.account || {};
+        document.getElementById("contrib-plan-status").textContent = payload.premium_active
+          ? contributorUi.status_active.replace("{plan}", account.plan || "Plus")
+          : contributorUi.status_free;
+        const devices = Array.isArray(payload.devices) ? payload.devices : [];
+        const linked = devices[0] || null;
+        const linkedNode = document.getElementById("contrib-linked-device");
+        const lastSeenNode = document.getElementById("contrib-last-seen");
+        const summaryNode = document.getElementById("contrib-device-summary");
+        if (linkedNode) {
+          linkedNode.textContent = linked ? describeExactDeviceV2(linked) : contributorUi.device_missing;
+        }
+        if (lastSeenNode) {
+          lastSeenNode.textContent = linked ? formatContributorDate(linked.last_heartbeat_at || linked.updated_at || linked.linked_at) : "-";
+        }
+        if (summaryNode) {
+          if (payload.exact_device_summary) {
+            summaryNode.textContent = payload.exact_device_summary;
+            summaryNode.dataset.exactDevice = "true";
+          } else {
+            delete summaryNode.dataset.exactDevice;
+          }
+        }
+        const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
+        document.getElementById("contrib-history").textContent = reservations.length
+          ? reservations.slice(0, 3).map((item) => `${item.plan} · ${item.starts_at} · ${item.hours}h`).join(" / ")
+          : contributorUi.empty_history;
+      } catch (_) {}
+    }
+
+    window.openContributorReservation = openContributorReservation;
+    window.reserveContributorPlan = reserveContributorPlan;
+    window.refreshContributorStatus = refreshContributorStatus;
+    window.downloadContributorApp = downloadContributorApp;
     refreshContributorStatus().catch(() => {});
   </script>
   {% endif %}

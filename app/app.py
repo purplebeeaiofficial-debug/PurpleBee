@@ -17,10 +17,12 @@ import shutil
 import importlib.util
 import secrets
 import traceback
+import io
+import zipfile
 from types import SimpleNamespace
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, send_file
 import requests
 from bs4 import BeautifulSoup
 
@@ -51,6 +53,9 @@ RUNTIME_DIALOGUE_SEED_PATHS = [
 ]
 LOCAL_RUNTIME_MANAGED_DIR = PROJECT_ROOT / "Data" / "Runtime_Managed"
 LOCAL_RUNTIME_MANIFEST_PATH = LOCAL_RUNTIME_MANAGED_DIR / "runtime-manifest.json"
+CONTRIBUTOR_MVP_DIR = PROJECT_ROOT / "Contributor_Platform_MVP"
+CONTRIBUTOR_CLIENT_DIR = CONTRIBUTOR_MVP_DIR / "client"
+CONTRIBUTOR_WORKER_DIR = CONTRIBUTOR_MVP_DIR / "worker"
 
 def resolve_app_data_dir():
     configured = str(os.environ.get("PURPLE_BEE_DATA_DIR") or "").strip()
@@ -200,6 +205,28 @@ def init_db():
         latest_reason TEXT,
         updated_at TEXT DEFAULT (datetime('now'))
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_devices (
+        device_id TEXT PRIMARY KEY,
+        user_id TEXT,
+        device_name TEXT,
+        client_version TEXT,
+        status TEXT DEFAULT 'registered',
+        hardware_json TEXT,
+        runtime_json TEXT,
+        caps_json TEXT,
+        linked_at TEXT DEFAULT (datetime('now')),
+        last_heartbeat_at TEXT,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS contributor_ledger (
+        user_id TEXT PRIMARY KEY,
+        raw_minutes REAL DEFAULT 0,
+        effective_minutes REAL DEFAULT 0,
+        consumed_effective_minutes REAL DEFAULT 0,
+        completed_jobs INTEGER DEFAULT 0,
+        failed_jobs INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
     conn.commit()
     conn.close()
 
@@ -221,6 +248,9 @@ def parse_iso(value):
         return datetime.fromisoformat(str(value))
     except Exception:
         return None
+
+def trim(value):
+    return str(value or "").strip()
 
 def contributor_ui_copy(locale="ko-KR"):
     locale = normalize_site_locale(locale) if "normalize_site_locale" in globals() else "ko-KR"
@@ -249,6 +279,13 @@ def contributor_ui_copy(locale="ko-KR"):
             "queue_summary": "큐 배정",
             "multiplier": "기여 효율",
             "success": "기여 예약이 저장되었습니다.",
+            "download_app": "기여 앱 다운로드",
+            "download_hint": "정확한 CPU/GPU/RAM 감지와 예약 기여는 기여 앱에서 처리됩니다.",
+            "device_linked": "연결된 기기",
+            "device_missing": "아직 연결된 기기가 없습니다.",
+            "device_last_seen": "마지막 연결",
+            "device_refresh": "기기 상태 새로고침",
+            "download_ready": "다운로드가 시작되었습니다.",
         },
         "en-US": {
             "title": "Start a contributor subscription",
@@ -274,6 +311,13 @@ def contributor_ui_copy(locale="ko-KR"):
             "queue_summary": "Queue routing",
             "multiplier": "Contribution multiplier",
             "success": "Contribution reservation saved.",
+            "download_app": "Download contributor app",
+            "download_hint": "Exact CPU/GPU/RAM detection and scheduled contribution run through the contributor app.",
+            "device_linked": "Linked device",
+            "device_missing": "No device is linked yet.",
+            "device_last_seen": "Last seen",
+            "device_refresh": "Refresh device status",
+            "download_ready": "Download started.",
         },
         "ja-JP": {
             "title": "貢献型サブスクリプションを開始",
@@ -299,6 +343,13 @@ def contributor_ui_copy(locale="ko-KR"):
             "queue_summary": "キュー配分",
             "multiplier": "貢献効率",
             "success": "貢献予約を保存しました。",
+            "download_app": "貢献アプリをダウンロード",
+            "download_hint": "正確な CPU/GPU/RAM 判定と予約貢献は、貢献アプリで処理します。",
+            "device_linked": "接続済みデバイス",
+            "device_missing": "まだ接続済みデバイスはありません。",
+            "device_last_seen": "最終接続",
+            "device_refresh": "デバイス状態を更新",
+            "download_ready": "ダウンロードを開始しました。",
         },
     }
     return bundle.get(locale, bundle["en-US"])
@@ -345,6 +396,302 @@ def ensure_contributor_account(user_id, display_name=""):
         "created_at": row[7],
         "updated_at": row[8],
     }
+
+def ensure_contributor_ledger(user_id):
+    user_id = str(user_id or "").strip()
+    if not user_id:
+        return None
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """INSERT OR IGNORE INTO contributor_ledger
+           (user_id, raw_minutes, effective_minutes, consumed_effective_minutes, completed_jobs, failed_jobs, updated_at)
+           VALUES (?, 0, 0, 0, 0, 0, ?)""",
+        (user_id, now_iso()),
+    )
+    conn.commit()
+    c.execute(
+        """SELECT user_id, raw_minutes, effective_minutes, consumed_effective_minutes, completed_jobs, failed_jobs, updated_at
+           FROM contributor_ledger WHERE user_id=?""",
+        (user_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "user_id": row[0],
+        "raw_minutes": float(row[1] or 0),
+        "effective_minutes": float(row[2] or 0),
+        "consumed_effective_minutes": float(row[3] or 0),
+        "completed_jobs": int(row[4] or 0),
+        "failed_jobs": int(row[5] or 0),
+        "updated_at": row[6],
+    }
+
+def contributor_device_id(value):
+    value = trim(value)
+    return value or f"pbdev_{secrets.token_hex(8)}"
+
+def normalize_device_profile(device_profile):
+    device_profile = device_profile or {}
+    return {
+        "hostname": str(device_profile.get("hostname") or device_profile.get("host_name") or "").strip(),
+        "platform": str(device_profile.get("platform") or "").strip(),
+        "arch": str(device_profile.get("arch") or "").strip(),
+        "cpu_model": str(device_profile.get("cpu_model") or device_profile.get("cpuModel") or "").strip(),
+        "cpu_threads": int(device_profile.get("cpu_threads") or device_profile.get("cpuThreads") or 0),
+        "memory_gb": float(device_profile.get("memory_gb") or device_profile.get("memoryGb") or 0),
+        "gpu_model": str(device_profile.get("gpu_model") or device_profile.get("gpuModel") or "").strip(),
+        "gpu_score": float(device_profile.get("gpu_score") or device_profile.get("gpuScore") or 0),
+        "storage_gb": float(device_profile.get("storage_gb") or device_profile.get("diskFreeGb") or device_profile.get("storageGb") or 0),
+        "disk_total_gb": float(device_profile.get("disk_total_gb") or device_profile.get("diskTotalGb") or 0),
+        "disk_free_gb": float(device_profile.get("disk_free_gb") or device_profile.get("diskFreeGb") or 0),
+    }
+
+def upsert_contributor_device(user_id, device_name="", hardware=None, runtime=None, caps=None, client_version="", status="registered", device_id=None):
+    user_id = trim(user_id)
+    if not user_id:
+        return None
+    device_id = contributor_device_id(device_id)
+    hardware = normalize_device_profile(hardware)
+    runtime = runtime or {}
+    caps = caps or {}
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """INSERT INTO contributor_devices
+           (device_id, user_id, device_name, client_version, status, hardware_json, runtime_json, caps_json, linked_at, last_heartbeat_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(device_id) DO UPDATE SET
+             user_id=excluded.user_id,
+             device_name=excluded.device_name,
+             client_version=excluded.client_version,
+             status=excluded.status,
+             hardware_json=excluded.hardware_json,
+             runtime_json=excluded.runtime_json,
+             caps_json=excluded.caps_json,
+             last_heartbeat_at=excluded.last_heartbeat_at,
+             updated_at=excluded.updated_at""",
+        (
+            device_id,
+            user_id,
+            str(device_name or "Purple Bee Contributor Device").strip(),
+            str(client_version or "").strip(),
+            str(status or "registered").strip(),
+            json.dumps(hardware, ensure_ascii=False),
+            json.dumps(runtime, ensure_ascii=False),
+            json.dumps(caps, ensure_ascii=False),
+            now_iso(),
+            now_iso(),
+            now_iso(),
+        ),
+    )
+    conn.commit()
+    c.execute(
+        """SELECT device_id, user_id, device_name, client_version, status, hardware_json, runtime_json, caps_json, linked_at, last_heartbeat_at, updated_at
+           FROM contributor_devices WHERE device_id=?""",
+        (device_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "device_id": row[0],
+        "user_id": row[1],
+        "device_name": row[2],
+        "client_version": row[3] or "",
+        "status": row[4] or "registered",
+        "hardware": json.loads(row[5]) if row[5] else {},
+        "runtime": json.loads(row[6]) if row[6] else {},
+        "caps": json.loads(row[7]) if row[7] else {},
+        "linked_at": row[8],
+        "last_heartbeat_at": row[9],
+        "updated_at": row[10],
+    }
+
+def get_contributor_devices(user_id):
+    user_id = trim(user_id)
+    if not user_id:
+        return []
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """SELECT device_id, user_id, device_name, client_version, status, hardware_json, runtime_json, caps_json, linked_at, last_heartbeat_at, updated_at
+           FROM contributor_devices WHERE user_id=? ORDER BY updated_at DESC""",
+        (user_id,),
+    )
+    rows = c.fetchall()
+    conn.close()
+    devices = []
+    for row in rows:
+        devices.append({
+            "device_id": row[0],
+            "user_id": row[1],
+            "device_name": row[2],
+            "client_version": row[3] or "",
+            "status": row[4] or "registered",
+            "hardware": json.loads(row[5]) if row[5] else {},
+            "runtime": json.loads(row[6]) if row[6] else {},
+            "caps": json.loads(row[7]) if row[7] else {},
+            "linked_at": row[8],
+            "last_heartbeat_at": row[9],
+            "updated_at": row[10],
+        })
+    return devices
+
+def build_exact_device_summary(devices):
+    if not devices:
+        return None
+    top = devices[0]
+    hardware = top.get("hardware") or {}
+    parts = [trim(top.get("device_name")) or "Contributor Device"]
+    cpu_model = trim(hardware.get("cpu_model"))
+    gpu_model = trim(hardware.get("gpu_model"))
+    memory = hardware.get("memory_gb")
+    cpu_threads = hardware.get("cpu_threads")
+    if cpu_model:
+        parts.append(cpu_model)
+    if memory:
+        parts.append(f"RAM {memory:g}GB")
+    if cpu_threads:
+        parts.append(f"CPU {int(cpu_threads)} threads")
+    if gpu_model:
+        parts.append(gpu_model)
+    return " · ".join(parts)
+
+def credit_contributor_minutes(user_id, raw_minutes, hardware=None):
+    user_id = trim(user_id)
+    if not user_id:
+        return None
+    hardware = normalize_device_profile(hardware)
+    score = build_device_score(hardware)
+    multiplier = 0.75
+    if score >= 2.2:
+        multiplier = 1.5
+    elif score >= 1.5:
+        multiplier = 1.2
+    elif score >= 0.9:
+        multiplier = 1.0
+    effective_minutes = round(max(float(raw_minutes or 0), 0) * multiplier, 2)
+    ensure_contributor_ledger(user_id)
+    conn = db_connect()
+    c = conn.cursor()
+    c.execute(
+        """UPDATE contributor_ledger
+           SET raw_minutes = raw_minutes + ?, effective_minutes = effective_minutes + ?, updated_at=?
+           WHERE user_id=?""",
+        (float(raw_minutes or 0), effective_minutes, now_iso(), user_id),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "user_id": user_id,
+        "raw_minutes": float(raw_minutes or 0),
+        "effective_minutes": effective_minutes,
+        "hardware_multiplier": multiplier,
+    }
+
+def evaluate_contributor_subscription(user_id):
+    ledger = ensure_contributor_ledger(user_id)
+    account = ensure_contributor_account(user_id)
+    if not ledger or not account:
+        return None
+    available = max(float(ledger["effective_minutes"] or 0) - float(ledger["consumed_effective_minutes"] or 0), 0.0)
+    awarded_days = 0
+    consumed = 0
+    target_plan = "Free"
+    if available >= 720:
+        awarded_days, consumed, target_plan = 30, 720, "Pro"
+    elif available >= 300:
+        awarded_days, consumed, target_plan = 7, 300, "Plus"
+    elif available >= 60:
+        awarded_days, consumed, target_plan = 1, 60, "Basic"
+    premium_until = account.get("premium_until")
+    if awarded_days:
+        base = parse_iso(premium_until) or datetime.now()
+        if base < datetime.now():
+            base = datetime.now()
+        premium_until_value = (base + timedelta(days=awarded_days)).isoformat(timespec="seconds")
+        conn = db_connect()
+        c = conn.cursor()
+        c.execute(
+            """UPDATE contributor_ledger
+               SET consumed_effective_minutes = consumed_effective_minutes + ?, updated_at=?
+               WHERE user_id=?""",
+            (consumed, now_iso(), user_id),
+        )
+        c.execute(
+            """UPDATE contributor_accounts
+               SET plan=?, contributor_status='active', premium_until=?, updated_at=?
+               WHERE user_id=?""",
+            (target_plan, premium_until_value, now_iso(), user_id),
+        )
+        conn.commit()
+        conn.close()
+        premium_until = premium_until_value
+        account = ensure_contributor_account(user_id)
+    return {
+        "awarded_days": awarded_days,
+        "consumed_effective_minutes": consumed,
+        "premium_until": premium_until,
+        "account": account,
+        "ledger": ensure_contributor_ledger(user_id),
+    }
+
+def contributor_client_base_url():
+    forwarded_proto = trim(request.headers.get("x-forwarded-proto"))
+    forwarded_host = trim(request.headers.get("x-forwarded-host"))
+    if forwarded_proto and forwarded_host:
+        return f"{forwarded_proto}://{forwarded_host}"
+    origin = trim(request.headers.get("origin"))
+    if origin.startswith("http"):
+        return origin.rstrip("/")
+    return request.url_root.rstrip("/")
+
+def build_contributor_client_config(user_id, display_name="", reservation=None):
+    return {
+        "serverBaseUrl": contributor_client_base_url(),
+        "userId": trim(user_id),
+        "displayName": trim(display_name),
+        "deviceName": "Purple Bee Contributor Device",
+        "clientVersion": "1.0.0",
+        "caps": {
+            "cpuMaxPercent": 70,
+            "gpuMaxPercent": 70,
+        },
+        "reservation": reservation or {},
+        "heartbeatIntervalMs": 30000,
+        "claimIntervalMs": 20000,
+    }
+
+def build_contributor_client_zip(user_id, display_name="", reservation=None):
+    config_payload = build_contributor_client_config(user_id, display_name, reservation)
+    memory = io.BytesIO()
+    with zipfile.ZipFile(memory, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "README.txt",
+            "\n".join([
+                "Purple Bee Contributor App",
+                "",
+                "1. npm install",
+                "2. node src/index.js",
+                "",
+                "This package links your device to Purple Bee contributor subscription.",
+                "Use the downloaded config.json as-is unless you need to adjust the reservation window.",
+            ]),
+        )
+        archive.writestr("client/config.json", json.dumps(config_payload, ensure_ascii=False, indent=2))
+        for path in CONTRIBUTOR_CLIENT_DIR.rglob("*"):
+            if path.is_file() and path.name != "config.example.json":
+                archive.write(path, arcname=f"client/{path.relative_to(CONTRIBUTOR_CLIENT_DIR).as_posix()}")
+        archive.write(CONTRIBUTOR_CLIENT_DIR / "config.example.json", arcname="client/config.example.json")
+        for path in CONTRIBUTOR_WORKER_DIR.rglob("*"):
+            if path.is_file():
+                archive.write(path, arcname=f"worker/{path.relative_to(CONTRIBUTOR_WORKER_DIR).as_posix()}")
+    memory.seek(0)
+    return memory
 
 def build_device_score(device_profile):
     memory_gb = max(float(device_profile.get("memory_gb") or 0), 0.0)
@@ -414,6 +761,8 @@ def get_contributor_status(user_id):
     account = ensure_contributor_account(user_id)
     if not account:
         return None
+    ledger = ensure_contributor_ledger(user_id) or {}
+    devices = get_contributor_devices(user_id)
     conn = db_connect()
     c = conn.cursor()
     c.execute(
@@ -454,9 +803,13 @@ def get_contributor_status(user_id):
     premium_active = bool(account["premium_until"] and parse_iso(account["premium_until"]) and parse_iso(account["premium_until"]) > datetime.now())
     return {
         "account": account,
+        "ledger": ledger,
         "premium_active": premium_active,
         "reservations": reservations,
         "penalty": penalty,
+        "devices": devices,
+        "linked_device_count": len(devices),
+        "exact_device_summary": build_exact_device_summary(devices),
         "plans": CONTRIBUTOR_PLAN_RULES,
     }
 
@@ -5621,6 +5974,166 @@ def contributor_reserve_api():
             "message": str(exc),
             "traceback": traceback.format_exc().splitlines()[-8:],
         }), 500
+
+@app.route("/api/contributor/client/config")
+def contributor_client_config_api():
+    user_id = trim(request.args.get("user_id"))
+    display_name = trim(request.args.get("display_name"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    ensure_contributor_account(user_id, display_name)
+    payload = build_contributor_client_config(user_id, display_name)
+    return jsonify({"ok": True, "config": payload})
+
+@app.route("/api/contributor/client/download")
+def contributor_client_download_api():
+    user_id = trim(request.args.get("user_id"))
+    display_name = trim(request.args.get("display_name"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    ensure_contributor_account(user_id, display_name)
+    archive = build_contributor_client_zip(user_id, display_name)
+    return send_file(
+        archive,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"purple-bee-contributor-{user_id[:18] or 'client'}.zip",
+    )
+
+@app.route("/api/contributor/client/register", methods=["POST"])
+def contributor_client_register_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("user_id") or data.get("userId"))
+    display_name = trim(data.get("display_name") or data.get("displayName"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    ensure_contributor_account(user_id, display_name)
+    device = upsert_contributor_device(
+        user_id=user_id,
+        device_name=data.get("device_name") or data.get("deviceName") or "Purple Bee Contributor Device",
+        hardware=data.get("hardware") or {},
+        runtime=data.get("runtime") or {},
+        caps=data.get("caps") or {},
+        client_version=data.get("client_version") or data.get("clientVersion") or "",
+        status=data.get("status") or "linked",
+        device_id=data.get("device_id") or data.get("deviceId"),
+    )
+    return jsonify({"ok": True, "device": device, "config": build_contributor_client_config(user_id, display_name)})
+
+@app.route("/api/contributor/client/heartbeat", methods=["POST"])
+def contributor_client_heartbeat_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("user_id") or data.get("userId"))
+    device_id = trim(data.get("device_id") or data.get("deviceId"))
+    if not user_id or not device_id:
+        return jsonify({"ok": False, "error": "user_id_and_device_id_required"}), 400
+    device = upsert_contributor_device(
+        user_id=user_id,
+        device_name=data.get("device_name") or data.get("deviceName") or "Purple Bee Contributor Device",
+        hardware=data.get("hardware") or {},
+        runtime=data.get("runtime") or {},
+        caps=data.get("caps") or {},
+        client_version=data.get("client_version") or data.get("clientVersion") or "",
+        status=data.get("status") or "idle",
+        device_id=device_id,
+    )
+    return jsonify({"ok": True, "device": device})
+
+@app.route("/api/contributor/client/status")
+def contributor_client_status_api():
+    user_id = trim(request.args.get("user_id"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "user_id_required"}), 400
+    return jsonify({
+        "ok": True,
+        "devices": get_contributor_devices(user_id),
+        "status": get_contributor_status(user_id),
+    })
+
+@app.route("/api/contributors/register", methods=["POST"])
+def contributor_alias_register_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("userId") or data.get("user_id"))
+    display_name = trim(data.get("displayName") or data.get("display_name"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "userId-required"}), 400
+    ensure_contributor_account(user_id, display_name)
+    device = upsert_contributor_device(
+        user_id=user_id,
+        device_name=data.get("deviceName") or data.get("device_name") or "Purple Bee Contributor Device",
+        hardware=data.get("hardware") or {},
+        runtime=data.get("runtime") or {},
+        caps=data.get("caps") or {},
+        client_version=data.get("clientVersion") or "",
+        status="registered",
+        device_id=data.get("deviceId") or data.get("device_id"),
+    )
+    return jsonify({"ok": True, "contributor": {"id": device["device_id"], "userId": user_id, "deviceName": device["device_name"]}})
+
+@app.route("/api/contributors/heartbeat", methods=["POST"])
+def contributor_alias_heartbeat_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("userId") or data.get("user_id"))
+    contributor_id = trim(data.get("contributorId") or data.get("contributor_id"))
+    if not user_id or not contributor_id:
+        return jsonify({"ok": False, "error": "userId-and-contributorId-required"}), 400
+    device = upsert_contributor_device(
+        user_id=user_id,
+        device_name=data.get("deviceName") or "Purple Bee Contributor Device",
+        hardware=data.get("hardware") or {},
+        runtime=data.get("runtime") or {},
+        caps=data.get("caps") or {},
+        client_version=data.get("clientVersion") or "",
+        status=data.get("status") or "idle",
+        device_id=contributor_id,
+    )
+    return jsonify({"ok": True, "contributor": {"id": device["device_id"], "status": device["status"]}})
+
+@app.route("/api/contributors/reservations", methods=["POST"])
+def contributor_alias_reservation_api():
+    data = request.get_json(silent=True) or {}
+    with app.test_request_context(
+        "/api/contributor/reserve",
+        method="POST",
+        json={
+            "user_id": data.get("userId"),
+            "display_name": data.get("displayName"),
+            "plan": data.get("plan") or "Plus",
+            "hours": max((parse_iso(data.get("endsAt")) - parse_iso(data.get("startsAt"))).total_seconds() / 3600.0, 0.0) if parse_iso(data.get("startsAt")) and parse_iso(data.get("endsAt")) else data.get("hours") or 1,
+            "starts_at": data.get("startsAt"),
+            "cpu_cap": (data.get("caps") or {}).get("cpuMaxPercent", 70),
+            "gpu_cap": (data.get("caps") or {}).get("gpuMaxPercent", 70),
+            "device_profile": data.get("hardware") or {},
+        },
+    ):
+        return contributor_reserve_api()
+
+@app.route("/api/contributors/credit", methods=["POST"])
+def contributor_alias_credit_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("userId") or data.get("user_id"))
+    raw_minutes = float(data.get("rawMinutes") or data.get("raw_minutes") or 0)
+    if not user_id or raw_minutes <= 0:
+        return jsonify({"ok": False, "error": "userId-and-rawMinutes-required"}), 400
+    credit = credit_contributor_minutes(user_id, raw_minutes, data.get("hardware") or {})
+    return jsonify({"ok": True, "credit": credit})
+
+@app.route("/api/subscriptions/evaluate", methods=["POST"])
+def contributor_alias_evaluate_api():
+    data = request.get_json(silent=True) or {}
+    user_id = trim(data.get("userId") or data.get("user_id"))
+    if not user_id:
+        return jsonify({"ok": False, "error": "userId-required"}), 400
+    result = evaluate_contributor_subscription(user_id)
+    return jsonify({"ok": True, "result": result, "subscription": (result or {}).get("account")})
+
+@app.route("/api/work/claim", methods=["POST"])
+def contributor_alias_claim_api():
+    return jsonify({"ok": True, "task": None})
+
+@app.route("/api/work/<task_id>/complete", methods=["POST"])
+def contributor_alias_complete_api(task_id):
+    return jsonify({"ok": True, "task": {"id": task_id, "status": "accepted"}})
 
 
 @app.route("/api/pbx_chat", methods=["POST", "OPTIONS"])
