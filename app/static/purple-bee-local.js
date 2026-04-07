@@ -9330,6 +9330,15 @@ async function generateReasonedChatReply(prompt, language) {
     }
 
     if (!verify || !verify.installed) {
+      if (verify?.reason === "runtime-extra-asset-missing") {
+        return {
+          kind: "warn",
+          title: "업데이트가 한 번 더 필요해요",
+          body: pbxInstallGuideText("runtime-extra-asset-missing"),
+          cta: "업데이트 필요",
+          needsUpdate: true,
+        };
+      }
       return {
         kind: "warn",
         title: "아직 준비가 끝나지 않았어요",
@@ -9847,6 +9856,8 @@ async function generateReasonedChatReply(prompt, language) {
       if (installState) {
         installState.textContent = runtimeState.installed
           ? (folderState.installed ? "설치 + 폴더 연결 완료" : "설치 완료")
+          : runtimeState.reason === "runtime-extra-asset-missing"
+            ? "업데이트 필요"
           : "설치 필요";
       }
       if (versionState) {
