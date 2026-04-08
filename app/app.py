@@ -54,9 +54,9 @@ RUNTIME_DIALOGUE_SEED_PATHS = [
 ]
 LOCAL_RUNTIME_MANAGED_DIR = PROJECT_ROOT / "Data" / "Runtime_Managed"
 LOCAL_RUNTIME_MANIFEST_PATH = LOCAL_RUNTIME_MANAGED_DIR / "runtime-manifest.json"
-CONTRIBUTOR_MVP_DIR = PROJECT_ROOT / "Contributor_Platform_MVP"
-CONTRIBUTOR_CLIENT_DIR = CONTRIBUTOR_MVP_DIR / "client"
-CONTRIBUTOR_WORKER_DIR = CONTRIBUTOR_MVP_DIR / "worker"
+CONTRIBUTOR_PLATFORM_DIR = PROJECT_ROOT / "Purple_Bee_Contributor_Platform"
+CONTRIBUTOR_CLIENT_DIR = CONTRIBUTOR_PLATFORM_DIR / "client"
+CONTRIBUTOR_WORKER_DIR = CONTRIBUTOR_PLATFORM_DIR / "worker"
 
 def resolve_app_data_dir():
     configured = str(os.environ.get("PURPLE_BEE_DATA_DIR") or "").strip()
@@ -690,7 +690,7 @@ def contributor_client_base_url():
     return request.url_root.rstrip("/")
 
 def contributor_windows_client_dir():
-    return CONTRIBUTOR_MVP_DIR / "windows_client"
+    return CONTRIBUTOR_PLATFORM_DIR / "windows_client"
 
 def contributor_windows_dist_dir():
     return contributor_windows_client_dir() / "dist"

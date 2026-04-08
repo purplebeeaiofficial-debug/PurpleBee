@@ -1,0 +1,15 @@
+{
+  "serverBaseUrl": "http://localhost:8787",
+  "userId": "user-demo-001",
+  "deviceName": "Purple Bee Contributor PC",
+  "caps": {
+    "cpuMaxPercent": 70,
+    "gpuMaxPercent": 70
+  },
+  "reservation": {
+    "startsAt": "2026-04-07T23:00:00+09:00",
+    "endsAt": "2026-04-08T00:00:00+09:00"
+  },
+  "heartbeatIntervalMs": 30000,
+  "claimIntervalMs": 20000
+}
