@@ -5977,7 +5977,6 @@ async function generateReasonedChatReply(prompt, language) {
     if (loginBtn) loginBtn.style.display = user ? "none" : "";
     if (logoutBtn) logoutBtn.style.display = user ? "" : "none";
     pbxRenderMemoryList();
-    pbxRefreshContributorSidebar().catch(() => {});
   }
 
   function pbxContributorStrings() {
@@ -6075,284 +6074,465 @@ async function generateReasonedChatReply(prompt, language) {
   }
 
   function pbxApplyContributorComputeMode(plan) {
-    const copy = pbxContributorStrings();
-    const row = document.getElementById("contributor-mode-row");
-    const labelNode = document.getElementById("contributor-mode-label");
-    const descNode = document.getElementById("contributor-mode-desc");
-    const select = document.getElementById("contributor-compute-mode-select");
-    if (!row || !labelNode || !descNode || !select) return "local";
-    labelNode.textContent = copy.labels.mode;
-    descNode.textContent = copy.modeDesc;
-    select.innerHTML = "";
-    const tier = pbxNormalizePlanTier(plan);
-    const canUseDistributed = tier === "Plus" || tier === "Pro";
-    const options = [
-      { value: "local", label: copy.modeOptions.local, disabled: false },
-      { value: "hybrid", label: copy.modeOptions.hybrid, disabled: !pbxIsPaidPlan(tier) },
-      { value: "distributed", label: copy.modeOptions.distributed, disabled: !canUseDistributed },
-    ];
-    options.forEach((option) => {
-      const node = document.createElement("option");
-      node.value = option.value;
-      node.textContent = option.label;
-      node.disabled = !!option.disabled;
-      select.appendChild(node);
-    });
-    let selected = pbxGetContributorComputeMode();
-    if (selected === "distributed" && !canUseDistributed) selected = pbxIsPaidPlan(tier) ? "hybrid" : "local";
-    if (selected === "hybrid" && !pbxIsPaidPlan(tier)) selected = "local";
-    select.value = selected;
-    row.classList.toggle("hidden", !pbxIsPaidPlan(tier));
-    pbxSetContributorComputeMode(selected);
-    return selected;
-  }
-
-  function pbxOpenUpgradePage(event) {
-    if (event && typeof event.preventDefault === "function") event.preventDefault();
-    pbxOpenContributorHub("plans");
-  }
-
-  function pbxOpenContributorHub(mode = "status") {
-    const backdrop = document.getElementById("contributor-hub-backdrop");
-    const frame = document.getElementById("contributor-hub-frame");
-    const titleNode = document.getElementById("contributor-hub-title");
-    const subtitleNode = document.getElementById("contributor-hub-subtitle");
-    const footLeftNode = document.getElementById("contributor-hub-foot-left");
-    const footRightNode = document.getElementById("contributor-hub-foot-right");
-    if (!backdrop || !frame) return;
-    const safeMode = mode === "plans" ? "plans" : "status";
-    if (titleNode) {
-      titleNode.textContent = safeMode === "plans"
-        ? (getActiveUiLanguage() === "ko" ? "플랜 업그레이드" : "Upgrade plans")
-        : (getActiveUiLanguage() === "ko" ? "기여 구독 상태" : "Contributor status");
-    }
-    if (subtitleNode) {
-      subtitleNode.textContent = safeMode === "plans"
-        ? (getActiveUiLanguage() === "ko"
-          ? "구독제 비교만 한 화면에서 확인하고 선택할 수 있어요."
-          : "See only the Free, Basic, Plus, and Pro plan differences in one place.")
-        : (getActiveUiLanguage() === "ko"
-          ? "기여 앱 설치, 연동 확인, 예약 상태를 단계별로 관리할 수 있어요."
-          : "Manage contributor app sync, reservations, and device status in one place.");
-    }
-    if (footLeftNode) {
-      footLeftNode.textContent = safeMode === "plans"
-        ? (getActiveUiLanguage() === "ko"
-          ? "플랜 화면에서는 구독제만 비교합니다. 기여 예약과 연동은 별도 상태 화면에서 진행됩니다."
-          : "Free uses local compute only. Basic and above can choose distributed assist modes.")
-        : (getActiveUiLanguage() === "ko"
-          ? "기여 예약은 기여 앱 설치와 사이트 동기화가 확인된 뒤에만 활성화됩니다."
-          : "Contributor reservations unlock only after the app is installed and synced.")
-    }
-    if (footRightNode) {
-      footRightNode.textContent = safeMode === "plans"
-        ? (getActiveUiLanguage() === "ko"
-          ? "정확한 기기 판정과 예약 기여 실행은 기여 앱에서 처리됩니다."
-          : "Exact hardware checks and scheduled contribution run inside the contributor app.")
-        : (getActiveUiLanguage() === "ko"
-          ? "연결 기기가 끊기면 예약 저장이 잠기고, 다시 동기화하면 바로 복구됩니다."
-          : "If the linked device disconnects, reservations lock until sync is restored.");
-    }
-    frame.src = `/${pbxContributorLocalePrefix()}/index/purple-bee/pricing/?embed=${safeMode}`;
-    backdrop.classList.add("open");
-  }
-
-  function pbxCloseContributorHub(event) {
-    if (event && event.target && event.target.id !== "contributor-hub-backdrop") return;
-    const backdrop = document.getElementById("contributor-hub-backdrop");
-    const frame = document.getElementById("contributor-hub-frame");
-    if (backdrop) backdrop.classList.remove("open");
-    if (frame) frame.src = "about:blank";
-  }
-
-  window.addEventListener("message", (event) => {
-    const data = event && event.data ? event.data : null;
-    if (!data || typeof data !== "object") return;
-    if (data.type === "pbx-contributor-open-status") {
-      if (data.plan) localStorage.setItem("pb_selected_contributor_plan", data.plan);
-      pbxOpenContributorHub("status");
-    } else if (data.type === "pbx-close-contributor-hub") {
-      pbxCloseContributorHub();
-    }
+  const copy = pbxContributorStrings();
+  const row = document.getElementById("contributor-mode-row");
+  const labelNode = document.getElementById("contributor-mode-label");
+  const descNode = document.getElementById("contributor-mode-desc");
+  const select = document.getElementById("contributor-compute-mode-select");
+  if (!row || !labelNode || !descNode || !select) return "local";
+  labelNode.textContent = copy.labels.mode;
+  descNode.textContent = copy.modeDesc;
+  select.innerHTML = "";
+  const tier = pbxNormalizePlanTier(plan);
+  const options = [
+    { value: "local", label: copy.modeOptions.local, disabled: false },
+    { value: "hybrid", label: copy.modeOptions.hybrid, disabled: !pbxIsPaidPlan(tier) },
+    { value: "distributed", label: copy.modeOptions.distributed, disabled: !pbxIsPaidPlan(tier) },
+  ];
+  options.forEach((option) => {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label;
+    node.disabled = !!option.disabled;
+    select.appendChild(node);
   });
+  let selected = pbxGetContributorComputeMode();
+  if ((selected === "hybrid" || selected === "distributed") && !pbxIsPaidPlan(tier)) selected = "local";
+  select.value = selected;
+  row.classList.toggle("hidden", !pbxIsPaidPlan(tier));
+  pbxSetContributorComputeMode(selected);
+  return selected;
+}
 
-  function pbxContributorQueueLabel(value) {
-    const copy = pbxContributorStrings();
-    const normalized = lower(trim(String(value || "")));
-    if (!normalized) return copy.values.standard;
-    if (normalized.includes("priority-plus")) return "상위 우선";
-    if (normalized.includes("priority-pro")) return "최상위";
-    if (normalized.includes("priority")) return "우선";
-    return copy.values.standard;
+const PBX_CONTRIBUTOR_HUB_STATE = {
+  mode: "plans",
+  status: null,
+  quote: null,
+  profile: null,
+};
+
+function pbxContributorPlanDefinitions() {
+  const lang = getActiveUiLanguage();
+  if (lang === "ko") {
+    return [
+      {
+        id: "Free",
+        badge: "기본",
+        price: "무료",
+        unit: "/기본 제공",
+        title: "가볍게 시작하는 기본 플랜",
+        copy: "일상 질문과 기본 분석을 바로 시작할 수 있는 입문 플랜입니다.",
+        features: ["내 기기 연산", "기본 우선순위", "경량 모델 사용", "기본 요청 제한"],
+        cta: "현재 플랜",
+      },
+      {
+        id: "Basic",
+        badge: "기여 시작",
+        price: "1시간 기여",
+        unit: "/1일 혜택",
+        title: "보조 연산을 처음 여는 단계",
+        copy: "기여 앱을 연결하면 내 기기 연산에 서버 보조 연산 모드를 함께 쓸 수 있어요.",
+        features: ["우선순위 큐", "내 기기 + 서버 보조 연산", "응답 제한 완화", "기여 예약 가능"],
+        cta: "Basic 준비하기",
+      },
+      {
+        id: "Plus",
+        badge: "추천",
+        price: "5시간 기여",
+        unit: "/7일 혜택",
+        title: "더 빠른 응답과 넉넉한 사용량",
+        copy: "긴 작업과 복합 요청에 맞춰 서버 보조 연산 비중을 더 높게 가져갈 수 있어요.",
+        features: ["상위 우선순위", "서버 보조 연산 우선", "요청 제한 대폭 완화", "예약 관리 강화"],
+        cta: "Plus 준비하기",
+      },
+      {
+        id: "Pro",
+        badge: "최상위",
+        price: "10시간 기여",
+        unit: "/14일 혜택",
+        title: "가장 높은 처리 우선권",
+        copy: "최신 모델 접근과 가장 높은 보조 연산 배정을 목표로 하는 상위 플랜입니다.",
+        features: ["최상위 우선순위", "서버 보조 연산 집중", "확장된 모델 접근", "기여 예약 우대"],
+        cta: "Pro 준비하기",
+      },
+    ];
   }
+  return [
+    {
+      id: "Free",
+      badge: "Base",
+      price: "Free",
+      unit: "/included",
+      title: "Start with local compute",
+      copy: "A simple starting plan for everyday questions and lightweight analysis.",
+      features: ["Local compute", "Standard queue", "Lightweight models", "Basic request caps"],
+      cta: "Current plan",
+    },
+    {
+      id: "Basic",
+      badge: "Contributor",
+      price: "1h contribution",
+      unit: "/1 day premium",
+      title: "Unlock server assist",
+      copy: "Link the contributor app to combine local compute with server assist.",
+      features: ["Priority queue", "Local + server assist", "Relaxed limits", "Contribution scheduling"],
+      cta: "Prepare Basic",
+    },
+    {
+      id: "Plus",
+      badge: "Recommended",
+      price: "5h contribution",
+      unit: "/7 day premium",
+      title: "Faster responses for heavier work",
+      copy: "Increase the share of assist compute for longer and more complex requests.",
+      features: ["Higher priority", "Server assist priority", "Broader limits", "Advanced scheduling"],
+      cta: "Prepare Plus",
+    },
+    {
+      id: "Pro",
+      badge: "Top tier",
+      price: "10h contribution",
+      unit: "/14 day premium",
+      title: "Maximum routing priority",
+      copy: "Built for the highest routing priority and the most aggressive assist allocation.",
+      features: ["Top queue", "Server assist focus", "Expanded model access", "Premium scheduling"],
+      cta: "Prepare Pro",
+    },
+  ];
+}
 
-  function pbxShortDeviceSummary(summary, devices) {
-    const exact = trim(String(summary || ""));
-    if (exact) {
-      const compact = exact.split(/[|,]/).map((part) => trim(part)).filter(Boolean).slice(0, 2).join(" · ");
-      return compact || exact;
+async function pbxGetContributorDeviceProfile() {
+  const profile = {
+    platform: trim(String(navigator.platform || "")),
+    cpu_threads: Number(navigator.hardwareConcurrency || 0),
+    memory_gb: Number(navigator.deviceMemory || 0),
+    gpu_model: "",
+    disk_total_gb: 0,
+    disk_free_gb: 0,
+  };
+  try {
+    if (navigator.storage && typeof navigator.storage.estimate === "function") {
+      const estimate = await navigator.storage.estimate();
+      const quota = Number(estimate?.quota || 0);
+      const usage = Number(estimate?.usage || 0);
+      if (quota > 0) {
+        profile.disk_total_gb = +(quota / (1024 ** 3)).toFixed(1);
+        profile.disk_free_gb = +((quota - usage) / (1024 ** 3)).toFixed(1);
+      }
     }
-    return devices && devices.length ? pbxContributorStrings().deviceCount.replace("{count}", String(devices.length)) : pbxContributorStrings().values.none;
+  } catch (_error) {}
+  PBX_CONTRIBUTOR_HUB_STATE.profile = profile;
+  return profile;
+}
+
+function pbxContributorQueueLabel(value) {
+  const copy = pbxContributorStrings();
+  const normalized = lower(trim(String(value || "")));
+  if (!normalized) return copy.values.standard;
+  if (normalized.includes("priority-pro")) return getActiveUiLanguage() === "ko" ? "최상위" : "Top priority";
+  if (normalized.includes("priority-plus")) return getActiveUiLanguage() === "ko" ? "상위" : "High priority";
+  if (normalized.includes("priority")) return getActiveUiLanguage() === "ko" ? "우선" : "Priority";
+  return copy.values.standard;
+}
+
+function pbxShortDeviceSummary(summary, devices) {
+  const exact = trim(String(summary || ""));
+  if (exact) {
+    const compact = exact.split(/[|,]/).map((part) => trim(part)).filter(Boolean).slice(0, 2).join(" · ");
+    return compact || exact;
   }
+  return devices && devices.length ? pbxContributorStrings().deviceCount.replace("{count}", String(devices.length)) : pbxContributorStrings().values.none;
+}
 
-  function pbxUpdateContributorComputeMode(mode) {
-    const selected = pbxSetContributorComputeMode(mode);
-    const copy = pbxContributorStrings();
-    const noteNode = document.getElementById("contributor-card-note");
-    if (!noteNode) return;
-    if (selected === "distributed") {
-      noteNode.textContent = getActiveUiLanguage() === "ko"
-        ? "분산 보조 연산 우선 모드가 선택되어 있어요. 상위 플랜에서만 안정적으로 사용할 수 있어요."
-        : "Contributor assist priority is selected. This mode is intended for higher plans.";
-    } else if (selected === "hybrid") {
-      noteNode.textContent = getActiveUiLanguage() === "ko"
-        ? "내 기기 연산에 기여 네트워크 보조 연산을 함께 쓰는 하이브리드 모드예요."
-        : "Hybrid mode mixes local compute with contributor network assist.";
-    } else {
-      noteNode.textContent = pbxCurrentUser() ? copy.noteActive : copy.noteFree;
-    }
+function pbxContributorUserId() {
+  const user = pbxCurrentUser();
+  const stored = trim(localStorage.getItem("pb_contributor_user_id") || "");
+  const preferred = trim(String(user?.sub || user?.email || stored || ""));
+  const value = preferred || `pb_${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem("pb_contributor_user_id", value);
+  return value;
+}
+
+function pbxFormatContributorDate(value) {
+  if (!value) return pbxContributorStrings().values.none;
+  try {
+    return new Date(value).toLocaleString(getActiveUiLanguage() === "ko" ? "ko-KR" : getActiveUiLanguage() === "ja" ? "ja-JP" : "en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch (_error) {
+    return String(value);
   }
+}
 
-  async function pbxDownloadContributorApp() {
-    const user = pbxCurrentUser();
-    if (!user) {
-      showToast(getActiveUiLanguage() === "ko" ? "Google 로그인 후 기여 앱을 내려받을 수 있어요." : "Sign in with Google before downloading the contributor app.");
-      return;
-    }
-    const userId = pbxContributorUserId();
-    const displayName = trim(user?.name || user?.email || "");
-    try {
-      const response = await fetch(`/api/contributor/client/download?user_id=${encodeURIComponent(userId)}&display_name=${encodeURIComponent(displayName)}`);
-      if (!response.ok) throw new Error(`download-${response.status}`);
-      const blob = await response.blob();
-      const href = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `purple-bee-contributor-${userId.slice(0, 12)}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(href), 1500);
-      showToast(getActiveUiLanguage() === "ko" ? "기여 앱 다운로드를 시작했어요." : "Contributor app download started.");
-    } catch (_error) {
-      showToast(getActiveUiLanguage() === "ko" ? "기여 앱 다운로드를 시작할 수 없어요." : "Unable to start the contributor app download.");
-    }
+async function pbxFetchContributorStatus() {
+  const user = pbxCurrentUser();
+  if (!user) return null;
+  const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(pbxContributorUserId())}`);
+  const payload = await response.json();
+  if (!payload || !payload.ok) throw new Error("status-unavailable");
+  PBX_CONTRIBUTOR_HUB_STATE.status = payload;
+  return payload;
+}
+
+async function pbxFetchContributorQuote(plan, hours) {
+  const user = pbxCurrentUser();
+  if (!user) return null;
+  const profile = await pbxGetContributorDeviceProfile();
+  const response = await fetch('/api/contributor/quote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: pbxContributorUserId(),
+      display_name: trim(user?.name || user?.email || ''),
+      plan,
+      hours,
+      device_profile: profile,
+    }),
+  });
+  const payload = await response.json();
+  if (!payload || !payload.ok) throw new Error('quote-unavailable');
+  PBX_CONTRIBUTOR_HUB_STATE.quote = payload.quote || null;
+  return payload.quote || null;
+}
+
+function pbxSetContributorHubSection(mode) {
+  PBX_CONTRIBUTOR_HUB_STATE.mode = mode === 'plans' ? 'plans' : 'status';
+  const plansNode = document.getElementById('contributor-hub-section-plans');
+  const statusNode = document.getElementById('contributor-hub-section-status');
+  if (plansNode) plansNode.classList.toggle('active', PBX_CONTRIBUTOR_HUB_STATE.mode === 'plans');
+  if (statusNode) statusNode.classList.toggle('active', PBX_CONTRIBUTOR_HUB_STATE.mode === 'status');
+}
+
+function pbxRenderContributorPlans() {
+  const copy = pbxContributorStrings();
+  const plansNode = document.getElementById('contributor-hub-section-plans');
+  if (!plansNode) return;
+  const currentPlan = pbxNormalizePlanTier(PBX_CONTRIBUTOR_HUB_STATE.status?.account?.plan || 'Free');
+  const plans = pbxContributorPlanDefinitions();
+  const cards = plans.map((plan) => {
+    const active = currentPlan === plan.id;
+    const cta = plan.id === 'Free' ? plan.cta : (getActiveUiLanguage() === 'ko' ? `${plan.id} 선택` : `Choose ${plan.id}`);
+    return `
+      <article class="contributor-plan-card${active ? ' active' : ''}">
+        <div class="contributor-plan-head">
+          <div class="contributor-plan-name">${escapeHtml(plan.id)}</div>
+          <span class="contributor-plan-badge">${escapeHtml(plan.badge)}</span>
+        </div>
+        <div class="contributor-plan-price">${escapeHtml(plan.price)} <small>${escapeHtml(plan.unit)}</small></div>
+        <div class="contributor-plan-copy">${escapeHtml(plan.title)}</div>
+        <p class="contributor-plan-copy" style="margin-top:10px">${escapeHtml(plan.copy)}</p>
+        <ul class="contributor-plan-list">${plan.features.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+        <div class="contributor-plan-foot">
+          <button class="contributor-plan-btn${active ? ' current' : ''}" type="button" ${plan.id === 'Free' ? 'disabled' : ''} onclick="openContributorHub('${plan.id === 'Free' ? 'plans' : 'status'}'); localStorage.setItem('pb_selected_contributor_plan','${plan.id}');">
+            ${escapeHtml(active && plan.id === 'Free' ? plan.cta : cta)}
+          </button>
+        </div>
+      </article>`;
+  }).join('');
+  plansNode.innerHTML = `<div class="contributor-plan-grid">${cards}</div>`;
+}
+
+function pbxBuildContributorStatusMarkup(payload, quote) {
+  const user = pbxCurrentUser();
+  const account = payload?.account || {};
+  const devices = Array.isArray(payload?.devices) ? payload.devices : [];
+  const reservations = Array.isArray(payload?.reservations) ? payload.reservations : [];
+  const linked = devices.length > 0;
+  const selectedPlan = pbxNormalizePlanTier(localStorage.getItem('pb_selected_contributor_plan') || account.plan || 'Basic');
+  const currentPlan = pbxNormalizePlanTier(account.plan || 'Free');
+  const premiumActive = !!payload?.premium_active;
+  const nextReservation = reservations.find((item) => String(item.status || '').toLowerCase() === 'scheduled') || reservations[0] || null;
+  const mode = pbxGetContributorComputeMode();
+  const quoteHours = Math.max(Number(localStorage.getItem('pb_selected_contributor_hours') || 1), 1);
+  const profile = PBX_CONTRIBUTOR_HUB_STATE.profile || {};
+  const reco = quote?.recommended_plan || selectedPlan;
+  const langKo = getActiveUiLanguage() === 'ko';
+  const steps = [
+    { label: langKo ? '앱 설치' : 'Install app', done: linked },
+    { label: langKo ? '연동 확인' : 'Verify sync', done: linked },
+    { label: langKo ? 'PC 성능 확인' : 'Check hardware', done: !!profile.cpu_threads || !!profile.memory_gb },
+    { label: langKo ? '플랜 선택' : 'Choose plan', done: pbxIsPaidPlan(selectedPlan) },
+    { label: langKo ? '예약 완료' : 'Reservation', done: !!nextReservation },
+  ];
+  const startsValue = nextReservation?.starts_at ? new Date(nextReservation.starts_at).toISOString().slice(0,16) : new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0,16);
+  const linkedSummary = pbxShortDeviceSummary(payload?.exact_device_summary, devices);
+  return `
+    <div class="contributor-status-shell">
+      <section class="contributor-status-card" style="padding:24px">
+        <div class="contributor-status-title">${langKo ? '기여 구독 시작 순서' : 'Contribution flow'}</div>
+        <div class="contributor-status-copy">${langKo ? '앱 설치부터 기기 연동, 플랜 선택, 예약 저장까지 이 화면에서 순서대로 진행합니다.' : 'Complete installation, sync, plan selection, and reservation in order.'}</div>
+        <div class="contributor-status-steps">
+          ${steps.map((step, index) => `
+            <div class="contributor-status-step${step.done ? ' done' : ''}">
+              <span class="contributor-status-step-chip">${step.done ? '✓' : index + 1}</span>
+              <div>${escapeHtml(step.label)}</div>
+            </div>`).join('')}
+        </div>
+      </section>
+      <section class="contributor-status-card" style="padding:24px">
+        <div class="contributor-status-grid">
+          <div class="contributor-status-stat"><div class="contributor-status-stat-label">${langKo ? '현재 플랜' : 'Current plan'}</div><div class="contributor-status-stat-value">${escapeHtml(currentPlan)}</div></div>
+          <div class="contributor-status-stat"><div class="contributor-status-stat-label">${langKo ? '프리미엄' : 'Premium'}</div><div class="contributor-status-stat-value">${premiumActive ? (langKo ? '활성' : 'Active') : (langKo ? '비활성' : 'Inactive')}</div></div>
+          <div class="contributor-status-stat"><div class="contributor-status-stat-label">${langKo ? '우선순위' : 'Queue'}</div><div class="contributor-status-stat-value">${escapeHtml(pbxContributorQueueLabel(payload?.queue_mode || account?.latest_quote?.queue_mode || ''))}</div></div>
+          <div class="contributor-status-stat"><div class="contributor-status-stat-label">${langKo ? '다음 예약' : 'Next window'}</div><div class="contributor-status-stat-value">${escapeHtml(nextReservation ? pbxFormatContributorDate(nextReservation.starts_at) : (langKo ? '없음' : 'None'))}</div></div>
+        </div>
+        <div class="contributor-status-detail">
+          <div class="contributor-status-detail-item"><strong>${langKo ? '연결된 기기' : 'Linked device'}</strong><span>${escapeHtml(linkedSummary)}</span></div>
+          <div class="contributor-status-detail-item"><strong>${langKo ? '추천 플랜' : 'Suggested plan'}</strong><span>${escapeHtml(reco)}</span></div>
+          <div class="contributor-status-detail-item"><strong>${langKo ? '연산 모드' : 'Compute mode'}</strong><span>${escapeHtml(mode === 'distributed' ? (langKo ? '서버 보조 연산 우선' : 'Server assist priority') : mode === 'hybrid' ? (langKo ? '내 기기 + 서버 보조 연산' : 'Local + server assist') : (langKo ? '내 기기 연산' : 'Local compute'))}</span></div>
+        </div>
+      </section>
+      <section class="contributor-status-card" style="padding:24px">
+        <div class="contributor-status-title">${langKo ? '예약 준비' : 'Prepare reservation'}</div>
+        <div class="contributor-status-fields">
+          <label class="contributor-status-field"><span>${langKo ? '선택 플랜' : 'Selected plan'}</span><select id="contributor-plan-select">${['Basic','Plus','Pro'].map((plan) => `<option value="${plan}" ${plan === selectedPlan ? 'selected' : ''}>${plan}</option>`).join('')}</select></label>
+          <label class="contributor-status-field"><span>${langKo ? '기여 시간' : 'Contribution hours'}</span><input id="contributor-hours-input" type="number" min="1" step="1" value="${quoteHours}"></label>
+          <label class="contributor-status-field"><span>${langKo ? '시작 시각' : 'Start time'}</span><input id="contributor-starts-at-input" type="datetime-local" value="${startsValue}"></label>
+          <label class="contributor-status-field"><span>${langKo ? 'CPU 상한 (%)' : 'CPU cap (%)'}</span><input id="contributor-cpu-cap-input" type="number" min="20" max="90" step="5" value="70"></label>
+          <label class="contributor-status-field"><span>${langKo ? 'GPU 상한 (%)' : 'GPU cap (%)'}</span><input id="contributor-gpu-cap-input" type="number" min="20" max="90" step="5" value="70"></label>
+          <label class="contributor-status-field" id="contributor-mode-row"><span id="contributor-mode-label">${langKo ? '연산 모드' : 'Compute mode'}</span><select id="contributor-compute-mode-select" onchange="updateContributorComputeMode(this.value)"></select><small id="contributor-mode-desc">${escapeHtml(pbxContributorStrings().modeDesc)}</small></label>
+        </div>
+        <div class="contributor-status-banner">${linked ? (langKo ? '기여 앱 연동이 확인됐어요. 이제 예약을 저장할 수 있어요.' : 'The contributor app is linked. You can save a reservation now.') : (langKo ? '먼저 기여 앱을 설치하고 실행한 뒤 사이트와 동기화가 확인되어야 예약이 열립니다.' : 'Install and run the contributor app first, then return once sync is confirmed.')}</div>
+        <div class="contributor-status-actions">
+          <button class="contributor-status-btn" type="button" onclick="downloadContributorApp()">${langKo ? '기여 앱 받기' : 'Download app'}</button>
+          <button class="contributor-status-btn primary" type="button" onclick="reserveContributorPlan()" ${linked ? '' : 'disabled'}>${langKo ? '예약 저장' : 'Save reservation'}</button>
+        </div>
+      </section>
+    </div>`;
+}
+
+async function reserveContributorPlan() {
+  const user = pbxCurrentUser();
+  if (!user) {
+    showToast(getActiveUiLanguage() === 'ko' ? 'Google 로그인 후 예약할 수 있어요.' : 'Sign in with Google before reserving.');
+    return;
   }
-
-  function pbxContributorUserId() {
-    const user = pbxCurrentUser();
-    const stored = trim(localStorage.getItem("pb_contributor_user_id") || "");
-    const preferred = trim(String(user?.sub || user?.email || stored || ""));
-    const value = preferred || `pb_${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem("pb_contributor_user_id", value);
-    return value;
+  const status = PBX_CONTRIBUTOR_HUB_STATE.status;
+  if (!status || !Array.isArray(status.devices) || !status.devices.length) {
+    showToast(getActiveUiLanguage() === 'ko' ? '기여 앱 설치와 연동 확인 후 예약할 수 있어요.' : 'Install and link the contributor app before reserving.');
+    return;
   }
-
-  function pbxFormatContributorDate(value) {
-    if (!value) return pbxContributorStrings().values.none;
-    try {
-      return new Date(value).toLocaleString(getActiveUiLanguage() === "ko" ? "ko-KR" : getActiveUiLanguage() === "ja" ? "ja-JP" : "en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (_error) {
-      return String(value);
-    }
+  const plan = trim(document.getElementById('contributor-plan-select')?.value || 'Basic');
+  const hours = Math.max(Number(document.getElementById('contributor-hours-input')?.value || 1), 1);
+  const startsAt = trim(document.getElementById('contributor-starts-at-input')?.value || '');
+  const cpuCap = Math.max(20, Math.min(Number(document.getElementById('contributor-cpu-cap-input')?.value || 70), 90));
+  const gpuCap = Math.max(20, Math.min(Number(document.getElementById('contributor-gpu-cap-input')?.value || 70), 90));
+  localStorage.setItem('pb_selected_contributor_plan', plan);
+  localStorage.setItem('pb_selected_contributor_hours', String(hours));
+  const profile = await pbxGetContributorDeviceProfile();
+  const response = await fetch('/api/contributor/reserve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: pbxContributorUserId(),
+      display_name: trim(user?.name || user?.email || ''),
+      plan,
+      hours,
+      starts_at: startsAt,
+      cpu_cap: cpuCap,
+      gpu_cap: gpuCap,
+      device_profile: profile,
+    }),
+  });
+  const payload = await response.json();
+  if (!payload || !payload.ok) {
+    showToast(payload?.message || (getActiveUiLanguage() === 'ko' ? '예약을 저장하지 못했어요.' : 'Unable to save reservation.'));
+    return;
   }
+  showToast(getActiveUiLanguage() === 'ko' ? '기여 예약을 저장했어요.' : 'Contribution reservation saved.');
+  await pbxRenderContributorHub('status');
+  await pbxRefreshContributorSidebar();
+}
 
-  async function pbxRefreshContributorSidebar() {
-    const copy = pbxContributorStrings();
-    const upgradeNode = document.getElementById("upgrade-plan-btn");
-    const cardNode = document.getElementById("contributor-card");
-    setText("upgrade-plan-title", copy.upgradeTitle);
-    setText("upgrade-plan-sub", copy.upgradeSub);
-    setText("contributor-card-title", copy.cardTitle);
-    setText("contributor-card-sub", copy.cardSub);
-    setText("contributor-stat-plan-label", copy.labels.plan);
-    setText("contributor-stat-premium-label", copy.labels.premium);
-    setText("contributor-stat-queue-label", copy.labels.queue);
-    setText("contributor-stat-next-label", copy.labels.next);
-    const planNode = document.getElementById("contributor-plan-value");
-    const premiumNode = document.getElementById("contributor-premium-value");
-    const queueNode = document.getElementById("contributor-queue-value");
-    const nextNode = document.getElementById("contributor-next-value");
-    const pillNode = document.getElementById("contributor-card-pill");
-    const noteNode = document.getElementById("contributor-card-note");
-    const deviceLabelNode = document.getElementById("contributor-device-label");
-    const deviceNode = document.getElementById("contributor-device-value");
-    const hintNode = document.getElementById("contributor-card-hint");
-    if (!planNode || !premiumNode || !queueNode || !nextNode || !pillNode || !noteNode || !deviceNode || !deviceLabelNode || !upgradeNode || !cardNode) return;
+function pbxRenderContributorHubShell(mode) {
+  const titleNode = document.getElementById('contributor-hub-title');
+  const subtitleNode = document.getElementById('contributor-hub-subtitle');
+  const footLeftNode = document.getElementById('contributor-hub-foot-left');
+  const footRightNode = document.getElementById('contributor-hub-foot-right');
+  const langKo = getActiveUiLanguage() === 'ko';
+  if (titleNode) titleNode.textContent = mode === 'plans' ? (langKo ? '플랜 업그레이드' : 'Upgrade plans') : (langKo ? '기여 구독 상태' : 'Contributor status');
+  if (subtitleNode) subtitleNode.textContent = mode === 'plans'
+    ? (langKo ? '플랜 비교만 깔끔하게 보여주고, 선택 후 다음 단계로 넘어갑니다.' : 'Compare plans only, then continue to the next step.')
+    : (langKo ? '앱 설치, 연동 확인, PC 성능 확인, 플랜 선택, 예약 저장을 순서대로 진행합니다.' : 'Install the app, verify sync, check hardware, choose a plan, and save a reservation in order.');
+  if (footLeftNode) footLeftNode.textContent = mode === 'plans'
+    ? (langKo ? 'Basic부터 서버 보조 연산 모드를 선택할 수 있어요.' : 'Basic and above can choose server assist modes.')
+    : (langKo ? '예약은 앱 설치와 연동이 확인된 뒤에만 열립니다.' : 'Reservations unlock only after the app is installed and linked.');
+  if (footRightNode) footRightNode.textContent = mode === 'plans'
+    ? (langKo ? '선택 후에는 기여 앱 설치와 연동 단계로 이어집니다.' : 'After choosing a plan, continue to app install and sync.')
+    : (langKo ? '기여 앱이 연결되면 상태는 자동으로 갱신됩니다.' : 'Status refreshes automatically once the contributor app is linked.');
+}
 
-    const user = pbxCurrentUser();
-    deviceLabelNode.textContent = copy.deviceLabel;
-    if (!user) {
-      upgradeNode.classList.remove("hidden");
-      cardNode.classList.add("hidden");
-      cardNode.classList.remove("disabled");
-      planNode.textContent = copy.values.free;
-      premiumNode.textContent = copy.values.inactive;
-      queueNode.textContent = copy.values.standard;
-      nextNode.textContent = copy.values.none;
-      pillNode.textContent = copy.values.free;
-      noteNode.textContent = copy.noteAnon;
-      deviceNode.textContent = copy.values.none;
-      if (hintNode) hintNode.textContent = "로그인 후 플랜을 선택하면 여기서 기여 상태를 볼 수 있어요.";
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(pbxContributorUserId())}`);
-      const payload = await response.json();
-      if (!payload || !payload.ok) throw new Error("status-unavailable");
-      const account = payload.account || {};
-      const reservations = Array.isArray(payload.reservations) ? payload.reservations : [];
-      const devices = Array.isArray(payload.devices) ? payload.devices : [];
-      const nextReservation = reservations.find((item) => String(item.status || "").toLowerCase() === "scheduled") || reservations[0] || null;
-      const plan = trim(account.plan || "Free");
-      const premiumActive = !!payload.premium_active;
-      const mode = pbxApplyContributorComputeMode(plan);
-      const paidPlan = pbxIsPaidPlan(plan);
-      upgradeNode.classList.toggle("hidden", paidPlan);
-      cardNode.classList.toggle("hidden", !paidPlan);
-      cardNode.classList.toggle("disabled", false);
-      planNode.textContent = plan;
-      premiumNode.textContent = premiumActive ? copy.values.active : copy.values.inactive;
-      queueNode.textContent = pbxContributorQueueLabel((account.latest_quote && account.latest_quote.queue_mode) || payload.queue_mode || copy.values.standard);
-      nextNode.textContent = nextReservation ? pbxFormatContributorDate(nextReservation.starts_at) : copy.values.none;
-      pillNode.textContent = premiumActive ? `${plan} Active` : plan;
-      noteNode.textContent = mode === "distributed"
-        ? "분산 보조 연산 우선 모드가 선택되어 있어요."
-        : mode === "hybrid"
-          ? "내 기기와 보조 연산을 함께 쓰는 모드예요."
-          : copy.noteActive;
-      deviceNode.textContent = pbxShortDeviceSummary(payload.exact_device_summary, devices);
-      if (hintNode) hintNode.textContent = "카드를 열면 앱 설치, 연동 확인, 예약 단계를 자세히 볼 수 있어요.";
-    } catch (_error) {
-      upgradeNode.classList.remove("hidden");
-      cardNode.classList.add("hidden");
-      cardNode.classList.remove("disabled");
-      planNode.textContent = copy.values.free;
-      premiumNode.textContent = copy.values.inactive;
-      queueNode.textContent = copy.values.standard;
-      nextNode.textContent = copy.values.none;
-      pillNode.textContent = copy.values.free;
-      noteNode.textContent = copy.noteFree;
-      deviceNode.textContent = copy.values.none;
-      if (hintNode) hintNode.textContent = "플랜을 고르면 여기서 기여 상태를 볼 수 있어요.";
-    }
+async function pbxRenderContributorHub(mode) {
+  const safeMode = mode === 'plans' ? 'plans' : 'status';
+  pbxSetContributorHubSection(safeMode);
+  pbxRenderContributorHubShell(safeMode);
+  const plansNode = document.getElementById('contributor-hub-section-plans');
+  const statusNode = document.getElementById('contributor-hub-section-status');
+  if (safeMode === 'plans') {
+    pbxRenderContributorPlans();
+    if (statusNode) statusNode.innerHTML = '';
+    return;
   }
-
-  let pbxContributorSidebarInterval = null;
-  function pbxEnsureContributorSidebarAutoRefresh() {
-    if (pbxContributorSidebarInterval) return;
-    pbxContributorSidebarInterval = setInterval(() => {
-      pbxRefreshContributorSidebar().catch(() => {});
-    }, 30000);
+  if (statusNode) statusNode.innerHTML = `<div class="contributor-status-card" style="padding:24px"><div class="contributor-status-copy">${getActiveUiLanguage() === 'ko' ? '기여 상태를 불러오는 중이에요.' : 'Loading contributor status...'}</div></div>`;
+  try {
+    const payload = await pbxFetchContributorStatus();
+    const selectedPlan = pbxNormalizePlanTier(localStorage.getItem('pb_selected_contributor_plan') || payload?.account?.plan || 'Basic');
+    const hours = Math.max(Number(localStorage.getItem('pb_selected_contributor_hours') || (selectedPlan === 'Basic' ? 1 : selectedPlan === 'Plus' ? 5 : 10)), 1);
+    const quote = await pbxFetchContributorQuote(selectedPlan, hours);
+    if (statusNode) statusNode.innerHTML = pbxBuildContributorStatusMarkup(payload, quote);
+    pbxApplyContributorComputeMode(selectedPlan);
+  } catch (_error) {
+    if (statusNode) statusNode.innerHTML = `<div class="contributor-status-card" style="padding:24px"><div class="contributor-status-title">${getActiveUiLanguage() === 'ko' ? '상태를 불러오지 못했어요' : 'Unable to load status'}</div><div class="contributor-status-copy">${getActiveUiLanguage() === 'ko' ? '잠시 후 다시 열어 주세요.' : 'Please try again in a moment.'}</div></div>`;
   }
+}
 
-  function pbxCloseProfileMenu() {
+function pbxOpenUpgradePage(event) {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.openUpgradePage === "function") {
+    return window.PurpleBeeContributorUI.openUpgradePage(event);
+  }
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+}
+
+function pbxOpenContributorHub(mode = 'status') {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.openContributorHub === "function") {
+    return window.PurpleBeeContributorUI.openContributorHub(mode);
+  }
+}
+
+function pbxCloseContributorHub(event) {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.closeContributorHub === "function") {
+    return window.PurpleBeeContributorUI.closeContributorHub(event);
+  }
+}
+
+function pbxUpdateContributorComputeMode(mode) {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.updateContributorComputeMode === "function") {
+    return window.PurpleBeeContributorUI.updateContributorComputeMode(mode);
+  }
+  return pbxSetContributorComputeMode(mode);
+}
+
+async function pbxDownloadContributorApp() {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.downloadContributorApp === "function") {
+    return window.PurpleBeeContributorUI.downloadContributorApp();
+  }
+}
+
+async function pbxRefreshContributorSidebar() {
+  if (window.PurpleBeeContributorUI && typeof window.PurpleBeeContributorUI.refreshContributorSidebar === "function") {
+    return window.PurpleBeeContributorUI.refreshContributorSidebar();
+  }
+}
+
+let pbxContributorSidebarInterval = null;
+function pbxEnsureContributorSidebarAutoRefresh() {
+  return;
+}
+
+function pbxCloseProfileMenu() {
     const menu = document.getElementById("profile-menu");
     if (menu) menu.classList.remove("open");
   }
@@ -6681,7 +6861,6 @@ async function generateReasonedChatReply(prompt, language) {
     pbxApplyTheme();
     pbxSetRandomWelcome();
     pbxRenderProfileMenu();
-    pbxRefreshContributorSidebar().catch(() => {});
   }
 
   function saveConversation() {
@@ -7183,6 +7362,9 @@ async function generateReasonedChatReply(prompt, language) {
     if (/占/.test(text)) return true;
     if (/(Ã|Â|Ð|Ñ|Ė|¤|�)/.test(text)) return true;
     if (/[횄횂횖횗]/.test(text)) return true;
+    if (/([가-힣A-Za-z]{1,12})(?:\s+\1){2,}/u.test(text)) return true;
+    if (/([가-힣A-Za-z]{1,8})(?:\1){4,}/u.test(text.replace(/\s+/g, ""))) return true;
+    if (/^(응+|웅+|음+|네+|예+|그래+|ㅇㅇ|yes|yeah|ok(?:ay)?|sure)[.!?~…]*$/iu.test(text)) return true;
     const allowed = (text.match(/[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣぁ-ゔァ-ヴー々〆〤一-龥._\-\s]/g) || []).length;
     if (text.length >= 3 && allowed / text.length < 0.55) return true;
     return false;
@@ -8887,9 +9069,13 @@ async function generateReasonedChatReply(prompt, language) {
 
   function cleanupBrowserModelReply(text, prompt) {
     let value = trim(String(text || ""));
+    value = value.replace(/<\|im_end\|>/g, "").trim();
+    value = value.replace(/<\|endoftext\|>/g, "").trim();
+    value = value.replace(/<\|im_start\|>assistant/gi, "").trim();
     value = value.replace(/^(assistant|purple bee)\s*:\s*/i, "").trim();
     value = value.replace(/\b(user|assistant|purple bee)\s*:/gi, "").trim();
     value = value.split(/\n+\s*User\s*:/i)[0].trim();
+    value = value.split(/<\|im_start\|>\s*user/iu)[0].trim();
     value = value.replace(/\n+\s*Assistant\s*:/gi, "\n").trim();
     value = value.replace(/\n{3,}/g, "\n\n").trim();
     const normalizedPrompt = normalizeDialogueText(prompt);
@@ -8900,37 +9086,78 @@ async function generateReasonedChatReply(prompt, language) {
     return value;
   }
 
+  function isTrivialModelReply(text) {
+    const normalized = normalizeDialogueText(text);
+    if (!normalized) return true;
+    const compact = normalized.replace(/\s+/g, "");
+    if (compact.length <= 2) return true;
+    return [
+      "응",
+      "응.",
+      "네",
+      "네.",
+      "예",
+      "예.",
+      "그래",
+      "그래.",
+      "좋아",
+      "좋아.",
+      "알겠어",
+      "알겠어.",
+      "음",
+      "음.",
+      "ㅇㅇ",
+      "ㅇㅇ.",
+      "ok",
+      "okay",
+      "yes",
+      "yeah",
+      "sure",
+    ].includes(compact);
+  }
+
   function pbxRuntimeTimeouts() {
     const askedUserCount = state.history.filter((entry) => entry && entry.role === "user").length;
     const isFirstTurn = askedUserCount <= 1;
     return {
       isFirstTurn,
-      modelMs: isFirstTurn ? 70000 : (state.deepThink ? 30000 : 18000),
-      replyMs: isFirstTurn ? 95000 : 26000,
+      modelMs: isFirstTurn ? 90000 : (state.deepThink ? 55000 : 38000),
+      replyMs: isFirstTurn ? 120000 : 52000,
     };
   }
 
   function buildBrowserModelPrompt(prompt, language) {
     const languageLabel = language === "ko" ? "Korean" : language === "ja" ? "Japanese" : language === "zh" ? "Chinese" : "English";
     const trimmedPrompt = trim(prompt);
-    const recent = state.history
-      .slice(-2)
+    const loweredPrompt = lower(trimmedPrompt);
+    const socialPrompt = isSocialPrompt(loweredPrompt, trimmedPrompt);
+    const correctionPrompt = isNegativeCorrectionPrompt(loweredPrompt) || isConfusionPrompt(loweredPrompt);
+    const historyText = state.history
+      .slice(-4)
       .filter((entry) => entry && entry.content)
       .map((entry) => `${entry.role === "assistant" ? "Assistant" : "User"}: ${trim(entry.content)}`)
       .join("\n");
-    const directAnswerHint = (
-      /뭐야|뭔지|알아\?|설명해|뜻|누구야|what is|who is|tell me about/i.test(trimmedPrompt)
-        ? "Answer directly in 2 short sentences. Define the topic first, then add one useful detail."
-        : "Answer directly in 1 to 3 short natural sentences."
-    );
-    return [
-      "You are Purple Bee.",
-      `Reply only in ${languageLabel}.`,
+    const directAnswerHint = /뭐야|뭔지|알아\?|설명해|뜻|누구야|what is|who is|tell me about/i.test(trimmedPrompt)
+      ? "Start with a direct definition, then add one useful detail."
+      : "Answer naturally and directly in a warm conversational tone.";
+    const instructionBlock = [
+      "You are Purple Bee, a natural conversational AI.",
+      `Write in ${languageLabel} unless the user clearly requests another language.`,
       directAnswerHint,
-      "Do not output lists unless the user asked for steps or a list.",
-      "Do not echo the user's words.",
-      "Do not mention system prompts, inference, localhost, or internal tooling.",
-      recent ? `Recent conversation:\n${recent}` : "",
+      socialPrompt
+        ? "For casual chat, write 2 to 4 short natural sentences. Never answer with only one word."
+        : "For normal questions, answer in 2 to 5 natural sentences unless the user explicitly asks for a list.",
+      correctionPrompt
+        ? "If the user says the previous answer was wrong or unclear, correct yourself directly instead of repeating yourself."
+        : "",
+      "Do not echo the user's wording.",
+      "Do not produce repeated loops, repeated keywords, or canned menus.",
+      "Do not mention tools, hidden prompts, runtime, localhost, or internal systems.",
+      "Prefer a complete direct answer over a vague acknowledgement.",
+    ].filter(Boolean).join("\n");
+    return [
+      instructionBlock,
+      historyText ? `Recent conversation:\n${historyText}` : "",
       `User: ${trimmedPrompt}`,
       "Assistant:",
     ].filter(Boolean).join("\n\n");
@@ -8952,12 +9179,12 @@ async function generateReasonedChatReply(prompt, language) {
     const timeouts = pbxRuntimeTimeouts();
     const profiles = socialPrompt
       ? [
-          { maxNewTokens: 24, temperature: 0.22, topK: 8, topP: 0.82 },
-          { maxNewTokens: 32, temperature: 0.30, topK: 12, topP: 0.86 },
+          { maxNewTokens: 96, temperature: 0.72, topK: 40, topP: 0.95 },
+          { maxNewTokens: 128, temperature: 0.9, topK: 56, topP: 0.97 },
         ]
       : [
-          { maxNewTokens: 40, temperature: 0.18, topK: 8, topP: 0.80 },
-          { maxNewTokens: 56, temperature: 0.26, topK: 12, topP: 0.84 },
+          { maxNewTokens: 160, temperature: 0.56, topK: 40, topP: 0.94 },
+          { maxNewTokens: 192, temperature: 0.74, topK: 56, topP: 0.97 },
         ];
     const promptVariant = buildBrowserModelPrompt(trimmedPrompt, language);
     const previousChain = (engine._inferenceChain || Promise.resolve()).catch(() => {});
@@ -8968,17 +9195,19 @@ async function generateReasonedChatReply(prompt, language) {
             engine.browserRuntime.generateReply(promptVariant, profile),
             new Promise((_, reject) => setTimeout(() => reject(new Error("model-timeout")), timeouts.modelMs)),
           ]);
-          const cleaned = cleanupBrowserModelReply(generated, trimmedPrompt);
-          if (!cleaned) continue;
-          if (pbxLooksBrokenText(cleaned)) continue;
-          if (!isLanguageCompatible(cleaned, language)) continue;
-          if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
-          if (!socialPrompt && cleaned.length < 8) continue;
-          return cleaned;
-        } catch (error) {
-          engine.lastError = String(error && error.message ? error.message : error || "model generation failed");
-        }
+        const cleaned = cleanupBrowserModelReply(generated, trimmedPrompt);
+        if (!cleaned) continue;
+        if (pbxLooksBrokenText(cleaned)) continue;
+        if (isTrivialModelReply(cleaned)) continue;
+        if (!isLanguageCompatible(cleaned, language)) continue;
+        if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
+        if (socialPrompt && cleaned.replace(/\s+/g, "").length < 12) continue;
+        if (!socialPrompt && cleaned.length < 20) continue;
+        return cleaned;
+      } catch (error) {
+        engine.lastError = String(error && error.message ? error.message : error || "model generation failed");
       }
+    }
       return "";
     });
     engine._inferenceChain = queued;
@@ -9001,7 +9230,9 @@ async function generateReasonedChatReply(prompt, language) {
       const cleaned = cleanupBrowserModelReply(generated, prompt);
       if (!cleaned) return "";
       if (pbxLooksBrokenText(cleaned)) return "";
+      if (isTrivialModelReply(cleaned)) return "";
       if (!isLanguageCompatible(cleaned, language)) return "";
+      if (isSocialPrompt(loweredPrompt, prompt) && cleaned.replace(/\s+/g, "").length < 12) return "";
       return cleaned;
     } catch (_error) {
       return "";
@@ -9225,8 +9456,8 @@ async function generateReasonedChatReply(prompt, language) {
     const isFirstTurn = askedUserCount <= 1;
     return {
       isFirstTurn,
-      modelMs: isFirstTurn ? 120000 : 45000,
-      replyMs: isFirstTurn ? 140000 : 60000,
+      modelMs: isFirstTurn ? 90000 : 30000,
+      replyMs: isFirstTurn ? 100000 : 40000,
     };
   }
 
@@ -9240,10 +9471,16 @@ async function generateReasonedChatReply(prompt, language) {
     if (!engine.model || !engine.inferenceWorker) return "";
 
     const promptVariant = buildBrowserModelPrompt(prompt, language);
-    const profiles = [
-      { maxNewTokens: 48, temperature: 0.35, topK: 14, topP: 0.88 },
-      { maxNewTokens: 64, temperature: 0.42, topK: 18, topP: 0.90 },
-    ];
+    const socialPrompt = isSocialPrompt(lower(prompt), prompt);
+    const profiles = socialPrompt
+      ? [
+          { maxNewTokens: 72, minNewTokens: 14, temperature: 0.48, topK: 32, topP: 0.90 },
+          { maxNewTokens: 96, minNewTokens: 16, temperature: 0.60, topK: 40, topP: 0.92 },
+        ]
+      : [
+          { maxNewTokens: 120, minNewTokens: 18, temperature: 0.40, topK: 28, topP: 0.88 },
+          { maxNewTokens: 148, minNewTokens: 20, temperature: 0.52, topK: 36, topP: 0.90 },
+        ];
 
     for (const profile of profiles) {
       try {
@@ -9256,6 +9493,8 @@ async function generateReasonedChatReply(prompt, language) {
         if (pbxLooksBrokenText(cleaned)) continue;
         if (!isLanguageCompatible(cleaned, language)) continue;
         if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
+        if (socialPrompt && cleaned.replace(/\s+/g, "").length < 12) continue;
+        if (!socialPrompt && cleaned.replace(/\s+/g, "").length < 18) continue;
         return cleaned;
       } catch (error) {
         engine.lastError = String(error && error.message ? error.message : error || "browser worker reply failed");
@@ -9273,6 +9512,7 @@ async function generateReasonedChatReply(prompt, language) {
     if (!cleaned) return "";
     if (pbxLooksBrokenText(cleaned)) return "";
     if (!isLanguageCompatible(cleaned, language)) return "";
+    if (isSocialPrompt(loweredPrompt, prompt) && cleaned.replace(/\s+/g, "").length < 8) return "";
     return cleaned;
   }
 
@@ -9714,7 +9954,7 @@ async function generateReasonedChatReply(prompt, language) {
       throw new Error(runtimeState.reason || "runtime-missing");
     }
     const pkg = runtimeState.packageState;
-    const worker = new Worker(`/static/purple-bee-inference-worker.js?v=20260407a`);
+  const worker = new Worker(`/static/purple-bee-inference-worker.js?v=20260408f`);
     engine.inferenceWorker = worker;
     engine.inferenceWorkerPromise = pbxWorkerRequest(worker, "init", {
       manifest: pkg.manifest,
@@ -9746,7 +9986,7 @@ async function generateReasonedChatReply(prompt, language) {
       family_name: "Purple Bee",
       model_id: installMeta.id || "purple-bee-1-3",
       display_name: installMeta.display_name || "Purple Bee",
-      runtime_mode: "public-server-runtime",
+      runtime_mode: "browser-worker-runtime",
       linked_at: new Date().toISOString(),
       website_origin: window.location.origin,
       note: "This folder is linked as the Purple Bee AI assets folder for this browser.",
@@ -10044,7 +10284,7 @@ async function generateReasonedChatReply(prompt, language) {
       display_name: displayName,
       installed_at: installedAt,
       asset_version: String(plan?.asset_version || "current"),
-      install_mode: String(plan?.install_mode || "public-server-runtime"),
+      install_mode: String(plan?.install_mode || "browser-worker-runtime"),
       backend: plan?.backend || {},
       files: written,
     });
@@ -10686,14 +10926,10 @@ async function generateReasonedChatReply(prompt, language) {
     document.addEventListener("DOMContentLoaded", function () {
       pbxEnhanceUiBindings();
       pbxRefreshAssetsButtonState().catch(() => {});
-      pbxRefreshContributorSidebar().catch(() => {});
-      pbxEnsureContributorSidebarAutoRefresh();
     });
   } else {
     pbxEnhanceUiBindings();
     pbxRefreshAssetsButtonState().catch(() => {});
-    pbxRefreshContributorSidebar().catch(() => {});
-    pbxEnsureContributorSidebarAutoRefresh();
   }
 
   Object.assign(window, {
@@ -10727,6 +10963,7 @@ async function generateReasonedChatReply(prompt, language) {
     closeContributorHub: pbxCloseContributorHub,
     updateContributorComputeMode: pbxUpdateContributorComputeMode,
     downloadContributorApp: pbxDownloadContributorApp,
+    reserveContributorPlan,
     refreshContributorSidebar: pbxRefreshContributorSidebar,
     renameConversationFromMenu,
     deleteConversationFromMenu,
@@ -10736,3 +10973,4 @@ async function generateReasonedChatReply(prompt, language) {
     openConsentDocs,
   });
 })();
+

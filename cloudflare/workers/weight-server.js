@@ -584,10 +584,29 @@ async function loadRuntimeConfigFromAssets(request, env) {
   if (String(runtime.engine || "").trim().toLowerCase() === "transformers-js") {
     return {
       mode: "transformers-js",
+      familyName: String(payload.family_name || "Purple Bee"),
+      modelId: String(payload.model_id || "purple-bee-1-3"),
+      displayName: String(payload.display_name || "Purple Bee 1.3"),
+      baseModel: String(payload.base_model || "Qwen2.5-0.5B-Instruct-ONNX"),
+      assetVersion: String(payload.asset_version || "").trim(),
+      metadataAssets: payload?.metadata_assets || {},
+      providerPreference: normalizeProviderPreference(runtime.provider_preference),
+      maxContext: Number(runtime.max_context || 2048),
+      storage: "remote-model-repo",
+      publicBaseUrl: "",
+      assetMap: buildAssetMap(
+        String(payload?.browser_assets?.onnx || ""),
+        String(payload?.browser_assets?.tokenizer || ""),
+        String(payload?.browser_assets?.onnx_data || ""),
+        payload?.metadata_assets || {},
+      ),
       manifest: {
         family_name: String(payload.family_name || "Purple Bee"),
         model_id: String(payload.model_id || "purple-bee-1-3"),
         display_name: String(payload.display_name || "Purple Bee 1.3"),
+        base_model: String(payload.base_model || "Qwen2.5-0.5B-Instruct-ONNX"),
+        asset_version: String(payload.asset_version || "").trim(),
+        metadata_assets: payload?.metadata_assets || {},
         browser_assets: payload?.browser_assets || {},
         runtime: {
           ...runtime,
@@ -604,6 +623,7 @@ async function loadRuntimeConfigFromAssets(request, env) {
   }
 
   const browserAssets = payload?.browser_assets || {};
+  const metadataAssets = payload?.metadata_assets || {};
   const onnxUrl = String(browserAssets.onnx || "").trim();
   const tokenizerUrl = String(browserAssets.tokenizer || "").trim();
   const onnxDataUrl = String(browserAssets.onnx_data || "").trim();
@@ -613,15 +633,17 @@ async function loadRuntimeConfigFromAssets(request, env) {
     familyName: String(payload.family_name || "Purple Bee"),
     modelId: String(payload.model_id || "purple-bee-1-3"),
     displayName: String(payload.display_name || "Purple Bee 1.3"),
+    baseModel: String(payload.base_model || "Qwen2.5-0.5B-Instruct-ONNX"),
     onnxUrl,
     tokenizerUrl,
     onnxDataUrl,
+    metadataAssets,
     assetVersion: String(payload.asset_version || "").trim(),
     maxContext: Number(runtime.max_context || 2048),
     providerPreference: normalizeProviderPreference(runtime.provider_preference),
     storage: "public-object-storage",
     publicBaseUrl: deriveBaseUrl(onnxUrl),
-    assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl),
+    assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets),
   };
 }
 
@@ -637,24 +659,32 @@ function buildRuntimeConfigFromEnv(env) {
   const onnxUrl = `${publicBaseUrl}/${onnxName}`;
   const tokenizerUrl = `${publicBaseUrl}/${tokenizerName}`;
   const onnxDataUrl = onnxDataName ? `${publicBaseUrl}/${onnxDataName}` : "";
+  const metadataAssets = {
+    config: `${publicBaseUrl}/config.json`,
+    generation_config: `${publicBaseUrl}/generation_config.json`,
+    special_tokens_map: `${publicBaseUrl}/special_tokens_map.json`,
+    tokenizer_config: `${publicBaseUrl}/tokenizer_config.json`,
+  };
 
   return {
     familyName: "Purple Bee",
     modelId,
     displayName,
+    baseModel: "Qwen2.5-0.5B-Instruct-ONNX",
     onnxUrl,
     tokenizerUrl,
     onnxDataUrl,
+    metadataAssets,
     assetVersion: String(env.PURPLE_BEE_MODEL_ASSET_VERSION || "").trim(),
     maxContext: 2048,
     providerPreference: normalizeProviderPreference(env.PURPLE_BEE_PROVIDER_PREFERENCE),
     storage: "public-object-storage",
     publicBaseUrl,
-    assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl),
+    assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets),
   };
 }
 
-function buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl) {
+function buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets = {}) {
   const assetMap = {};
   const onnxName = basenameFromUrl(onnxUrl);
   const tokenizerName = basenameFromUrl(tokenizerUrl);
@@ -662,6 +692,10 @@ function buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl) {
   if (onnxName) assetMap[onnxName] = onnxUrl;
   if (tokenizerName) assetMap[tokenizerName] = tokenizerUrl;
   if (onnxDataName) assetMap[onnxDataName] = onnxDataUrl;
+  for (const value of Object.values(metadataAssets || {})) {
+    const filename = basenameFromUrl(value);
+    if (filename && value) assetMap[filename] = value;
+  }
   return assetMap;
 }
 
@@ -670,22 +704,36 @@ function buildBrowserManifest(request, runtimeConfig) {
   const onnxName = basenameFromUrl(runtimeConfig.onnxUrl);
   const tokenizerName = basenameFromUrl(runtimeConfig.tokenizerUrl);
   const onnxDataName = basenameFromUrl(runtimeConfig.onnxDataUrl);
+  const metadataAssets = runtimeConfig.metadataAssets || {};
   const search = new URLSearchParams();
   if (runtimeConfig.modelId) search.set("model_id", runtimeConfig.modelId);
   if (runtimeConfig.assetVersion) search.set("v", runtimeConfig.assetVersion);
   const modelQuery = search.toString() ? `?${search.toString()}` : "";
+  const proxiedMetadataAssets = {};
+  for (const [key, value] of Object.entries(metadataAssets)) {
+    const filename = basenameFromUrl(value);
+    proxiedMetadataAssets[key] = filename
+      ? `${origin}/api/runtime/assets/${encodeURIComponent(filename)}${modelQuery}`
+      : null;
+  }
 
   return {
     family_name: runtimeConfig.familyName,
     model_id: runtimeConfig.modelId,
     display_name: runtimeConfig.displayName,
+    base_model: runtimeConfig.baseModel || "Qwen2.5-0.5B-Instruct-ONNX",
+    asset_version: runtimeConfig.assetVersion || "",
     browser_assets: {
       onnx: `${origin}/api/runtime/assets/${encodeURIComponent(onnxName)}${modelQuery}`,
       tokenizer: `${origin}/api/runtime/assets/${encodeURIComponent(tokenizerName)}${modelQuery}`,
       onnx_data: onnxDataName
         ? `${origin}/api/runtime/assets/${encodeURIComponent(onnxDataName)}${modelQuery}`
         : null,
+      onnx_filename: onnxName || null,
+      tokenizer_filename: tokenizerName || null,
+      onnx_data_filename: onnxDataName || null,
     },
+    metadata_assets: proxiedMetadataAssets,
     runtime: {
       provider_preference: runtimeConfig.providerPreference,
       max_context: runtimeConfig.maxContext,
@@ -981,16 +1029,31 @@ function buildPackagePlan(request, env, runtimeConfig, publicBackend = null) {
   const displayName = runtimeConfig?.displayName || "Purple Bee 1.3";
   const assetVersion = runtimeConfig?.assetVersion || "";
   const backendBase = String(publicBackend?.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
+  const metadataAssets = runtimeConfig?.metadataAssets || {};
   const query = new URLSearchParams();
   if (modelId) query.set("model_id", modelId);
   if (assetVersion) query.set("v", assetVersion);
   const manifestUrl = `${origin}/api/runtime/browser-manifest${query.toString() ? `?${query.toString()}` : ""}`;
   const healthUrl = `${origin}/api/health`;
   const registryUrl = `${origin}/static/model-registry.json`;
+  const metadataDescriptors = [
+    ["config", "config.json", "모델 설정 파일"],
+    ["generation_config", "generation_config.json", "생성 기본 설정"],
+    ["special_tokens_map", "special_tokens_map.json", "특수 토큰 맵"],
+    ["tokenizer_config", "tokenizer_config.json", "토크나이저 상세 설정"],
+  ]
+    .filter(([key]) => String(metadataAssets[key] || "").trim())
+    .map(([key, filename, description]) => ({
+      filename,
+      kind: "download-text",
+      required: false,
+      description,
+      url: `${origin}/api/runtime/assets/${encodeURIComponent(filename)}${query.toString() ? `?${query.toString()}` : ""}`,
+    }));
 
   return {
     ok: true,
-    install_mode: "public-server-runtime",
+    install_mode: "browser-worker-runtime",
     family_name: "Purple Bee",
     model_id: modelId,
     display_name: displayName,
@@ -1047,6 +1110,7 @@ function buildPackagePlan(request, env, runtimeConfig, publicBackend = null) {
         description: "Public model registry snapshot",
         url: registryUrl,
       },
+      ...metadataDescriptors,
     ],
     generated_assets: {
       "purple-bee-endpoints.json": {

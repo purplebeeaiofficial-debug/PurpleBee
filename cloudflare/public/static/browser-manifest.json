@@ -2,14 +2,30 @@
     "family_name":  "Purple Bee",
     "model_id":  "purple-bee-1-3",
     "display_name":  "Purple Bee 1.3",
+    "base_model":  "Qwen2.5-0.5B-Instruct-ONNX",
+    "asset_version":  "20260408135441",
     "browser_assets":  {
-                           "onnx":  "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main/purple-bee-1-3-int8.onnx",
-                           "tokenizer":  "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main/tokenizer.json"
+                           "onnx":  "/api/runtime/assets/purple-bee-1-3-int8.onnx?model_id=purple-bee-1-3",
+                           "tokenizer":  "/api/runtime/assets/tokenizer.json?model_id=purple-bee-1-3",
+                           "onnx_data":  null,
+                           "onnx_filename":  "purple-bee-1-3-int8.onnx",
+                           "tokenizer_filename":  "tokenizer.json",
+                           "onnx_data_filename":  null
                        },
+    "metadata_assets":  {
+                            "config":  "/api/runtime/assets/config.json?model_id=purple-bee-1-3",
+                            "generation_config":  "/api/runtime/assets/generation_config.json?model_id=purple-bee-1-3",
+                            "special_tokens_map":  "/api/runtime/assets/special_tokens_map.json?model_id=purple-bee-1-3",
+                            "tokenizer_config":  "/api/runtime/assets/tokenizer_config.json?model_id=purple-bee-1-3"
+                        },
     "runtime":  {
+                    "engine":  "transformers-js",
+                    "model_repo":  "ae13341/purple-bee-1-3",
+                    "module_url":  "https://cdn.jsdelivr.net/npm/@huggingface/transformers/+esm",
                     "provider_preference":  [
                                                 "wasm"
                                             ],
-                    "max_context":  2048
+                    "max_context":  3072,
+                    "system_prompt":  "You are Purple Bee. Respond naturally, helpfully, and directly. Avoid repetition, vague filler, and broken text. When a tool is needed, describe the intent clearly."
                 }
 }

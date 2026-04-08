@@ -7362,6 +7362,9 @@ function pbxCloseProfileMenu() {
     if (/占/.test(text)) return true;
     if (/(Ã|Â|Ð|Ñ|Ė|¤|�)/.test(text)) return true;
     if (/[횄횂횖횗]/.test(text)) return true;
+    if (/([가-힣A-Za-z]{1,12})(?:\s+\1){2,}/u.test(text)) return true;
+    if (/([가-힣A-Za-z]{1,8})(?:\1){4,}/u.test(text.replace(/\s+/g, ""))) return true;
+    if (/^(응+|웅+|음+|네+|예+|그래+|ㅇㅇ|yes|yeah|ok(?:ay)?|sure)[.!?~…]*$/iu.test(text)) return true;
     const allowed = (text.match(/[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣぁ-ゔァ-ヴー々〆〤一-龥._\-\s]/g) || []).length;
     if (text.length >= 3 && allowed / text.length < 0.55) return true;
     return false;
@@ -9066,9 +9069,13 @@ function pbxCloseProfileMenu() {
 
   function cleanupBrowserModelReply(text, prompt) {
     let value = trim(String(text || ""));
+    value = value.replace(/<\|im_end\|>/g, "").trim();
+    value = value.replace(/<\|endoftext\|>/g, "").trim();
+    value = value.replace(/<\|im_start\|>assistant/gi, "").trim();
     value = value.replace(/^(assistant|purple bee)\s*:\s*/i, "").trim();
     value = value.replace(/\b(user|assistant|purple bee)\s*:/gi, "").trim();
     value = value.split(/\n+\s*User\s*:/i)[0].trim();
+    value = value.split(/<\|im_start\|>\s*user/iu)[0].trim();
     value = value.replace(/\n+\s*Assistant\s*:/gi, "\n").trim();
     value = value.replace(/\n{3,}/g, "\n\n").trim();
     const normalizedPrompt = normalizeDialogueText(prompt);
@@ -9079,37 +9086,78 @@ function pbxCloseProfileMenu() {
     return value;
   }
 
+  function isTrivialModelReply(text) {
+    const normalized = normalizeDialogueText(text);
+    if (!normalized) return true;
+    const compact = normalized.replace(/\s+/g, "");
+    if (compact.length <= 2) return true;
+    return [
+      "응",
+      "응.",
+      "네",
+      "네.",
+      "예",
+      "예.",
+      "그래",
+      "그래.",
+      "좋아",
+      "좋아.",
+      "알겠어",
+      "알겠어.",
+      "음",
+      "음.",
+      "ㅇㅇ",
+      "ㅇㅇ.",
+      "ok",
+      "okay",
+      "yes",
+      "yeah",
+      "sure",
+    ].includes(compact);
+  }
+
   function pbxRuntimeTimeouts() {
     const askedUserCount = state.history.filter((entry) => entry && entry.role === "user").length;
     const isFirstTurn = askedUserCount <= 1;
     return {
       isFirstTurn,
-      modelMs: isFirstTurn ? 70000 : (state.deepThink ? 30000 : 18000),
-      replyMs: isFirstTurn ? 95000 : 26000,
+      modelMs: isFirstTurn ? 90000 : (state.deepThink ? 55000 : 38000),
+      replyMs: isFirstTurn ? 120000 : 52000,
     };
   }
 
   function buildBrowserModelPrompt(prompt, language) {
     const languageLabel = language === "ko" ? "Korean" : language === "ja" ? "Japanese" : language === "zh" ? "Chinese" : "English";
     const trimmedPrompt = trim(prompt);
-    const recent = state.history
-      .slice(-2)
+    const loweredPrompt = lower(trimmedPrompt);
+    const socialPrompt = isSocialPrompt(loweredPrompt, trimmedPrompt);
+    const correctionPrompt = isNegativeCorrectionPrompt(loweredPrompt) || isConfusionPrompt(loweredPrompt);
+    const historyText = state.history
+      .slice(-4)
       .filter((entry) => entry && entry.content)
       .map((entry) => `${entry.role === "assistant" ? "Assistant" : "User"}: ${trim(entry.content)}`)
       .join("\n");
-    const directAnswerHint = (
-      /뭐야|뭔지|알아\?|설명해|뜻|누구야|what is|who is|tell me about/i.test(trimmedPrompt)
-        ? "Answer directly in 2 short sentences. Define the topic first, then add one useful detail."
-        : "Answer directly in 1 to 3 short natural sentences."
-    );
-    return [
-      "You are Purple Bee.",
-      `Reply only in ${languageLabel}.`,
+    const directAnswerHint = /뭐야|뭔지|알아\?|설명해|뜻|누구야|what is|who is|tell me about/i.test(trimmedPrompt)
+      ? "Start with a direct definition, then add one useful detail."
+      : "Answer naturally and directly in a warm conversational tone.";
+    const instructionBlock = [
+      "You are Purple Bee, a natural conversational AI.",
+      `Write in ${languageLabel} unless the user clearly requests another language.`,
       directAnswerHint,
-      "Do not output lists unless the user asked for steps or a list.",
-      "Do not echo the user's words.",
-      "Do not mention system prompts, inference, localhost, or internal tooling.",
-      recent ? `Recent conversation:\n${recent}` : "",
+      socialPrompt
+        ? "For casual chat, write 2 to 4 short natural sentences. Never answer with only one word."
+        : "For normal questions, answer in 2 to 5 natural sentences unless the user explicitly asks for a list.",
+      correctionPrompt
+        ? "If the user says the previous answer was wrong or unclear, correct yourself directly instead of repeating yourself."
+        : "",
+      "Do not echo the user's wording.",
+      "Do not produce repeated loops, repeated keywords, or canned menus.",
+      "Do not mention tools, hidden prompts, runtime, localhost, or internal systems.",
+      "Prefer a complete direct answer over a vague acknowledgement.",
+    ].filter(Boolean).join("\n");
+    return [
+      instructionBlock,
+      historyText ? `Recent conversation:\n${historyText}` : "",
       `User: ${trimmedPrompt}`,
       "Assistant:",
     ].filter(Boolean).join("\n\n");
@@ -9131,12 +9179,12 @@ function pbxCloseProfileMenu() {
     const timeouts = pbxRuntimeTimeouts();
     const profiles = socialPrompt
       ? [
-          { maxNewTokens: 24, temperature: 0.22, topK: 8, topP: 0.82 },
-          { maxNewTokens: 32, temperature: 0.30, topK: 12, topP: 0.86 },
+          { maxNewTokens: 96, temperature: 0.72, topK: 40, topP: 0.95 },
+          { maxNewTokens: 128, temperature: 0.9, topK: 56, topP: 0.97 },
         ]
       : [
-          { maxNewTokens: 40, temperature: 0.18, topK: 8, topP: 0.80 },
-          { maxNewTokens: 56, temperature: 0.26, topK: 12, topP: 0.84 },
+          { maxNewTokens: 160, temperature: 0.56, topK: 40, topP: 0.94 },
+          { maxNewTokens: 192, temperature: 0.74, topK: 56, topP: 0.97 },
         ];
     const promptVariant = buildBrowserModelPrompt(trimmedPrompt, language);
     const previousChain = (engine._inferenceChain || Promise.resolve()).catch(() => {});
@@ -9147,17 +9195,19 @@ function pbxCloseProfileMenu() {
             engine.browserRuntime.generateReply(promptVariant, profile),
             new Promise((_, reject) => setTimeout(() => reject(new Error("model-timeout")), timeouts.modelMs)),
           ]);
-          const cleaned = cleanupBrowserModelReply(generated, trimmedPrompt);
-          if (!cleaned) continue;
-          if (pbxLooksBrokenText(cleaned)) continue;
-          if (!isLanguageCompatible(cleaned, language)) continue;
-          if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
-          if (!socialPrompt && cleaned.length < 8) continue;
-          return cleaned;
-        } catch (error) {
-          engine.lastError = String(error && error.message ? error.message : error || "model generation failed");
-        }
+        const cleaned = cleanupBrowserModelReply(generated, trimmedPrompt);
+        if (!cleaned) continue;
+        if (pbxLooksBrokenText(cleaned)) continue;
+        if (isTrivialModelReply(cleaned)) continue;
+        if (!isLanguageCompatible(cleaned, language)) continue;
+        if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
+        if (socialPrompt && cleaned.replace(/\s+/g, "").length < 12) continue;
+        if (!socialPrompt && cleaned.length < 20) continue;
+        return cleaned;
+      } catch (error) {
+        engine.lastError = String(error && error.message ? error.message : error || "model generation failed");
       }
+    }
       return "";
     });
     engine._inferenceChain = queued;
@@ -9180,7 +9230,9 @@ function pbxCloseProfileMenu() {
       const cleaned = cleanupBrowserModelReply(generated, prompt);
       if (!cleaned) return "";
       if (pbxLooksBrokenText(cleaned)) return "";
+      if (isTrivialModelReply(cleaned)) return "";
       if (!isLanguageCompatible(cleaned, language)) return "";
+      if (isSocialPrompt(loweredPrompt, prompt) && cleaned.replace(/\s+/g, "").length < 12) return "";
       return cleaned;
     } catch (_error) {
       return "";
@@ -9404,8 +9456,8 @@ function pbxCloseProfileMenu() {
     const isFirstTurn = askedUserCount <= 1;
     return {
       isFirstTurn,
-      modelMs: isFirstTurn ? 120000 : 45000,
-      replyMs: isFirstTurn ? 140000 : 60000,
+      modelMs: isFirstTurn ? 90000 : 30000,
+      replyMs: isFirstTurn ? 100000 : 40000,
     };
   }
 
@@ -9419,10 +9471,16 @@ function pbxCloseProfileMenu() {
     if (!engine.model || !engine.inferenceWorker) return "";
 
     const promptVariant = buildBrowserModelPrompt(prompt, language);
-    const profiles = [
-      { maxNewTokens: 48, temperature: 0.35, topK: 14, topP: 0.88 },
-      { maxNewTokens: 64, temperature: 0.42, topK: 18, topP: 0.90 },
-    ];
+    const socialPrompt = isSocialPrompt(lower(prompt), prompt);
+    const profiles = socialPrompt
+      ? [
+          { maxNewTokens: 72, minNewTokens: 14, temperature: 0.48, topK: 32, topP: 0.90 },
+          { maxNewTokens: 96, minNewTokens: 16, temperature: 0.60, topK: 40, topP: 0.92 },
+        ]
+      : [
+          { maxNewTokens: 120, minNewTokens: 18, temperature: 0.40, topK: 28, topP: 0.88 },
+          { maxNewTokens: 148, minNewTokens: 20, temperature: 0.52, topK: 36, topP: 0.90 },
+        ];
 
     for (const profile of profiles) {
       try {
@@ -9435,6 +9493,8 @@ function pbxCloseProfileMenu() {
         if (pbxLooksBrokenText(cleaned)) continue;
         if (!isLanguageCompatible(cleaned, language)) continue;
         if (normalizeDialogueText(cleaned) === normalizeDialogueText(lastAssistantText(state.history))) continue;
+        if (socialPrompt && cleaned.replace(/\s+/g, "").length < 12) continue;
+        if (!socialPrompt && cleaned.replace(/\s+/g, "").length < 18) continue;
         return cleaned;
       } catch (error) {
         engine.lastError = String(error && error.message ? error.message : error || "browser worker reply failed");
@@ -9452,6 +9512,7 @@ function pbxCloseProfileMenu() {
     if (!cleaned) return "";
     if (pbxLooksBrokenText(cleaned)) return "";
     if (!isLanguageCompatible(cleaned, language)) return "";
+    if (isSocialPrompt(loweredPrompt, prompt) && cleaned.replace(/\s+/g, "").length < 8) return "";
     return cleaned;
   }
 
@@ -9893,7 +9954,7 @@ function pbxCloseProfileMenu() {
       throw new Error(runtimeState.reason || "runtime-missing");
     }
     const pkg = runtimeState.packageState;
-    const worker = new Worker(`/static/purple-bee-inference-worker.js?v=20260407a`);
+  const worker = new Worker(`/static/purple-bee-inference-worker.js?v=20260408f`);
     engine.inferenceWorker = worker;
     engine.inferenceWorkerPromise = pbxWorkerRequest(worker, "init", {
       manifest: pkg.manifest,
@@ -9925,7 +9986,7 @@ function pbxCloseProfileMenu() {
       family_name: "Purple Bee",
       model_id: installMeta.id || "purple-bee-1-3",
       display_name: installMeta.display_name || "Purple Bee",
-      runtime_mode: "public-server-runtime",
+      runtime_mode: "browser-worker-runtime",
       linked_at: new Date().toISOString(),
       website_origin: window.location.origin,
       note: "This folder is linked as the Purple Bee AI assets folder for this browser.",
@@ -10223,7 +10284,7 @@ function pbxCloseProfileMenu() {
       display_name: displayName,
       installed_at: installedAt,
       asset_version: String(plan?.asset_version || "current"),
-      install_mode: String(plan?.install_mode || "public-server-runtime"),
+      install_mode: String(plan?.install_mode || "browser-worker-runtime"),
       backend: plan?.backend || {},
       files: written,
     });

@@ -100,8 +100,42 @@
     return `${left}\u0001${right}`;
   }
 
+  function buildSpecialTokenMap(tokenizerPayload, stoi = null) {
+    const map = {};
+    const explicit = tokenizerPayload && typeof tokenizerPayload === "object"
+      ? (tokenizerPayload.special_tokens || {})
+      : {};
+    for (const [name, rawId] of Object.entries(explicit)) {
+      const tokenId = Number(rawId);
+      if (Number.isFinite(tokenId)) map[String(name)] = tokenId;
+    }
+
+    const added = Array.isArray(tokenizerPayload && tokenizerPayload.added_tokens)
+      ? tokenizerPayload.added_tokens
+      : [];
+    for (const token of added) {
+      const content = String(token && token.content || "").trim();
+      const tokenId = Number(token && token.id);
+      if (!content || !Number.isFinite(tokenId)) continue;
+      map[content] = tokenId;
+      if (content === "<|im_end|>" && !Number.isFinite(Number(map["<eos>"]))) map["<eos>"] = tokenId;
+      if ((content === "<|endoftext|>" || content === "<|PAD_TOKEN|>") && !Number.isFinite(Number(map["<pad>"]))) map["<pad>"] = tokenId;
+      if (content === "<|im_start|>" && !Number.isFinite(Number(map["<bos>"]))) map["<bos>"] = tokenId;
+      if (content === "<unk>" && !Number.isFinite(Number(map["<unk>"]))) map["<unk>"] = tokenId;
+    }
+
+    if (stoi) {
+      for (const name of SPECIAL_TOKENS) {
+        if (map[name] === undefined && stoi.has(name)) {
+          map[name] = stoi.get(name);
+        }
+      }
+    }
+    return map;
+  }
+
   function buildTokenizerState(tokenizerPayload) {
-    const specialMap = tokenizerPayload && typeof tokenizerPayload === "object"
+    const explicitSpecialMap = tokenizerPayload && typeof tokenizerPayload === "object"
       ? (tokenizerPayload.special_tokens || {})
       : {};
 
@@ -121,6 +155,7 @@
         itos.set(tokenId, token);
       }
 
+      const specialMap = buildSpecialTokenMap(tokenizerPayload, stoi);
       const specialIds = new Set();
       for (const rawId of Object.values(specialMap)) {
         const tokenId = Number(rawId);
@@ -153,6 +188,71 @@
         stoi,
         itos,
         specialIds,
+        specialMap,
+        size: stoi.size,
+        bpeRanks,
+        bpeCache: new Map(),
+      };
+    }
+
+    if (
+      tokenizerPayload
+      && tokenizerPayload.model
+      && tokenizerPayload.model.vocab
+      && typeof tokenizerPayload.model.vocab === "object"
+      && !Array.isArray(tokenizerPayload.model.vocab)
+    ) {
+      const vocabObject = tokenizerPayload.model.vocab;
+      const stoi = new Map();
+      const itos = new Map();
+      for (const [token, rawId] of Object.entries(vocabObject)) {
+        const tokenId = Number(rawId);
+        if (!Number.isFinite(tokenId)) continue;
+        stoi.set(token, tokenId);
+        itos.set(tokenId, token);
+      }
+
+      const specialMap = buildSpecialTokenMap(tokenizerPayload, stoi);
+      const specialIds = new Set();
+      for (const rawId of Object.values(specialMap)) {
+        const tokenId = Number(rawId);
+        if (Number.isFinite(tokenId)) specialIds.add(tokenId);
+      }
+      const added = Array.isArray(tokenizerPayload.added_tokens) ? tokenizerPayload.added_tokens : [];
+      for (const token of added) {
+        if (token && token.special) {
+          const tokenId = Number(token.id);
+          if (Number.isFinite(tokenId)) specialIds.add(tokenId);
+        }
+      }
+
+      const bpeRanks = new Map();
+      const merges = Array.isArray(tokenizerPayload.model.merges)
+        ? tokenizerPayload.model.merges
+        : [];
+      merges.forEach((pair, index) => {
+        let left = "";
+        let right = "";
+        if (Array.isArray(pair) && pair.length >= 2) {
+          left = String(pair[0] || "");
+          right = String(pair[1] || "");
+        } else if (typeof pair === "string") {
+          const parts = pair.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            [left, right] = parts;
+          }
+        }
+        if (left && right) {
+          bpeRanks.set(pairKey(left, right), index);
+        }
+      });
+
+      return {
+        mode: "hf-bytelevel-bpe",
+        stoi,
+        itos,
+        specialIds,
+        specialMap,
         size: stoi.size,
         bpeRanks,
         bpeCache: new Map(),
@@ -173,11 +273,13 @@
     for (const name of SPECIAL_TOKENS) {
       if (stoi.has(name)) specialIds.add(stoi.get(name));
     }
+    const specialMap = buildSpecialTokenMap({ special_tokens: explicitSpecialMap }, stoi);
     return {
       mode: "legacy",
       stoi,
       itos,
       specialIds,
+      specialMap,
       size: vocabArray.length,
       bpeRanks: new Map(),
       bpeCache: new Map(),
@@ -235,7 +337,12 @@
     const eosId = Number(specialMap["<eos>"]);
     const unkId = Number.isFinite(Number(specialMap["<unk>"]))
       ? Number(specialMap["<unk>"])
-      : (tokenizerState.stoi.get("<unk>") ?? 0);
+      : (
+        tokenizerState.stoi.get("<unk>")
+        ?? tokenizerState.stoi.get("<|endoftext|>")
+        ?? tokenizerState.stoi.get("<|PAD_TOKEN|>")
+        ?? 0
+      );
 
     if (addBos && Number.isFinite(bosId)) ids.push(bosId);
 
@@ -378,6 +485,7 @@
       this.modelVocabSize = 0;
       this.effectiveVocabSize = 0;
       this.providerPreference = ["wasm"];
+      this.inputNames = [];
       this.engineType = "purple-bee-onnx";
       this.transformersGenerator = null;
       this.transformersModuleUrl = DEFAULT_TRANSFORMERS_JS_MODULE;
@@ -414,6 +522,11 @@
       const tokenizerUrl = this.manifest?.browser_assets?.tokenizer;
       const onnxUrl = this.manifest?.browser_assets?.onnx;
       const onnxDataUrl = this.manifest?.browser_assets?.onnx_data;
+      const onnxDataFileName = String(
+        this.manifest?.browser_assets?.onnx_data_filename
+          || fileNameFromUrl(onnxDataUrl)
+          || "model.onnx.data"
+      ).trim();
       if (!tokenizerUrl || !onnxUrl) throw new Error("browser assets are incomplete");
 
       const tokenizerResponse = await fetch(tokenizerUrl, { cache: "force-cache" });
@@ -423,7 +536,19 @@
       this.tokenizerMode = this.tokenizerState.mode;
       this.stoi = this.tokenizerState.stoi;
       this.itos = this.tokenizerState.itos;
+      this.specialTokenMap = this.tokenizerState.specialMap || {};
       this.effectiveVocabSize = this.tokenizerState.size;
+
+      const onnxResponse = await fetch(onnxUrl, { cache: "force-cache" });
+      if (!onnxResponse.ok) throw new Error(`onnx fetch failed: ${onnxResponse.status}`);
+      const onnxBytes = new Uint8Array(await onnxResponse.arrayBuffer());
+
+      let onnxDataBytes = null;
+      if (onnxDataUrl) {
+        const onnxDataResponse = await fetch(onnxDataUrl, { cache: "force-cache" });
+        if (!onnxDataResponse.ok) throw new Error(`onnx-data fetch failed: ${onnxDataResponse.status}`);
+        onnxDataBytes = new Uint8Array(await onnxDataResponse.arrayBuffer());
+      }
 
       if (window.ort.env && window.ort.env.wasm) {
         window.ort.env.wasm.wasmPaths = "/static/vendor/onnxruntime-web/";
@@ -460,18 +585,20 @@
             logSeverityLevel: 4,
             logVerbosityLevel: 0,
           };
-          const externalDataPath = fileNameFromUrl(onnxDataUrl);
-          if (onnxDataUrl && externalDataPath) {
+          if (onnxDataBytes && onnxDataFileName) {
             sessionOptions.externalData = [
               {
-                path: externalDataPath,
-                data: onnxDataUrl,
+                path: onnxDataFileName,
+                data: onnxDataBytes,
               },
             ];
           }
 
-          this.session = await window.ort.InferenceSession.create(onnxUrl, sessionOptions);
+          this.session = await window.ort.InferenceSession.create(onnxBytes, sessionOptions);
           this.provider = provider;
+          this.inputNames = Array.isArray(this.session.inputNames) && this.session.inputNames.length
+            ? this.session.inputNames.slice()
+            : Object.keys(this.session.inputMetadata || {});
           const outputMeta = this.session.outputMetadata || {};
           const firstOutput = outputMeta[Object.keys(outputMeta)[0]] || {};
           const dims = Array.isArray(firstOutput.dimensions) ? firstOutput.dimensions : [];
@@ -535,10 +662,10 @@
       return this;
     }
 
-    encode(text, addBos = false, addEos = false) {
-      if (this.tokenizerMode === "hf-bytelevel-bpe") {
-        return encodeByteLevelText(text, this.tokenizerState, this.tokenizer?.special_tokens || {}, addBos, addEos);
-      }
+      encode(text, addBos = false, addEos = false) {
+        if (this.tokenizerMode === "hf-bytelevel-bpe") {
+          return encodeByteLevelText(text, this.tokenizerState, this.specialTokenMap || this.tokenizer?.special_tokens || {}, addBos, addEos);
+        }
 
       const ids = [];
       const unkId = this.stoi.get("<unk>") ?? 0;
@@ -571,6 +698,45 @@
         .join("");
     }
 
+    buildAuxiliaryTensor(sequence, kind = "ones") {
+      const length = Math.max(1, sequence.length);
+      let values = null;
+      if (kind === "positions") {
+        values = BigInt64Array.from({ length }, (_value, index) => BigInt(index));
+      } else if (kind === "zeros") {
+        values = new BigInt64Array(length);
+      } else {
+        values = BigInt64Array.from({ length }, () => 1n);
+      }
+      return new window.ort.Tensor("int64", values, [1, length]);
+    }
+
+    buildFeeds(sequence, inputIdsTensor) {
+      const feeds = { input_ids: inputIdsTensor };
+      const disposables = [];
+      const inputNames = this.inputNames && this.inputNames.length
+        ? this.inputNames
+        : Object.keys(this.session?.inputMetadata || {});
+
+      for (const inputName of inputNames) {
+        if (inputName === "input_ids" || feeds[inputName]) continue;
+        let tensor = null;
+        if (inputName === "attention_mask") {
+          tensor = this.buildAuxiliaryTensor(sequence, "ones");
+        } else if (inputName === "position_ids") {
+          tensor = this.buildAuxiliaryTensor(sequence, "positions");
+        } else if (inputName === "token_type_ids") {
+          tensor = this.buildAuxiliaryTensor(sequence, "zeros");
+        }
+        if (tensor) {
+          feeds[inputName] = tensor;
+          disposables.push(tensor);
+        }
+      }
+
+      return { feeds, disposables };
+    }
+
     async nextToken(inputIds, options = {}) {
       const sequence = inputIds.slice(-this.maxContext);
       const tensor = new window.ort.Tensor(
@@ -578,9 +744,10 @@
         BigInt64Array.from(sequence, (value) => BigInt(value)),
         [1, sequence.length],
       );
+      const { feeds, disposables } = this.buildFeeds(sequence, tensor);
       let outputs = null;
       try {
-        outputs = await this.session.run({ input_ids: tensor });
+        outputs = await this.session.run(feeds);
         const outputName = Object.keys(outputs)[0];
         const logitsTensor = outputs[outputName];
         const dims = Array.isArray(logitsTensor.dims) ? logitsTensor.dims : [];
@@ -612,24 +779,39 @@
             // Ignore tensor disposal failures.
           }
         }
+        for (const extraTensor of disposables) {
+          if (extraTensor && typeof extraTensor.dispose === "function") {
+            try {
+              extraTensor.dispose();
+            } catch (_disposeError) {
+              // Ignore auxiliary tensor disposal failures.
+            }
+          }
+        }
       }
     }
 
     async generateTransformersReply(prompt, options = {}) {
-      const maxNewTokens = Math.max(16, Math.min(options.maxNewTokens || 96, 192));
-      const temperature = Math.max(0.1, options.temperature ?? 0.7);
-      const topP = Math.max(0.1, Math.min(options.topP ?? 0.92, 1));
-      const messages = [];
-      if (this.systemPrompt) {
-        messages.push({ role: "system", content: this.systemPrompt });
-      }
-      messages.push({ role: "user", content: String(prompt || "") });
+      const maxNewTokens = Math.max(24, Math.min(options.maxNewTokens || 96, 192));
+      const minNewTokens = Math.max(0, Math.min(options.minNewTokens || 0, Math.max(0, maxNewTokens - 4)));
+      const temperature = Math.max(0.15, options.temperature ?? 0.58);
+      const topP = Math.max(0.2, Math.min(options.topP ?? 0.9, 1));
+      const topK = Math.max(1, Math.min(options.topK || 32, 64));
+      const promptText = [
+        this.systemPrompt ? String(this.systemPrompt).trim() : "",
+        String(prompt || "").trim(),
+      ].filter(Boolean).join("\n\n");
 
-      const output = await this.transformersGenerator(messages, {
+      const output = await this.transformersGenerator(promptText, {
         max_new_tokens: maxNewTokens,
+        min_new_tokens: minNewTokens,
         do_sample: temperature > 0.05,
         temperature,
         top_p: topP,
+        top_k: topK,
+        repetition_penalty: 1.12,
+        no_repeat_ngram_size: 3,
+        return_full_text: false,
       });
 
       return cleanupReply(extractGeneratedText(output));
