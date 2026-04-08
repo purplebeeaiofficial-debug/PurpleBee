@@ -1,688 +1,295 @@
 (function () {
   const $ = (id) => document.getElementById(id);
-  const readJson = (key) => {
-    try {
-      return JSON.parse(localStorage.getItem(key) || "null");
-    } catch {
-      return null;
-    }
-  };
-  const safe = (value) =>
-    String(value ?? "").replace(/[&<>"']/g, (match) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    }[match]));
-  const trim = (value) => String(value ?? "").trim();
-  const toast = (message) => {
-    if (typeof window.showToast === "function") {
-      window.showToast(message);
-    }
-  };
-  const currentUser = () => readJson("pb_user_v1") || readJson("pb_user_backup_v1");
-  const consentsAccepted = () => {
-    const consent = readJson("pb_required_consents_v1") || {};
-    return !!(consent.terms && consent.resource && consent.privacy);
-  };
-  const contributorUserId = () => {
-    const user = currentUser();
+  const readJson = (key) => { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; } };
+  const writeJson = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
+  const trim = (v) => String(v ?? "").trim();
+  const safe = (v) => String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  const toast = (m) => { if (typeof window.showToast === "function") window.showToast(m); };
+  const user = () => readJson("pb_user_v1") || readJson("pb_user_backup_v1");
+  const uid = () => {
+    const u = user();
     const saved = trim(localStorage.getItem("pb_contributor_user_id"));
-    const resolved =
-      trim(user && (user.sub || user.email || user.id)) ||
-      saved ||
-      `pb_${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem("pb_contributor_user_id", resolved);
-    return resolved;
+    const id = trim(u && (u.sub || u.email || u.id)) || saved || `pb_${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem("pb_contributor_user_id", id);
+    return id;
   };
-
-  const PLAN_COPY = {
-    Free: {
-      badge: "기본",
-      headline: "유지 조건 없음",
-      lead: "가볍게 시작하는 기본 플랜입니다.",
-      features: ["기본 AI 대화", "내 기기 연산", "기본 우선순위", "일일 사용량 제한"],
-    },
-    Basic: {
-      badge: "입문",
-      headline: "월 8시간 기여 유지",
-      lead: "내 기기 연산에 보조 연산을 더할 수 있는 첫 단계입니다.",
-      features: ["보조 연산 모드 선택", "응답 제한 완화", "기여 앱 사용", "월 8시간 유지"],
-    },
-    Plus: {
-      badge: "추천",
-      headline: "주 10시간 · 월 40시간 유지",
-      lead: "응답 속도와 사용 범위를 함께 넓히는 핵심 플랜입니다.",
-      features: ["상위 우선순위", "최신 모델 접근", "하이브리드 보조 연산", "주 10시간 / 월 40시간 유지"],
-    },
-    Pro: {
-      badge: "최상위",
-      headline: "주 20시간 · 월 80시간 유지",
-      lead: "대형 작업과 가장 높은 우선순위를 위한 플랜입니다.",
-      features: ["최상위 우선순위", "긴 작업 처리", "강한 보조 연산 배정", "주 20시간 / 월 80시간 유지"],
-    },
+  const uname = () => trim((user() || {}).name || (user() || {}).email || "Purple Bee User");
+  const hasConsent = () => {
+    const c = readJson("pb_required_consents_v1") || {};
+    return !!(c.terms && c.resource && c.privacy);
   };
-
+  const PLAN = {
+    Free: { badge: "기본", headline: "유지 조건 없음", summary: "내 기기 연산만으로 시작합니다.", features: ["기본 AI 대화", "내 기기 연산", "기본 우선순위", "일일 사용량 제한"], hours: 0, mode: "local" },
+    Basic: { badge: "입문", headline: "월 8시간 기여 유지", summary: "서버 보조 연산을 처음 여는 플랜입니다.", features: ["보조 연산 모드 선택", "응답 제한 완화", "기여 앱 사용 가능", "월 8시간 유지"], hours: 8, mode: "hybrid" },
+    Plus: { badge: "추천", headline: "주 10시간 · 월 40시간 유지", summary: "더 빠른 응답과 넓은 사용 범위를 위한 플랜입니다.", features: ["상위 우선순위", "최신 모델 접근", "하이브리드 보조 연산", "주 10시간 / 월 40시간 유지"], hours: 40, mode: "distributed" },
+    Pro: { badge: "최상위", headline: "주 20시간 · 월 80시간 유지", summary: "대형 작업과 최고 우선순위를 위한 플랜입니다.", features: ["최상위 우선순위", "긴 작업 처리", "강화 보조 연산 배정", "주 20시간 / 월 80시간 유지"], hours: 80, mode: "distributed" },
+  };
+  const MODES = {
+    Free: [{ value: "local", title: "내 기기 연산", body: "모든 응답을 현재 기기에서만 처리합니다." }],
+    Basic: [{ value: "local", title: "내 기기 연산", body: "모든 응답을 현재 기기에서만 처리합니다." }, { value: "hybrid", title: "내 기기 + 보조 연산", body: "내 기기를 우선 사용하고 부족할 때만 보조 연산을 붙입니다." }],
+    Plus: [{ value: "local", title: "내 기기 연산", body: "모든 응답을 현재 기기에서만 처리합니다." }, { value: "hybrid", title: "내 기기 + 보조 연산", body: "내 기기를 중심으로 사용하고 처리량이 몰릴 때만 보조 연산을 붙입니다." }, { value: "distributed", title: "기여 네트워크 우선", body: "내 기기를 유지하면서 기여 네트워크 보조 연산 비중을 높입니다." }],
+    Pro: [{ value: "local", title: "내 기기 연산", body: "모든 응답을 현재 기기에서만 처리합니다." }, { value: "hybrid", title: "내 기기 + 보조 연산", body: "내 기기와 기여 네트워크를 균형 있게 사용합니다." }, { value: "distributed", title: "기여 네트워크 우선", body: "상위 플랜에 맞춰 기여 네트워크 보조 연산을 적극 사용합니다." }],
+  };
   const state = {
+    mode: "plans",
+    step: 0,
     status: null,
+    linkCode: null,
     profile: null,
     selectedPlan: localStorage.getItem("pb_selected_contributor_plan") || "Basic",
-    selectedHours: +(localStorage.getItem("pb_selected_contributor_hours") || 8),
-    linkCode: "",
-    installClicked: false,
-    step: 0,
+    selectedMode: localStorage.getItem("pb_selected_compute_mode") || "hybrid",
+    installClicked: !!readJson("pb_contributor_install_clicked_v1"),
+    timer: null,
   };
 
-  function setHubMode(mode) {
-    const title = $("contributor-hub-title");
-    const subtitle = $("contributor-hub-subtitle");
-    const footLeft = $("contributor-hub-foot-left");
-    const footRight = $("contributor-hub-foot-right");
-    const plans = $("contributor-hub-section-plans");
-    const status = $("contributor-hub-section-status");
-    if (!title || !subtitle || !footLeft || !footRight || !plans || !status) {
-      return;
+  const api = async (url, options) => {
+    const res = await fetch(url, options);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.ok === false) {
+      const err = new Error(body.message || body.error || "request_failed");
+      err.payload = body;
+      throw err;
     }
-    const isStatus = mode === "status";
-    title.textContent = isStatus ? "기여 구독 상태" : "플랜 업그레이드";
-    subtitle.textContent = isStatus
-      ? "연결 상태와 다음 예약만 간단히 확인하세요."
-      : "약관 확인부터 앱 설치, 연동, 성능 확인, 플랜 선택까지 순서대로 진행합니다.";
-    footLeft.textContent = isStatus
-      ? "기여 앱이 연결되면 상태가 자동으로 갱신됩니다."
-      : "기여 앱 설치와 연동이 끝난 뒤 예약을 저장할 수 있습니다.";
-    footRight.textContent = isStatus
-      ? "예약 변경은 여기에서 바로 이어집니다."
-      : "기여 시간 기반 업그레이드";
-    plans.classList.toggle("active", !isStatus);
-    status.classList.toggle("active", isStatus);
-  }
-
-  function formatDate(value) {
+    return body;
+  };
+  const fmt = (value) => {
     if (!value) return "없음";
+    try { return new Date(value).toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return String(value); }
+  };
+  const pname = (raw) => Object.prototype.hasOwnProperty.call(PLAN, trim(raw)) ? trim(raw) : "Free";
+  const currentPlan = () => pname(state.status?.account?.plan || "Free");
+  const linkedCount = () => Number(state.status?.linked_device_count || 0);
+  const linkedSummary = () => trim(state.status?.exact_device_summary || "") || (linkedCount() > 0 ? `연결된 기기 ${linkedCount()}대` : "연결된 기기 없음");
+  const nextReservation = () => (state.status?.reservations || []).find((r) => r.status === "scheduled");
+  const lockInfo = (target) => {
+    const until = trim(state.status?.plan_change_locked_until || "");
+    const current = currentPlan();
+    const requested = pname(target || current);
+    const locked = !!until && requested !== current && requested !== "Free";
+    return { locked, text: locked ? `플랜은 한 달에 한 번만 변경할 수 있어요. 다음 변경 가능 시각은 ${fmt(until)} 입니다.` : "" };
+  };
+
+  async function refreshStatus(render) {
     try {
-      return new Date(value).toLocaleString("ko-KR", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return String(value);
+      state.status = await api(`/api/contributor/status?user_id=${encodeURIComponent(uid())}`);
+    } catch (e) {
+      console.warn("[Purple Bee][Contributor]", e);
     }
+    try {
+      const storage = await navigator.storage?.estimate?.().catch(() => null);
+      state.profile = {
+        cpu_threads: Number(navigator.hardwareConcurrency || 0),
+        memory_gb: Number(navigator.deviceMemory || 0),
+        storage_free_gb: storage?.quota ? Math.max((storage.quota - (storage.usage || 0)) / 1073741824, 0) : 0,
+      };
+    } catch {}
+    updateSidebar();
+    if (render) renderModal();
   }
 
-  function planName(raw) {
-    return ["Basic", "Plus", "Pro"].includes(trim(raw)) ? trim(raw) : "Free";
-  }
-
-  function queueLabel(raw) {
-    const value = trim(raw).toLowerCase();
-    if (value.includes("pro")) return "최상위";
-    if (value.includes("plus")) return "상위";
-    if (value.includes("basic")) return "우선";
-    return "기본";
-  }
-
-  function computeModes(plan) {
-    if (plan === "Plus" || plan === "Pro") {
-      return [
-        { value: "local", name: "내 기기 연산", desc: "모든 처리를 현재 기기에서 수행합니다." },
-        { value: "hybrid", name: "내 기기 + 보조 연산", desc: "현재 기기 우선 처리 후 부족한 만큼만 보조 연산을 붙입니다." },
-        { value: "distributed", name: "보조 연산 우선", desc: "기여 네트워크 보조 연산을 더 강하게 활용합니다." },
-      ];
-    }
-    return [
-      { value: "local", name: "내 기기 연산", desc: "모든 처리를 현재 기기에서 수행합니다." },
-      { value: "hybrid", name: "내 기기 + 보조 연산", desc: "현재 기기와 보조 연산을 함께 사용합니다." },
-    ];
-  }
-
-  async function detectProfile() {
-    const estimate = await navigator.storage?.estimate?.().catch(() => null);
-    state.profile = {
-      cpu_threads: +(navigator.hardwareConcurrency || 0),
-      memory_gb: +(navigator.deviceMemory || 0),
-      disk_free_gb: estimate?.quota
-        ? +(((+estimate.quota - +(estimate.usage || 0)) / 1024 ** 3).toFixed(1))
-        : 0,
-    };
-    return state.profile;
-  }
-
-  async function fetchStatus() {
-    if (!currentUser()) return null;
-    const response = await fetch(`/api/contributor/status?user_id=${encodeURIComponent(contributorUserId())}`);
-    const payload = await response.json();
-    if (!payload?.ok) throw new Error(payload?.error || "status_failed");
-    state.status = payload;
-    return payload;
-  }
-
-  async function ensureLinkCode() {
-    if (!currentUser()) throw new Error("signin_required");
-    if (state.linkCode) return state.linkCode;
-    const response = await fetch("/api/contributor/link-code", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: contributorUserId(),
-        display_name: trim(currentUser()?.name || currentUser()?.email),
-        plan: state.selectedPlan,
-      }),
-    });
-    const payload = await response.json();
-    if (!payload?.ok || !payload?.link_code?.code) {
-      throw new Error(payload?.error || "link_failed");
-    }
-    state.linkCode = payload.link_code.code;
-    return state.linkCode;
-  }
-
-  function sidebarText() {
-    const upgradeTitle = $("upgrade-plan-title");
-    const upgradeSub = $("upgrade-plan-sub");
-    const cardTitle = $("contributor-card-title");
-    const cardSub = $("contributor-card-sub");
-    if (upgradeTitle) upgradeTitle.textContent = "⚡ 플랜 업그레이드";
-    if (upgradeSub) upgradeSub.textContent = "기여 시간 기준으로 유지 조건과 업그레이드 범위를 확인합니다.";
-    if (cardTitle) cardTitle.textContent = "✨ 기여 구독 상태";
-    if (cardSub) cardSub.textContent = "현재 플랜과 연결 상태만 간단히 보여드립니다.";
-  }
-
-  function deviceSummary(status) {
-    const exact = trim(status?.exact_device_summary);
-    if (exact) return exact;
-    const first = status?.devices?.[0];
-    if (trim(first?.device_name)) return trim(first.device_name);
-    return "아직 연결된 기기가 없습니다.";
-  }
-
-  async function refreshSidebar() {
-    sidebarText();
+  function updateSidebar() {
     const upgrade = $("upgrade-plan-btn");
     const card = $("contributor-card");
     if (!upgrade || !card) return;
-
-    const user = currentUser();
-    if (!user) {
-      upgrade.classList.remove("hidden");
-      card.classList.add("hidden");
-      return;
-    }
-
-    let status = state.status;
-    try {
-      status = await fetchStatus();
-    } catch {
-      status = state.status;
-    }
-
-    const plan = planName(status?.account?.plan || "Free");
-    const isPaid = plan !== "Free";
-    upgrade.classList.toggle("hidden", isPaid);
-    card.classList.toggle("hidden", !isPaid);
-    if (!isPaid) return;
-
-    $("contributor-card-pill").textContent = status?.premium_active ? `${plan} Active` : plan;
+    const loggedIn = !!user();
+    const plan = currentPlan();
+    upgrade.classList.toggle("hidden", loggedIn && plan !== "Free");
+    card.classList.toggle("hidden", !loggedIn || plan === "Free");
+    $("upgrade-plan-title").textContent = "⚡ 플랜 업그레이드";
+    $("upgrade-plan-sub").textContent = "기여 시간 기준 플랜과 유지 조건을 비교해 보세요.";
+    $("contributor-card-title").textContent = "✨ 기여 구독 상태";
+    $("contributor-card-sub").textContent = "앱 연결과 다음 예약만 간략하게 확인합니다.";
+    $("contributor-card-pill").textContent = plan;
     $("contributor-plan-value").textContent = plan;
-    $("contributor-premium-value").textContent = status?.premium_active ? "활성" : "비활성";
-    $("contributor-queue-value").textContent = queueLabel(status?.queue_mode || status?.account?.latest_quote?.queue_mode || "");
-    $("contributor-next-value").textContent = status?.next_reservation ? formatDate(status.next_reservation.starts_at) : "없음";
-    $("contributor-card-note").textContent = "기여 앱 설치와 연동이 끝난 뒤 다음 기여 예약을 관리할 수 있습니다.";
-    $("contributor-device-value").textContent = deviceSummary(status);
-    $("contributor-card-hint").textContent = "눌러서 상태, 연결 기기, 예약 일정을 확인하세요.";
+    $("contributor-premium-value").textContent = state.status?.premium_active ? "활성" : "비활성";
+    $("contributor-queue-value").textContent = trim(state.status?.account?.contributor_status || "standard");
+    $("contributor-next-value").textContent = nextReservation() ? fmt(nextReservation().starts_at) : "없음";
+    $("contributor-card-note").textContent = plan === "Free" ? "Free에서는 내 기기 연산만 사용합니다." : "앱 설치와 연동이 끝나면 다음 기여 시간과 유지 조건을 여기서 확인할 수 있습니다.";
+    $("contributor-device-value").textContent = linkedSummary();
+    $("contributor-card-hint").textContent = plan === "Free" ? "플랜 업그레이드에서 기여 구독을 시작하세요." : "눌러서 기여 앱 연결과 예약 상태를 확인하세요.";
   }
 
-  function renderSteps(current) {
-    const labels = ["약관 확인", "앱 설치", "연동 확인", "PC 성능 확인", "플랜 선택"];
-    return `
-      <div class="contributor-status-steps">
-        ${labels
-          .map((label, index) => {
-            const phase = index < current ? "완료" : index === current ? "현재 단계" : "대기";
-            return `
-              <div class="contributor-status-step">
-                <span class="contributor-status-step-chip">${index + 1}</span>
-                <strong>${safe(label)}</strong>
-                <p>${phase}</p>
-              </div>
-            `;
-          })
-          .join("")}
-      </div>
-    `;
+  function startPolling() { stopPolling(); state.timer = setInterval(() => refreshStatus(true), 15000); }
+  function stopPolling() { if (state.timer) clearInterval(state.timer); state.timer = null; }
+  function openBackdrop(title, subtitle, mode) {
+    state.mode = mode;
+    $("contributor-hub-title").textContent = title;
+    $("contributor-hub-subtitle").textContent = subtitle;
+    $("contributor-hub-backdrop").classList.add("open");
+    $("contributor-hub-section-plans").classList.toggle("active", mode === "plans");
+    $("contributor-hub-section-status").classList.toggle("active", mode === "status");
+    startPolling();
   }
-
+  function closeContributorHub(event) {
+    if (event?.target && event.target !== $("contributor-hub-backdrop")) return;
+    $("contributor-hub-backdrop").classList.remove("open");
+    stopPolling();
+  }
+  function detectStep() {
+    if (!hasConsent()) return 0;
+    if (!state.installClicked) return 1;
+    if (linkedCount() <= 0) return 2;
+    if (!state.profile) return 3;
+    return 4;
+  }
+  function recommendPlan() {
+    const cpu = Number(state.profile?.cpu_threads || 0), ram = Number(state.profile?.memory_gb || 0);
+    if (cpu >= 12 && ram >= 16) return "Pro";
+    if (cpu >= 8 && ram >= 8) return "Plus";
+    if (cpu >= 4 && ram >= 4) return "Basic";
+    return "Free";
+  }
+  function renderStepCard(i, title, copy) {
+    const done = state.step > i || (i === 0 && hasConsent()) || (i === 1 && state.installClicked) || (i === 2 && linkedCount() > 0) || (i === 3 && !!state.profile);
+    return `<div class="contributor-status-step" ${state.step === i ? 'style="border-color:rgba(139,92,246,.5);box-shadow:0 10px 30px rgba(139,92,246,.12)"' : ""}><span class="contributor-status-step-chip">${done ? "✓" : i + 1}</span><strong>${safe(title)}</strong><p>${safe(copy)}</p></div>`;
+  }
   function renderPlanCards() {
-    return ["Free", "Basic", "Plus", "Pro"]
-      .map((plan) => {
-        const info = PLAN_COPY[plan];
-        const active = plan === state.selectedPlan;
-        const buttonLabel = plan === "Free" ? "기본 플랜" : active ? "선택됨" : "이 플랜 선택";
-        return `
-          <article class="contributor-plan-card ${active ? "active" : ""}">
-            <div class="contributor-plan-head">
-              <div class="contributor-plan-name">${safe(plan)}</div>
-              <span class="contributor-plan-badge">${safe(info.badge)}</span>
-            </div>
-            <div class="contributor-plan-price">${safe(info.headline)}</div>
-            <div class="contributor-plan-copy">${safe(info.lead)}</div>
-            <button class="contributor-plan-btn" type="button" onclick="selectContributorPlan('${plan}')">${safe(buttonLabel)}</button>
-            <ul class="contributor-plan-list">${info.features.map((feature) => `<li>${safe(feature)}</li>`).join("")}</ul>
-            <div class="contributor-plan-foot">유지 조건을 충족하면 프리미엄 상태가 연장됩니다.</div>
-          </article>
-        `;
-      })
-      .join("");
+    const plan = currentPlan();
+    const lock = lockInfo(state.selectedPlan);
+    return Object.entries(PLAN).map(([name, meta]) => {
+      const selected = name === state.selectedPlan;
+      const current = name === plan;
+      const disabled = lock.locked && name !== plan && name !== "Free";
+      const button = name === "Free" ? "기본 플랜" : current ? "현재 플랜" : disabled ? "이번 달 변경 잠금" : "이 플랜 선택";
+      return `<article class="contributor-plan-card ${selected ? "active" : ""}"><div class="contributor-plan-head"><div class="contributor-plan-name">${safe(name)}</div><span class="contributor-plan-badge">${safe(meta.badge)}</span></div><div class="contributor-plan-price">${safe(meta.headline)}</div><div class="contributor-plan-copy">${safe(meta.summary)}</div><button class="contributor-plan-btn" type="button" ${disabled ? "disabled" : ""} onclick="selectContributorPlan('${safe(name)}')">${safe(button)}</button><ul class="contributor-plan-list">${meta.features.map((f) => `<li>${safe(f)}</li>`).join("")}</ul><div class="contributor-plan-foot">${name === "Free" ? "유지 조건 없이 바로 사용할 수 있습니다." : "유지 조건을 충족하면 이 플랜을 유지합니다."}</div></article>`;
+    }).join("");
+  }
+  function computeModeOptions() {
+    return (MODES[pname(state.selectedPlan)] || MODES.Free).map((m) => `<option value="${safe(m.value)}" ${state.selectedMode === m.value ? "selected" : ""}>${safe(m.title)}</option>`).join("");
+  }
+  function computeModeDesc() {
+    return (MODES[pname(state.selectedPlan)] || MODES.Free).find((m) => m.value === state.selectedMode)?.body || "";
+  }
+  function defaultStart() {
+    const d = new Date(Date.now() + 3600000); d.setMinutes(0, 0, 0);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
   function renderPlans() {
-    setHubMode("plans");
-    const root = $("contributor-hub-section-plans");
-    if (!root) return;
-
-    if (state.step === 0) {
-      root.innerHTML = `
-        <div class="contributor-status-card">
-          <div class="contributor-status-title">약관 먼저 확인하기</div>
-          <div class="contributor-status-copy">기여 구독은 자원 사용, 책임 범위, 개인정보 처리에 대한 동의가 먼저 필요합니다.</div>
-          ${renderSteps(0)}
-          <div class="contributor-status-banner">
-            <strong>${consentsAccepted() ? "필수 동의가 이미 완료되어 있어요." : "필수 동의 3가지를 먼저 완료해 주세요."}</strong>
-            <p>이용약관, 컴퓨터 자원 사용 동의, 개인정보 처리방침을 모두 확인한 뒤 다음 단계로 이동합니다.</p>
-          </div>
-          <div class="contributor-status-actions">
-            <button class="contributor-status-btn" type="button" onclick="openConsentDocs()">약관과 정책 보기</button>
-            <button class="contributor-status-btn primary" type="button" onclick="PurpleBeeContributorUI.nextFromTerms()">동의 확인 후 계속</button>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    if (state.step === 1) {
-      root.innerHTML = `
-        <div class="contributor-status-card">
-          <div class="contributor-status-title">1단계 · 기여 앱 설치</div>
-          <div class="contributor-status-copy">작은 설치 파일을 내려받아 실행하면 설치 마법사가 시작됩니다. 설치가 끝나면 다음 단계로 넘어가세요.</div>
-          ${renderSteps(1)}
-          <div class="contributor-status-banner">
-            <strong>예상 다운로드 용량 · 약 13.1MB</strong>
-            <p>설치가 끝난 뒤 앱을 한 번 실행하고, 다음 단계에서 연동 코드를 입력합니다.</p>
-          </div>
-          <div class="contributor-status-actions">
-            <button class="contributor-status-btn primary" type="button" onclick="downloadContributorApp()">기여 앱 다운로드</button>
-            <button class="contributor-status-btn" type="button" ${state.installClicked ? "" : "disabled"} onclick="PurpleBeeContributorUI.gotoStep(2)">설치 완료, 다음 단계</button>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    if (state.step === 2) {
-      root.innerHTML = `
-        <div class="contributor-status-card">
-          <div class="contributor-status-title">2단계 · 사이트와 연동</div>
-          <div class="contributor-status-copy">앱에 아래 연동 코드를 입력한 뒤, 이 화면에서 연동 확인을 눌러 주세요.</div>
-          ${renderSteps(2)}
-          <div class="contributor-status-banner">
-            <strong>연동 코드</strong>
-            <p>${safe(state.linkCode || "코드를 생성하는 중입니다.")}</p>
-          </div>
-          <div class="contributor-status-actions">
-            <button class="contributor-status-btn" type="button" onclick="copyContributorLinkCode()">코드 복사</button>
-            <button class="contributor-status-btn primary" type="button" onclick="PurpleBeeContributorUI.verifyLink()">연동 확인</button>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    if (state.step === 3) {
-      const profile = (state.status?.devices || [])[0]?.hardware || state.profile || {};
-      const recommended = recommendPlan(profile);
-      root.innerHTML = `
-        <div class="contributor-status-card">
-          <div class="contributor-status-title">3단계 · PC 성능 확인</div>
-          <div class="contributor-status-copy">연동된 기기 기준으로 추천 플랜을 계산합니다.</div>
-          ${renderSteps(3)}
-          <div class="contributor-status-grid">
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">CPU</div>
-              <div class="contributor-status-stat-value">${safe(String(profile.cpu_threads || 0))}</div>
-              <div class="contributor-status-stat-copy">논리 스레드</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">RAM</div>
-              <div class="contributor-status-stat-value">${safe(String(profile.memory_gb || 0))}GB</div>
-              <div class="contributor-status-stat-copy">연결된 기기 기준</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">GPU</div>
-              <div class="contributor-status-stat-value">${safe(trim(profile.gpu_name || "미확인") || "미확인")}</div>
-              <div class="contributor-status-stat-copy">가능한 경우 표시</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">추천 플랜</div>
-              <div class="contributor-status-stat-value">${safe(recommended)}</div>
-              <div class="contributor-status-stat-copy">${safe(PLAN_COPY[recommended].headline)}</div>
-            </div>
-          </div>
-          <div class="contributor-status-actions">
-            <button class="contributor-status-btn primary" type="button" onclick="PurpleBeeContributorUI.gotoStep(4)">플랜 선택으로 이동</button>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const plan = state.selectedPlan;
-    const modes = computeModes(plan);
-    const currentMode = localStorage.getItem("pb_contributor_compute_mode") || "local";
-    root.innerHTML = `
+    const footLeft = $("contributor-hub-foot-left");
+    const footRight = $("contributor-hub-foot-right");
+    const section = $("contributor-hub-section-plans");
+    const lock = lockInfo(state.selectedPlan);
+    section.innerHTML = `
       <div class="contributor-status-card">
-        <div class="contributor-status-title">4단계 · 플랜 선택과 예약</div>
-        <div class="contributor-status-copy">결제가 아니라 기여 시간으로 플랜을 유지합니다. 원하는 플랜을 고른 뒤 예약을 저장하세요.</div>
-        ${renderSteps(4)}
-        <div class="contributor-plan-grid">${renderPlanCards()}</div>
-        <div class="contributor-status-fields">
-          <div class="contributor-status-field">
-            <label>예약 시간 (시간)</label>
-            <input id="contributor-hours-input" type="number" min="1" step="1" value="${safe(String(state.selectedHours))}">
-          </div>
-          <div class="contributor-status-field">
-            <label>다음 시작 시각</label>
-            <input id="contributor-starts-at-input" type="datetime-local" value="${safe(new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16))}">
-          </div>
-          <div class="contributor-status-field">
-            <label>연산 모드</label>
-            <select id="contributor-compute-mode-select" onchange="updateContributorComputeMode(this.value)">
-              ${modes.map((mode) => `<option value="${mode.value}"${mode.value === currentMode ? " selected" : ""}>${safe(mode.name)}</option>`).join("")}
-            </select>
-          </div>
-          <div class="contributor-status-field">
-            <label>CPU 상한 (%)</label>
-            <input id="contributor-cpu-cap-input" type="number" min="20" max="90" step="5" value="70">
-          </div>
-          <div class="contributor-status-field">
-            <label>GPU 상한 (%)</label>
-            <input id="contributor-gpu-cap-input" type="number" min="20" max="90" step="5" value="70">
-          </div>
+        <div class="contributor-status-title">플랜 업그레이드</div>
+        <div class="contributor-status-copy">기여 시간으로 유지하는 플랜을 단계별로 설정합니다.</div>
+        <div class="contributor-status-steps">
+          ${renderStepCard(0, "약관 확인", "필수 동의 3종을 먼저 확인합니다.")}
+          ${renderStepCard(1, "앱 설치", "설치 마법사를 내려받아 설치합니다.")}
+          ${renderStepCard(2, "연동 확인", "앱과 웹사이트를 연결합니다.")}
+          ${renderStepCard(3, "PC 성능 확인", "현재 연결 상태와 기기 수준을 살펴봅니다.")}
+          ${renderStepCard(4, "플랜 선택", "이번 달 플랜을 선택하고 예약합니다.")}
         </div>
-        <div class="contributor-status-actions">
-          <button class="contributor-status-btn primary" type="button" onclick="reserveContributorPlan()">이 플랜으로 예약 저장</button>
-        </div>
-      </div>
-    `;
+        ${state.step === 0 ? `<div class="contributor-status-banner"><strong>약관과 자원 사용 범위를 먼저 확인해 주세요.</strong><p>기여 앱 설치 전, 자원 사용 조건과 책임 범위를 확인해야 다음 단계로 넘어갈 수 있습니다.</p></div><div class="contributor-status-actions"><button class="contributor-status-btn" type="button" onclick="openConsentDocs()">정책 문서 보기</button><button class="contributor-status-btn primary" type="button" onclick="continueContributorTerms()">동의 확인하고 계속</button></div>` : ""}
+        ${state.step === 1 ? `<div class="contributor-status-banner"><strong>기여 앱 설치</strong><p>작은 Setup.exe 설치 파일을 내려받은 뒤 더블클릭하면 설치 마법사가 시작됩니다.</p></div><div class="contributor-status-actions"><button class="contributor-status-btn primary" type="button" onclick="downloadContributorApp()">기여 앱 설치 파일 받기</button><button class="contributor-status-btn" type="button" onclick="markContributorInstalled()">설치 완료 후 다음</button></div>` : ""}
+        ${state.step === 2 ? `<div class="contributor-status-grid"><div class="contributor-status-stat"><div class="contributor-status-stat-label">연동 코드</div><div class="contributor-status-stat-value">${safe(state.linkCode?.code || "발급 중")}</div><div class="contributor-status-stat-copy">앱 첫 화면에 이 코드를 넣어 계정을 연결해 주세요.</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">연결된 기기</div><div class="contributor-status-stat-value">${linkedCount()}</div><div class="contributor-status-stat-copy">${safe(linkedSummary())}</div></div></div><div class="contributor-status-actions"><button class="contributor-status-btn" type="button" onclick="copyContributorLinkCode()">연동 코드 복사</button><button class="contributor-status-btn primary" type="button" onclick="verifyContributorLink()">연동 확인</button></div>` : ""}
+        ${state.step === 3 ? `<div class="contributor-status-grid"><div class="contributor-status-stat"><div class="contributor-status-stat-label">CPU 스레드</div><div class="contributor-status-stat-value">${Number(state.profile?.cpu_threads || 0) >= 4 ? "✓" : "✕"} ${safe(String(state.profile?.cpu_threads || 0))}</div><div class="contributor-status-stat-copy">4 이상이면 안정적입니다.</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">메모리</div><div class="contributor-status-stat-value">${Number(state.profile?.memory_gb || 0) >= 8 ? "✓" : "✕"} ${safe(String(state.profile?.memory_gb || 0))} GB</div><div class="contributor-status-stat-copy">8GB 이상 권장</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">남은 저장 공간</div><div class="contributor-status-stat-value">${Number(state.profile?.storage_free_gb || 0) >= 4 ? "✓" : "✕"} ${safe(Number(state.profile?.storage_free_gb || 0).toFixed(1))} GB</div><div class="contributor-status-stat-copy">4GB 이상 권장</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">추천 플랜</div><div class="contributor-status-stat-value">${safe(recommendPlan())}</div><div class="contributor-status-stat-copy">현재 기기 상태 기준 추천</div></div></div><div class="contributor-status-actions"><button class="contributor-status-btn primary" type="button" onclick="goContributorStep(4)">다음 단계로</button></div>` : ""}
+        ${state.step === 4 ? `${lock.locked ? `<div class="contributor-status-banner"><strong>이번 달 플랜 변경 잠금</strong><p>${safe(lock.text)}</p></div>` : ""}<div class="contributor-plan-grid">${renderPlanCards()}</div><div class="contributor-status-card" style="margin-top:16px;border-style:dashed"><div class="contributor-status-title" style="font-size:22px">선택한 플랜 설정</div><div class="contributor-status-copy">플랜은 한 달에 한 번만 변경할 수 있고, 취소는 언제든 가능합니다.</div><div class="contributor-status-fields"><div class="contributor-status-field"><label>선택 플랜</label><input type="text" value="${safe(state.selectedPlan)}" disabled></div><div class="contributor-status-field"><label>유지 조건</label><input type="text" value="${safe(PLAN[pname(state.selectedPlan)].headline)}" disabled></div><div class="contributor-status-field"><label>연산 모드</label><select onchange="updateContributorComputeMode(this.value)">${computeModeOptions()}</select></div><div class="contributor-status-field"><label>다음 예약 시작</label><input id="contributor-starts-at" type="datetime-local" value="${defaultStart()}"></div><div class="contributor-status-field full"><label>연산 모드 설명</label><input type="text" value="${safe(computeModeDesc())}" disabled></div></div><div class="contributor-status-actions"><button class="contributor-status-btn primary" type="button" ${lock.locked ? "disabled" : ""} onclick="reserveContributorPlan()">${state.selectedPlan === "Free" ? "기본 플랜 유지" : `${safe(state.selectedPlan)} 예약 저장`}</button><button class="contributor-status-btn" type="button" ${currentPlan() === "Free" && !nextReservation() ? "disabled" : ""} onclick="cancelContributorPlan()">플랜 취소</button></div></div>` : ""}
+      </div>`;
+    footLeft.textContent = state.step < 4 ? "각 단계가 끝나면 다음 단계로 이어집니다." : "플랜은 한 달에 한 번만 변경할 수 있고, 취소는 언제든 가능합니다.";
+    footRight.textContent = state.step < 4 ? "연동 상태는 자동으로 갱신됩니다." : "예약 저장 후 상태 화면에서 유지 조건을 다시 확인할 수 있습니다.";
   }
 
   function renderStatus() {
-    setHubMode("status");
-    const root = $("contributor-hub-section-status");
-    if (!root) return;
-    const status = state.status || {};
-    const plan = planName(status?.account?.plan || "Free");
-    const linked = +(status.linked_device_count || 0) > 0;
-    const mode = localStorage.getItem("pb_contributor_compute_mode") || "local";
-    const modeMeta = computeModes(plan).find((item) => item.value === mode) || computeModes(plan)[0];
-
-    root.innerHTML = `
-      <div class="contributor-status-shell">
-        <section class="contributor-status-card">
-          <div class="contributor-status-title">기여 구독 상태</div>
-          <div class="contributor-status-copy">현재 플랜과 연결된 기기, 다음 예약만 간단하게 보여드립니다.</div>
-          <div class="contributor-status-grid">
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">플랜</div>
-              <div class="contributor-status-stat-value">${safe(plan)}</div>
-              <div class="contributor-status-stat-copy">${safe(PLAN_COPY[plan].headline)}</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">프리미엄</div>
-              <div class="contributor-status-stat-value">${safe(status.premium_active ? "활성" : "비활성")}</div>
-              <div class="contributor-status-stat-copy">${safe(linked ? "기기 연결됨" : "연동 필요")}</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">큐</div>
-              <div class="contributor-status-stat-value">${safe(queueLabel(status.queue_mode || status?.account?.latest_quote?.queue_mode || ""))}</div>
-              <div class="contributor-status-stat-copy">${safe(modeMeta.desc)}</div>
-            </div>
-            <div class="contributor-status-stat">
-              <div class="contributor-status-stat-label">다음 기여</div>
-              <div class="contributor-status-stat-value">${safe(status.next_reservation ? formatDate(status.next_reservation.starts_at) : "없음")}</div>
-              <div class="contributor-status-stat-copy">${safe(status.next_reservation ? "예약이 저장되어 있습니다." : "아직 예약이 없습니다.")}</div>
-            </div>
-          </div>
-          <div class="contributor-status-banner">
-            <strong>연결된 기기</strong>
-            <p>${safe(deviceSummary(status))}</p>
-          </div>
-          <div class="contributor-status-actions">
-            <button class="contributor-status-btn" type="button" onclick="downloadContributorApp()">앱 다운로드</button>
-            <button class="contributor-status-btn" type="button" onclick="copyContributorLinkCode()">연동 코드</button>
-            <button class="contributor-status-btn primary" type="button" onclick="PurpleBeeContributorUI.jumpToSetup()">${safe(linked ? "예약 변경" : "앱 설치 이어서")}</button>
-          </div>
-        </section>
-        <section class="contributor-status-card">
-          <div class="contributor-status-detail">
-            <div class="contributor-status-detail-item">
-              <strong>연결 상태</strong>
-              <p>${safe(linked ? "기여 앱이 계정과 연결되어 있습니다." : "앱 설치 뒤 연동 코드를 입력해 연결을 완료해 주세요.")}</p>
-            </div>
-            <div class="contributor-status-detail-item">
-              <strong>연산 모드</strong>
-              <p>${safe(modeMeta.name)} · ${safe(modeMeta.desc)}</p>
-            </div>
-            <div class="contributor-status-detail-item">
-              <strong>유지 조건</strong>
-              <p>${safe(PLAN_COPY[plan].headline)}</p>
-            </div>
-            <div class="contributor-status-detail-item">
-              <strong>다음 단계</strong>
-              <p>${safe(linked ? "필요하면 예약 시간과 연산 모드를 다시 조정하세요." : "먼저 앱 설치와 사이트 연동을 완료하세요.")}</p>
-            </div>
-          </div>
-        </section>
-      </div>
-    `;
+    $("contributor-hub-section-status").innerHTML = `<div class="contributor-status-shell"><div class="contributor-status-card"><div class="contributor-status-title">기여 구독 상태</div><div class="contributor-status-copy">현재 플랜, 앱 연결 상태, 다음 예약만 간결하게 보여줍니다.</div><div class="contributor-status-grid"><div class="contributor-status-stat"><div class="contributor-status-stat-label">현재 플랜</div><div class="contributor-status-stat-value">${safe(currentPlan())}</div><div class="contributor-status-stat-copy">${safe(PLAN[currentPlan()].headline)}</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">프리미엄</div><div class="contributor-status-stat-value">${state.status?.premium_active ? "활성" : "비활성"}</div><div class="contributor-status-stat-copy">${state.status?.account?.premium_until ? `${fmt(state.status.account.premium_until)} 까지` : "유지 시간이 확인되면 자동 활성화됩니다."}</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">연결된 기기</div><div class="contributor-status-stat-value">${linkedCount()}</div><div class="contributor-status-stat-copy">${safe(linkedSummary())}</div></div><div class="contributor-status-stat"><div class="contributor-status-stat-label">다음 예약</div><div class="contributor-status-stat-value">${nextReservation() ? fmt(nextReservation().starts_at) : "없음"}</div><div class="contributor-status-stat-copy">${nextReservation() ? `${safe(nextReservation().plan)} · ${safe(String(nextReservation().hours))}시간` : "예약을 저장하면 여기에 표시됩니다."}</div></div></div><div class="contributor-status-actions"><button class="contributor-status-btn primary" type="button" onclick="jumpToContributorSetup()">설치 / 연동 진행</button><button class="contributor-status-btn" type="button" onclick="openUpgradePage()">플랜 업그레이드</button><button class="contributor-status-btn" type="button" ${currentPlan() === "Free" && !nextReservation() ? "disabled" : ""} onclick="cancelContributorPlan()">플랜 취소</button></div></div><div class="contributor-status-card"><div class="contributor-status-title" style="font-size:22px">현재 연산 모드</div><div class="contributor-status-banner"><strong>${safe((MODES[currentPlan()] || MODES.Free).find((m) => m.value === state.selectedMode)?.title || "내 기기 연산")}</strong><p>${safe(computeModeDesc())}</p></div><div class="contributor-status-detail"><div class="contributor-status-detail-item"><strong>기여 앱 상태</strong><p>${linkedCount() > 0 ? "앱 연동이 확인되었습니다. 예약과 유지 조건을 이 화면에서 계속 확인할 수 있습니다." : "먼저 기여 앱 설치와 연동을 완료해야 보조 연산을 사용할 수 있습니다."}</p></div><div class="contributor-status-detail-item"><strong>플랜 정책</strong><p>유료 플랜은 한 달에 한 번만 변경할 수 있습니다. 취소는 언제든 할 수 있지만, 다음 변경 가능 시각은 그대로 유지됩니다.</p></div></div></div></div>`;
+    $("contributor-hub-foot-left").textContent = "기여 앱 연결 상태와 다음 예약을 이 화면에서 간단히 확인할 수 있습니다.";
+    $("contributor-hub-foot-right").textContent = "상태는 자동으로 갱신됩니다.";
   }
+  function renderModal() { if (state.mode === "plans") renderPlans(); else renderStatus(); }
 
-  function recommendPlan(profile) {
-    const cpu = +(profile?.cpu_threads || 0);
-    const memory = +(profile?.memory_gb || 0);
-    if (cpu >= 12 && memory >= 16) return "Pro";
-    if (cpu >= 8 && memory >= 8) return "Plus";
-    return "Basic";
+  async function openUpgradePage(event) {
+    if (event?.preventDefault) event.preventDefault();
+    await refreshStatus(false);
+    state.step = detectStep();
+    openBackdrop("플랜 업그레이드", "기여 시간 기반 플랜을 단계별로 설정합니다.", "plans");
+    renderModal();
   }
-
-  function openUpgradePage(event) {
-    event?.preventDefault?.();
-    $("contributor-hub-backdrop")?.classList.add("open");
-    state.step = 0;
-    renderPlans();
-  }
-
   async function openContributorHub(mode) {
-    $("contributor-hub-backdrop")?.classList.add("open");
-    if (mode === "status") {
-      try {
-        await fetchStatus();
-      } catch {
-        // keep previous state if the refresh fails
-      }
-      renderStatus();
-      return;
-    }
-    renderPlans();
+    await refreshStatus(false);
+    openBackdrop(mode === "status" ? "기여 구독 상태" : "플랜 업그레이드", mode === "status" ? "앱 연결과 다음 예약만 간단히 확인합니다." : "기여 시간 기반 플랜을 단계별로 설정합니다.", mode === "status" ? "status" : "plans");
+    if (mode !== "status") state.step = detectStep();
+    renderModal();
   }
-
-  function closeContributorHub(event) {
-    if (event?.target && event.target.id !== "contributor-hub-backdrop") return;
-    $("contributor-hub-backdrop")?.classList.remove("open");
-  }
-
-  function selectContributorPlan(plan) {
-    state.selectedPlan = planName(plan);
-    state.selectedHours = state.selectedPlan === "Basic" ? 8 : state.selectedPlan === "Plus" ? 40 : 80;
-    localStorage.setItem("pb_selected_contributor_plan", state.selectedPlan);
-    localStorage.setItem("pb_selected_contributor_hours", String(state.selectedHours));
-    renderPlans();
-  }
-
-  function updateContributorComputeMode(mode) {
-    localStorage.setItem("pb_contributor_compute_mode", mode);
-  }
-
-  async function downloadContributorApp() {
-    if (!currentUser()) {
-      toast("Google 로그인 후 진행해 주세요.");
-      return;
-    }
-    try {
-      await ensureLinkCode();
-      state.installClicked = true;
-      const anchor = document.createElement("a");
-      anchor.href = "/static/downloads/PurpleBeeContributor.exe?v=20260408c";
-      anchor.download = "PurpleBeeContributor.exe";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      toast("기여 앱 다운로드를 시작했어요.");
-      if (state.step < 2) {
-        state.step = 2;
-        renderPlans();
-      }
-    } catch {
-      toast("기여 앱을 내려받지 못했어요.");
-    }
-  }
-
-  function copyContributorLinkCode() {
-    if (!state.linkCode) {
-      toast("먼저 앱 다운로드를 시작해 주세요.");
-      return;
-    }
-    navigator.clipboard?.writeText(state.linkCode)
-      .then(() => toast("연동 코드를 복사했어요."))
-      .catch(() => toast(state.linkCode));
-  }
-
-  async function verifyLink() {
-    try {
-      await ensureLinkCode();
-      await fetchStatus();
-      if (+(state.status?.linked_device_count || 0) > 0) {
-        await detectProfile();
-        state.step = 3;
-        renderPlans();
-        await refreshSidebar();
-        toast("기기 연동이 확인됐어요.");
-        return;
-      }
-      toast("앱에 연동 코드를 입력한 뒤 다시 확인해 주세요.");
-    } catch {
-      toast("연동 상태를 아직 확인하지 못했어요.");
-    }
-  }
-
-  async function reserveContributorPlan() {
-    if (!currentUser()) {
-      toast("Google 로그인 후 진행해 주세요.");
-      return;
-    }
-    if (!(+(state.status?.linked_device_count || 0) > 0)) {
-      toast("기여 앱 설치와 연동 확인이 먼저 필요해요.");
-      return;
-    }
-    state.selectedHours = Math.max(+( $("contributor-hours-input")?.value || state.selectedHours || 8), 1);
-    localStorage.setItem("pb_selected_contributor_hours", String(state.selectedHours));
-
-    try {
-      const response = await fetch("/api/contributor/reserve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: contributorUserId(),
-          display_name: trim(currentUser()?.name || currentUser()?.email),
-          plan: state.selectedPlan,
-          hours: state.selectedHours,
-          starts_at: trim($("contributor-starts-at-input")?.value),
-          cpu_cap: Math.max(20, Math.min(90, +($("contributor-cpu-cap-input")?.value || 70))),
-          gpu_cap: Math.max(20, Math.min(90, +($("contributor-gpu-cap-input")?.value || 70))),
-          device_profile: state.profile || await detectProfile(),
-        }),
-      });
-      const payload = await response.json();
-      if (!payload?.ok) {
-        toast(payload?.message || "기여 예약을 저장하지 못했어요.");
-        return;
-      }
-      toast("기여 예약을 저장했어요.");
-      await fetchStatus();
-      await refreshSidebar();
-      closeContributorHub();
-      openContributorHub("status");
-    } catch {
-      toast("기여 예약을 저장하지 못했어요.");
-    }
-  }
-
-  function nextFromTerms() {
-    if (!consentsAccepted()) {
-      if (typeof window.openConsentModal === "function") {
-        window.openConsentModal();
-      }
-      toast("필수 동의 3가지를 먼저 완료해 주세요.");
+  function continueContributorTerms() {
+    if (!hasConsent()) {
+      if (typeof window.openConsentModal === "function") window.openConsentModal();
+      toast("필수 동의를 먼저 완료해 주세요.");
       return;
     }
     state.step = 1;
-    renderPlans();
+    renderModal();
   }
-
-  function gotoStep(step) {
-    state.step = step;
-    if (step === 2 && !state.linkCode) {
-      ensureLinkCode().then(() => renderPlans()).catch(() => renderPlans());
-      return;
+  function markContributorInstalled() {
+    state.installClicked = true;
+    writeJson("pb_contributor_install_clicked_v1", true);
+    state.step = 2;
+    renderModal();
+  }
+  async function downloadContributorApp() {
+    const a = document.createElement("a");
+    a.href = `/api/contributor/client/download?user_id=${encodeURIComponent(uid())}&display_name=${encodeURIComponent(uname())}`;
+    a.download = "PurpleBeeContributorSetup.exe";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    state.installClicked = true;
+    writeJson("pb_contributor_install_clicked_v1", true);
+    toast("설치 파일 다운로드를 시작했어요. 설치가 끝나면 다음 단계로 진행해 주세요.");
+  }
+  async function ensureCode() {
+    if (state.linkCode?.code) return state.linkCode;
+    const body = await api("/api/contributor/link-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: uid(), display_name: uname(), plan: state.selectedPlan }) });
+    state.linkCode = body.link_code;
+    return state.linkCode;
+  }
+  async function copyContributorLinkCode() {
+    const code = (await ensureCode())?.code;
+    if (!code) return toast("연동 코드를 아직 발급하지 못했어요.");
+    try { await navigator.clipboard.writeText(code); toast("연동 코드를 복사했어요."); } catch { toast(`연동 코드: ${code}`); }
+  }
+  async function verifyContributorLink() {
+    await refreshStatus(false);
+    if (linkedCount() > 0) {
+      state.step = 3;
+      renderModal();
+      toast("기여 앱 연동이 확인됐어요.");
+    } else {
+      await ensureCode();
+      toast("아직 앱 연동이 확인되지 않았어요. 앱에 코드를 입력한 뒤 다시 확인해 주세요.");
+      renderModal();
     }
-    renderPlans();
+  }
+  function goContributorStep(step) { state.step = Math.max(0, Math.min(4, Number(step) || 0)); renderModal(); }
+  function jumpToContributorSetup() { state.mode = "plans"; state.step = detectStep(); $("contributor-hub-section-plans").classList.add("active"); $("contributor-hub-section-status").classList.remove("active"); $("contributor-hub-title").textContent = "플랜 업그레이드"; $("contributor-hub-subtitle").textContent = "설치와 연동을 완료한 뒤 플랜을 선택합니다."; renderModal(); }
+  function selectContributorPlan(plan) { state.selectedPlan = pname(plan); state.selectedMode = PLAN[state.selectedPlan].mode; localStorage.setItem("pb_selected_contributor_plan", state.selectedPlan); localStorage.setItem("pb_selected_compute_mode", state.selectedMode); renderModal(); }
+  function updateContributorComputeMode(value) { state.selectedMode = trim(value) || PLAN[state.selectedPlan].mode; localStorage.setItem("pb_selected_compute_mode", state.selectedMode); renderModal(); }
+  async function reserveContributorPlan() {
+    try {
+      const startsAt = $("contributor-starts-at")?.value || defaultStart();
+      const body = await api("/api/contributor/reserve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: uid(), display_name: uname(), plan: state.selectedPlan, hours: PLAN[pname(state.selectedPlan)].hours, starts_at: new Date(startsAt).toISOString(), cpu_cap: 70, gpu_cap: 70, device_profile: state.profile || {}, compute_mode: state.selectedMode }) });
+      state.status = body.status || state.status;
+      updateSidebar();
+      openContributorHub("status");
+      toast(body.message || "예약을 저장했어요.");
+    } catch (e) {
+      toast(e?.payload?.message || e.message || "예약 저장에 실패했어요.");
+    }
+  }
+  async function cancelContributorPlan() {
+    try {
+      const body = await api("/api/contributor/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: uid() }) });
+      state.status = body.status || state.status;
+      updateSidebar();
+      openContributorHub("status");
+      toast(body.message || "플랜을 취소했어요.");
+    } catch (e) {
+      toast(e?.payload?.message || e.message || "플랜 취소에 실패했어요.");
+    }
   }
 
-  function jumpToSetup() {
-    state.step = +(state.status?.linked_device_count || 0) > 0 ? 4 : 1;
-    setHubMode("plans");
-    renderPlans();
-  }
-
-  Object.assign(window, {
-    openUpgradePage,
-    openContributorHub,
-    closeContributorHub,
-    selectContributorPlan,
-    updateContributorComputeMode,
-    downloadContributorApp,
-    copyContributorLinkCode,
-    reserveContributorPlan,
-  });
-  window.PurpleBeeContributorUI = {
-    nextFromTerms,
-    gotoStep,
-    verifyLink,
-    jumpToSetup,
-    refreshSidebar,
-  };
-
-  setTimeout(() => {
-    refreshSidebar().catch(() => {});
-    setInterval(() => {
-      refreshSidebar().catch(() => {});
-      const statusSection = $("contributor-hub-section-status");
-      const backdrop = $("contributor-hub-backdrop");
-      if (backdrop?.classList.contains("open") && statusSection?.classList.contains("active")) {
-        fetchStatus().then(renderStatus).catch(() => {});
-      }
-    }, 15000);
-  }, 0);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && $("contributor-hub-backdrop")?.classList.contains("open")) refreshStatus(true); });
+  Object.assign(window, { openUpgradePage, openContributorHub, closeContributorHub, continueContributorTerms, downloadContributorApp, markContributorInstalled, copyContributorLinkCode, verifyContributorLink, goContributorStep, jumpToContributorSetup, selectContributorPlan, updateContributorComputeMode, reserveContributorPlan, cancelContributorPlan });
+  refreshStatus(false);
 })();

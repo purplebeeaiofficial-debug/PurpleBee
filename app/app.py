@@ -180,9 +180,14 @@ def init_db():
         premium_until TEXT,
         hardware_json TEXT,
         latest_quote_json TEXT,
+        plan_changed_at TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
     )""")
+    try:
+        c.execute("ALTER TABLE contributor_accounts ADD COLUMN plan_changed_at TEXT")
+    except sqlite3.OperationalError:
+        pass
     c.execute("""CREATE TABLE IF NOT EXISTS contributor_reservations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
@@ -407,13 +412,13 @@ def ensure_contributor_account(user_id, display_name=""):
         return None
     conn = db_connect()
     c = conn.cursor()
-    c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
+    c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, plan_changed_at, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
     row = c.fetchone()
     if not row:
         c.execute(
             """INSERT INTO contributor_accounts
-               (user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at)
-               VALUES (?, ?, 'Free', 'inactive', NULL, NULL, NULL, ?, ?)""",
+               (user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, plan_changed_at, created_at, updated_at)
+               VALUES (?, ?, 'Free', 'inactive', NULL, NULL, NULL, NULL, ?, ?)""",
             (user_id, display_name or "", now_iso(), now_iso()),
         )
         c.execute(
@@ -423,7 +428,7 @@ def ensure_contributor_account(user_id, display_name=""):
             (user_id, now_iso()),
         )
         conn.commit()
-        c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
+        c.execute("SELECT user_id, display_name, plan, contributor_status, premium_until, hardware_json, latest_quote_json, plan_changed_at, created_at, updated_at FROM contributor_accounts WHERE user_id=?", (user_id,))
         row = c.fetchone()
     conn.close()
     if not row:
@@ -436,8 +441,9 @@ def ensure_contributor_account(user_id, display_name=""):
         "premium_until": row[4],
         "hardware": json.loads(row[5]) if row[5] else {},
         "latest_quote": json.loads(row[6]) if row[6] else {},
-        "created_at": row[7],
-        "updated_at": row[8],
+        "plan_changed_at": row[7],
+        "created_at": row[8],
+        "updated_at": row[9],
     }
 
 def ensure_contributor_ledger(user_id):
@@ -698,6 +704,9 @@ def contributor_windows_assets_dir():
 def contributor_windows_exe_path():
     return contributor_windows_dist_dir() / "PurpleBeeContributor.exe"
 
+def contributor_windows_setup_exe_path():
+    return contributor_windows_dist_dir() / "PurpleBeeContributorSetup.exe"
+
 def contributor_downloads_dir():
     target = STATIC_DIR / "downloads"
     target.mkdir(parents=True, exist_ok=True)
@@ -705,6 +714,9 @@ def contributor_downloads_dir():
 
 def contributor_public_exe_path():
     return contributor_downloads_dir() / "PurpleBeeContributor.exe"
+
+def contributor_public_setup_path():
+    return contributor_downloads_dir() / "PurpleBeeContributorSetup.exe"
 
 def contributor_public_icon_path():
     return contributor_downloads_dir() / "purple-bee-contributor-icon.png"
@@ -820,22 +832,56 @@ def copy_if_newer(source, target):
 
 def sync_contributor_public_assets():
     exe_path = contributor_windows_exe_path()
+    setup_path = contributor_windows_setup_exe_path()
     icon_path = contributor_windows_assets_dir() / "purple-bee-contributor-icon.png"
     if exe_path.exists():
         copy_if_newer(exe_path, contributor_public_exe_path())
+    if setup_path.exists():
+        copy_if_newer(setup_path, contributor_public_setup_path())
     if icon_path.exists():
         copy_if_newer(icon_path, contributor_public_icon_path())
 
 def build_contributor_client_download():
     sync_contributor_public_assets()
-    public_path = contributor_public_exe_path()
+    public_path = contributor_public_setup_path()
     if public_path.exists():
         return public_path
-    source_script = contributor_windows_client_dir() / "purple_bee_contributor_app.py"
-    if not source_script.exists():
+    app_script = contributor_windows_client_dir() / "purple_bee_contributor_app.py"
+    setup_script = contributor_windows_client_dir() / "purple_bee_contributor_setup.py"
+    if not app_script.exists() or not setup_script.exists():
         return None
     contributor_windows_dist_dir().mkdir(parents=True, exist_ok=True)
     contributor_windows_build_dir().mkdir(parents=True, exist_ok=True)
+    app_exe = contributor_windows_exe_path()
+    if not app_exe.exists():
+        try:
+            subprocess.run(
+                [
+                    "pyinstaller",
+                    "--noconfirm",
+                    "--clean",
+                    "--onefile",
+                    "--windowed",
+                    "--name",
+                    "PurpleBeeContributor",
+                    "--distpath",
+                    str(contributor_windows_dist_dir()),
+                    "--workpath",
+                    str(contributor_windows_build_dir()),
+                    "--specpath",
+                    str(contributor_windows_client_dir()),
+                    str(app_script),
+                ],
+                check=True,
+                cwd=str(BASE_DIR),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except Exception:
+            return None
+    if not app_exe.exists():
+        return None
     try:
         subprocess.run(
             [
@@ -845,14 +891,16 @@ def build_contributor_client_download():
                 "--onefile",
                 "--windowed",
                 "--name",
-                "PurpleBeeContributor",
+                "PurpleBeeContributorSetup",
                 "--distpath",
                 str(contributor_windows_dist_dir()),
                 "--workpath",
                 str(contributor_windows_build_dir()),
                 "--specpath",
                 str(contributor_windows_client_dir()),
-                str(source_script),
+                "--add-data",
+                f"{str(app_exe)};payload",
+                str(setup_script),
             ],
             check=True,
             cwd=str(BASE_DIR),
@@ -935,6 +983,25 @@ def compute_contributor_quote(plan, raw_hours, device_profile):
         },
     }
 
+def contributor_plan_change_status(account, requested_plan=""):
+    account = account or {}
+    current_plan = normalize_contributor_plan(account.get("plan") or "Free")
+    requested_plan = normalize_contributor_plan(requested_plan or current_plan)
+    changed_at = parse_iso(account.get("plan_changed_at"))
+    locked_until = None
+    can_change = True
+    if changed_at and requested_plan not in ("", current_plan, "Free"):
+        locked_until = changed_at + timedelta(days=30)
+        if locked_until > datetime.now():
+            can_change = False
+    return {
+        "current_plan": current_plan,
+        "requested_plan": requested_plan,
+        "plan_changed_at": account.get("plan_changed_at"),
+        "plan_change_locked_until": locked_until.isoformat(timespec="seconds") if locked_until else None,
+        "can_change_plan": can_change,
+    }
+
 def get_contributor_status(user_id):
     account = ensure_contributor_account(user_id)
     if not account:
@@ -981,6 +1048,7 @@ def get_contributor_status(user_id):
     premium_active = bool(account["premium_until"] and parse_iso(account["premium_until"]) and parse_iso(account["premium_until"]) > datetime.now())
     total_effective_hours = round(float(ledger.get("effective_minutes") or 0) / 60.0, 2)
     plan_rules = CONTRIBUTOR_PLAN_RULES.get(normalize_contributor_plan(account.get("plan")), CONTRIBUTOR_PLAN_RULES["Free"])
+    change_status = contributor_plan_change_status(account)
     return {
         "account": account,
         "ledger": ledger,
@@ -994,6 +1062,7 @@ def get_contributor_status(user_id):
         "linked_device_count": len(devices),
         "exact_device_summary": build_exact_device_summary(devices),
         "plans": CONTRIBUTOR_PLAN_RULES,
+        **change_status,
     }
 
 def bootstrap_app_runtime():
@@ -6112,6 +6181,14 @@ def contributor_reserve_api():
             }), 400
 
         account = ensure_contributor_account(user_id, display_name)
+        change_status = contributor_plan_change_status(account, plan)
+        if not change_status["can_change_plan"]:
+            return jsonify({
+                "ok": False,
+                "error": "plan_change_locked",
+                "message": f"플랜은 한 달에 한 번만 변경할 수 있습니다. 다음 변경 가능 시각: {change_status['plan_change_locked_until']}",
+                "locked_until": change_status["plan_change_locked_until"],
+            }), 400
         if plan != "Free" and not get_contributor_devices(user_id):
             return jsonify({
                 "ok": False,
@@ -6143,7 +6220,7 @@ def contributor_reserve_api():
         )
         c.execute(
             """UPDATE contributor_accounts
-               SET display_name=?, plan=?, contributor_status=?, premium_until=?, hardware_json=?, latest_quote_json=?, updated_at=?
+               SET display_name=?, plan=?, contributor_status=?, premium_until=?, hardware_json=?, latest_quote_json=?, plan_changed_at=?, updated_at=?
                WHERE user_id=?""",
             (
                 display_name or (account or {}).get("display_name") or "",
@@ -6152,6 +6229,7 @@ def contributor_reserve_api():
                 premium_until.isoformat(timespec="seconds") if quote["premium_days"] > 0 else None,
                 json.dumps(device_profile, ensure_ascii=False),
                 json.dumps(quote, ensure_ascii=False),
+                now_iso() if plan not in ("Free", change_status["current_plan"]) else (account or {}).get("plan_changed_at"),
                 now_iso(),
                 user_id,
             ),
@@ -6176,6 +6254,42 @@ def contributor_reserve_api():
         return jsonify({
             "ok": False,
             "error": "contributor_reserve_failed",
+            "message": str(exc),
+            "traceback": traceback.format_exc().splitlines()[-8:],
+        }), 500
+
+@app.route("/api/contributor/cancel", methods=["POST"])
+def contributor_cancel_api():
+    try:
+        data = request.get_json(silent=True) or {}
+        user_id = str(data.get("user_id", "")).strip()
+        if not user_id:
+            return jsonify({"ok": False, "error": "user_id_required"}), 400
+        conn = db_connect()
+        c = conn.cursor()
+        c.execute(
+            """UPDATE contributor_reservations
+               SET status='cancelled'
+               WHERE user_id=? AND status='scheduled'""",
+            (user_id,),
+        )
+        c.execute(
+            """UPDATE contributor_accounts
+               SET plan='Free', contributor_status='inactive', premium_until=NULL, updated_at=?
+               WHERE user_id=?""",
+            (now_iso(), user_id),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "ok": True,
+            "message": "기여 예약이 취소되었고 플랜이 Free로 돌아갔습니다.",
+            "status": get_contributor_status(user_id),
+        })
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": "contributor_cancel_failed",
             "message": str(exc),
             "traceback": traceback.format_exc().splitlines()[-8:],
         }), 500
@@ -6220,7 +6334,7 @@ def contributor_client_download_api():
         str(exe_path),
         mimetype="application/vnd.microsoft.portable-executable",
         as_attachment=True,
-        download_name="PurpleBeeContributor.exe",
+        download_name="PurpleBeeContributorSetup.exe",
     )
 
 @app.route("/api/contributor/client/link", methods=["POST"])
