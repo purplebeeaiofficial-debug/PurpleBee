@@ -544,12 +544,12 @@
       await ensureLinkCode();
       state.installClicked = true;
       const anchor = document.createElement("a");
-      anchor.href = "/static/downloads/PurpleBeeContributor.exe?v=20260408c";
+      anchor.href = "/static/downloads/PurpleBeeContributor.exe?v=20260408f";
       anchor.download = "PurpleBeeContributor.exe";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      toast("기여 앱 다운로드를 시작했어요.");
+      toast("기여 앱 설치 파일 다운로드를 시작했어요.");
       if (state.step < 2) {
         state.step = 2;
         renderPlans();
