@@ -9,6 +9,8 @@ $vendorSourceDir = Join-Path $appDir "static\vendor"
 $vendorDestDir = Join-Path $publicStaticDir "vendor"
 $manifestSourceDir = Join-Path $appDir "static\manifests"
 $manifestDestDir = Join-Path $publicStaticDir "manifests"
+$downloadsSourceDir = Join-Path $appDir "static\downloads"
+$downloadsDestDir = Join-Path $publicStaticDir "downloads"
 $safeAssetLimit = 25MB
 
 function Read-JsonFile {
@@ -80,6 +82,11 @@ if (Test-Path $vendorSourceDir) {
 if (Test-Path $manifestSourceDir) {
   Remove-PathIfExists -Path $manifestDestDir
   Copy-Item -Path $manifestSourceDir -Destination $manifestDestDir -Recurse -Force
+}
+
+if (Test-Path $downloadsSourceDir) {
+  Remove-PathIfExists -Path $downloadsDestDir
+  Copy-Item -Path $downloadsSourceDir -Destination $downloadsDestDir -Recurse -Force
 }
 
 $registrySourceCandidates = @(

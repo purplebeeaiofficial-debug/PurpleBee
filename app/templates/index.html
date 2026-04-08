@@ -620,7 +620,7 @@
           </button>
           <div class="profile-sep"></div>
           <button class="profile-item profile-item-danger" id="profile-logout-btn" type="button" onclick="logoutUser()">
-            <span><i class="ph ph-sign-out"></i> 濡쒓렇?꾩썐</span>
+            <span><i class="ph ph-sign-out"></i> 로그아웃</span>
           </button>
         </div>
       </div>
@@ -651,27 +651,27 @@
         </svg>
       </div>
       <div class="home-title">Purple Bee</div>
-      <div class="home-subtitle" id="home-subtitle">?ㅻ뒛? ?대뼡 ?댁빞湲곕? 媛숈씠 ??대낵源뚯슂?</div>
+      <div class="home-subtitle" id="home-subtitle">지금 보고 있는 문제부터 같이 풀어봐도 좋아요.</div>
       <div class="home-cards">
         <div class="home-card" onclick="quickAction('summarize-doc')">
-          <div class="home-card-icon">?뱞</div>
-          <div class="home-card-title" id="home-card-1-title">臾몄꽌 ?붿빟</div>
-          <div class="home-card-desc" id="home-card-1-desc">PDF, ?띿뒪?? 肄붾뱶 ?뚯씪???쎄퀬 ?듭떖留??뺣━</div>
+          <div class="home-card-icon">📄</div>
+          <div class="home-card-title" id="home-card-1-title">문서 요약</div>
+          <div class="home-card-desc" id="home-card-1-desc">PDF, 텍스트, 코드 파일을 읽고 핵심만 정리</div>
         </div>
         <div class="home-card" onclick="quickAction('solve-issue')">
-          <div class="home-card-icon">?썱截?/div>
-          <div class="home-card-title" id="home-card-2-title">臾몄젣 ?닿껐</div>
-          <div class="home-card-desc" id="home-card-2-desc">?먮윭 濡쒓렇, ?ㅼ젙 ?뚯씪, 肄붾뱶 議곌컖???④퍡 遺꾩꽍</div>
+          <div class="home-card-icon">🛠️</div>
+          <div class="home-card-title" id="home-card-2-title">문제 해결</div>
+          <div class="home-card-desc" id="home-card-2-desc">에러 로그, 설정 파일, 코드 조각을 함께 분석</div>
         </div>
         <div class="home-card" onclick="quickAction('review-screenshot')">
-          <div class="home-card-icon">?뼹截?/div>
-          <div class="home-card-title" id="home-card-3-title">?붾㈃ 罹≪쿂 ?먭?</div>
-          <div class="home-card-desc" id="home-card-3-desc">?ㅽ겕由곗꺑怨??ㅻ챸???④퍡 蹂대궡怨??먮쫫???먭?</div>
+          <div class="home-card-icon">🖼️</div>
+          <div class="home-card-title" id="home-card-3-title">화면 캡처 점검</div>
+          <div class="home-card-desc" id="home-card-3-desc">스크린샷과 설명을 함께 보내고 흐름을 점검</div>
         </div>
         <div class="home-card" onclick="quickAction('continue-context')">
-          <div class="home-card-icon">?㎛</div>
-          <div class="home-card-title" id="home-card-4-title">????댁뼱??/div>
-          <div class="home-card-desc" id="home-card-4-desc">???뱀궗?댄듃 ?몄뀡????λ맂 理쒓렐 ??붾? ?댁뼱??吏꾪뻾</div>
+          <div class="home-card-icon">🧭</div>
+          <div class="home-card-title" id="home-card-4-title">대화 이어서</div>
+          <div class="home-card-desc" id="home-card-4-desc">이 웹사이트 세션에 저장된 최근 대화를 이어서 진행</div>
         </div>
       </div>
     </div>
@@ -681,7 +681,7 @@
   <div id="compose-area">
     <div id="compose-box">
       <div id="attachment-strip" class="attachment-strip"></div>
-      <textarea id="input-field" placeholder="吏덈Ц???낅젰?섍퀬 ?뚯씪, 臾몄꽌, ?ㅽ겕由곗꺑???④퍡 蹂대궡 蹂댁꽭?? (Enter ?꾩넚, Shift+Enter 以꾨컮轅?" rows="1"></textarea>
+      <textarea id="input-field" placeholder="질문을 입력하고 파일, 문서, 스크린샷을 함께 보내 보세요. (Enter 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
       <input type="file" id="file-input" hidden multiple accept="image/*,.txt,.md,.markdown,.json,.csv,.ts,.tsx,.js,.jsx,.py,.java,.cpp,.c,.cs,.html,.css,.xml,.yml,.yaml,.ini,.log,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
       <div class="compose-footer">
         <div class="compose-left">
@@ -695,8 +695,8 @@
                   <i class="ph ph-file-arrow-up" style="color:var(--blue)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">?뚯씪/臾몄꽌 泥⑤?</div>
-                  <div style="font-size:10px;color:var(--text-3)">?띿뒪?? 肄붾뱶, PDF, ?대?吏 ?뚯씪 異붽?</div>
+                  <div style="font-size:13px;color:var(--text)">파일/문서 첨부</div>
+                  <div style="font-size:10px;color:var(--text-3)">텍스트, 코드, PDF, 이미지 파일 추가</div>
                 </span>
               </button>
               <div class="attach-menu-sep"></div>
@@ -705,8 +705,8 @@
                   <i class="ph ph-image" style="color:var(--green)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">?ㅽ겕由곗꺑 遺숈뿬?ｊ린</div>
-                  <div style="font-size:10px;color:var(--text-3)">?대┰蹂대뱶 ?대?吏??Ctrl+V濡??붾㈃ 罹≪쿂 異붽?</div>
+                  <div style="font-size:13px;color:var(--text)">스크린샷 붙여넣기</div>
+                  <div style="font-size:10px;color:var(--text-3)">클립보드 이미지나 Ctrl+V로 화면 캡처 추가</div>
                 </span>
               </button>
               <div class="attach-menu-sep"></div>
@@ -715,8 +715,8 @@
                   <i class="ph ph-trash" style="color:var(--red)"></i>
                 </span>
                 <span>
-                  <div style="font-size:13px;color:var(--text)">泥⑤? 鍮꾩슦湲?/div>
-                  <div style="font-size:10px;color:var(--text-3)">?꾩옱 ?낅젰李쎌뿉 ?щ┛ ?먮즺瑜?紐⑤몢 ?쒓굅</div>
+                  <div style="font-size:13px;color:var(--text)">첨부 비우기</div>
+                  <div style="font-size:10px;color:var(--text-3)">현재 입력창에 올린 자료를 모두 제거</div>
                 </span>
               </button>
             </div>
@@ -724,7 +724,7 @@
 
         <div class="local-mode-badge">
           <i class="ph ph-cpu" style="font-size:12px"></i>
-          <span id="local-badge-label">??湲곌린 ?곗궛</span>
+          <span id="local-badge-label">내 기기 연산</span>
         </div>
         </div>
 
@@ -742,7 +742,7 @@
               </span>
               <span>
                 <div id="current-model-name">Purple Bee 1.3</div>
-                <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">?꾩옱 ?묒냽??湲곌린?먯꽌 吏곸젒 怨꾩궛?섎뒗 ?붿쭊</div>
+                <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">현재 접속한 기기에서 직접 계산하는 엔진</div>
               </span>
             </button>
             <div class="attach-menu-sep" id="model-version-sep-top"></div>
@@ -750,8 +750,8 @@
             <div class="attach-menu-sep" id="model-version-sep-bottom"></div>
             <div class="think-row">
               <div>
-                <div class="think-label" id="deep-think-label">?뺣? 遺꾩꽍</div>
-                <div class="think-sub" id="deep-think-subtitle">泥⑤? ?먮즺? 理쒓렐 ??붾? ??湲멸쾶 寃??/div>
+                <div class="think-label" id="deep-think-label">정밀 분석</div>
+                <div class="think-sub" id="deep-think-subtitle">첨부 자료와 최근 대화를 더 길게 검토</div>
               </div>
               <label class="toggle-sm">
                 <input type="checkbox" id="deep-think-toggle" onchange="toggleDeepThink(this)">
@@ -769,7 +769,7 @@
       <div class="local-status-line" id="local-status" style="display:none"></div>
     </div>
     <div style="text-align:center;font-size:10px;color:var(--text-3);margin-top:8px">
-      <span id="footer-note">Purple Bee???ㅼ닔瑜??????덉뒿?덈떎. ?섎せ???뺣낫???대떦 ?듬????좉퀬瑜??댁＜?몄슂.</span>
+      <span id="footer-note">Purple Bee는 실수를 할 수 있습니다. 잘못된 정보는 해당 답변에 신고를 해주세요.</span>
     </div>
   </div>
 </main>
@@ -778,8 +778,8 @@
   <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
     <div class="settings-header">
       <div>
-        <div class="settings-title" id="settings-title">?ㅼ젙</div>
-        <div class="settings-subtitle" id="settings-subtitle">Purple Bee??UI ?몄뼱, ?듬? ?? ???諛⑹떇?????뱀궗?댄듃 ?몄뀡 湲곗??쇰줈 議곗젙?⑸땲??</div>
+        <div class="settings-title" id="settings-title">설정</div>
+        <div class="settings-subtitle" id="settings-subtitle">Purple Bee의 UI 언어, 답변 톤, 저장 방식을 이 웹사이트 세션 기준으로 조정합니다.</div>
       </div>
       <button class="settings-close" type="button" onclick="closeSettings()">
         <i class="ph ph-x" style="font-size:18px"></i>
@@ -787,69 +787,69 @@
     </div>
     <div class="settings-body">
       <div class="settings-card">
-        <h3 id="settings-ui-title">UI? ?쒖떆</h3>
-        <p id="settings-ui-desc">踰꾪듉, ?덈궡 臾멸뎄, ??移대뱶 媛숈? ?명꽣?섏씠???몄뼱? ?쒖떆 諛⑹떇??議곗젅?⑸땲??</p>
+        <h3 id="settings-ui-title">UI와 표시</h3>
+        <p id="settings-ui-desc">버튼, 안내 문구, 홈 카드 같은 인터페이스 언어와 표시 방식을 조절합니다.</p>
         <label class="settings-field">
-          <span class="settings-label" id="settings-ui-language-label">UI ?몄뼱</span>
+          <span class="settings-label" id="settings-ui-language-label">UI 언어</span>
           <select class="settings-select" id="ui-language-select">
-            <option value="auto">?먮룞</option>
-            <option value="ko">?쒓뎅??/option>
+            <option value="auto">자동</option>
+            <option value="ko">한국어</option>
             <option value="en">English</option>
-            <option value="ja">?ζ쑍沃?/option>
+            <option value="ja">日本語</option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-theme-label">?뚮쭏</span>
+          <span class="settings-label" id="settings-theme-label">테마</span>
           <select class="settings-select" id="theme-select">
-            <option value="dark">?ㅽ겕</option>
-            <option value="light">?쇱씠??/option>
+            <option value="dark">다크</option>
+            <option value="light">라이트</option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-typing-label">?묐떟 ?좊땲硫붿씠??/span>
+          <span class="settings-label" id="settings-typing-label">응답 애니메이션</span>
           <select class="settings-select" id="typing-speed-select">
-            <option value="normal">蹂댄넻</option>
-            <option value="fast">鍮좊Ⅴ寃?/option>
-            <option value="instant">利됱떆 ?쒖떆</option>
+            <option value="normal">보통</option>
+            <option value="fast">빠르게</option>
+            <option value="instant">즉시 표시</option>
           </select>
         </label>
       </div>
 
       <div class="settings-card">
-        <h3 id="settings-reply-title">?듬? ?ㅽ???/h3>
-        <p id="settings-reply-desc">吏덈Ц ?몄뼱瑜??곕씪媛嫄곕굹, ??援ъ“?곸씤 ?뺤떇怨????쇱긽?곸씤 ?댄닾瑜?怨좊? ???덉뒿?덈떎.</p>
+        <h3 id="settings-reply-title">답변 스타일</h3>
+        <p id="settings-reply-desc">질문 언어를 따라가거나, 더 구조적인 형식과 더 일상적인 어투를 고를 수 있습니다.</p>
         <label class="settings-field">
-          <span class="settings-label" id="settings-reply-language-label">?듬? ?몄뼱</span>
+          <span class="settings-label" id="settings-reply-language-label">답변 언어</span>
           <select class="settings-select" id="reply-language-select">
-            <option value="auto">吏덈Ц ?몄뼱 ?곕씪媛湲?/option>
-            <option value="ko">?쒓뎅??/option>
+            <option value="auto">질문 언어 따라가기</option>
+            <option value="ko">한국어</option>
             <option value="en">English</option>
-            <option value="ja">?ζ쑍沃?/option>
-            <option value="zh">訝?뻼</option>
-            <option value="es">Espa챰ol</option>
-            <option value="fr">Fran챌ais</option>
+            <option value="ja">日本語</option>
+            <option value="zh">中文</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
             <option value="de">Deutsch</option>
           </select>
         </label>
         <label class="settings-field">
-          <span class="settings-label" id="settings-style-label">?듬? ??/span>
+          <span class="settings-label" id="settings-style-label">답변 톤</span>
           <select class="settings-select" id="reply-style-select">
-            <option value="adaptive">?먮룞 議곗젅</option>
-            <option value="balanced">洹좏삎??/option>
-            <option value="structured">援ъ“??/option>
-            <option value="casual">??뷀삎</option>
-            <option value="coach">肄붿튂??/option>
+            <option value="adaptive">자동 조절</option>
+            <option value="balanced">균형형</option>
+            <option value="structured">구조형</option>
+            <option value="casual">대화형</option>
+            <option value="coach">코치형</option>
           </select>
         </label>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-memory-title">??κ낵 ?꾨씪?대쾭??/h3>
-        <p id="settings-memory-desc">理쒓렐 ??붿? ?ъ슜???ㅼ젙? 湲곕낯?곸쑝濡????뱀궗?댄듃 ?몄뀡????λ맗?덈떎.</p>
+        <h3 id="settings-memory-title">저장과 프라이버시</h3>
+        <p id="settings-memory-desc">최근 대화와 사용자 설정은 기본적으로 이 웹사이트 세션에 저장됩니다.</p>
         <div class="settings-row">
           <div>
-            <div class="think-label" id="remember-chat-label">理쒓렐 ??????/div>
-            <div class="think-sub" id="remember-chat-subtitle">?덈줈怨좎묠 ?꾩뿉??理쒓렐 ??붾? ?ㅼ떆 遺덈윭?듬땲??</div>
+            <div class="think-label" id="remember-chat-label">최근 대화 저장</div>
+            <div class="think-sub" id="remember-chat-subtitle">새로고침 후에도 최근 대화를 다시 불러옵니다.</div>
           </div>
           <label class="toggle-sm">
             <input type="checkbox" id="remember-chat-toggle" checked onchange="toggleRememberChats(this)">
@@ -857,39 +857,39 @@
             <div class="thumb"></div>
           </label>
         </div>
-        <div class="settings-help" id="privacy-help">?????μ쓣 ?꾨㈃ ??硫붿떆吏遺??湲곕줉?섏? ?딆쑝硫? ?먰븯硫??꾨옒 踰꾪듉?쇰줈 ??λ맂 ??붾룄 諛붾줈 吏?????덉뒿?덈떎.</div>
+        <div class="settings-help" id="privacy-help">대화 저장을 끄면 새 메시지부터 기록하지 않으며, 원하면 아래 버튼으로 저장된 대화도 바로 지울 수 있습니다.</div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="clearStoredChats()" id="clear-chats-btn">???뱀궗?댄듃????λ맂 理쒓렐 ???吏?곌린</button>
+          <button class="settings-action" type="button" onclick="clearStoredChats()" id="clear-chats-btn">이 웹사이트에 저장된 최근 대화 지우기</button>
         </div>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-memory-bank-title">硫붾え由?/h3>
-        <p id="settings-memory-bank-desc">??ν빐以?湲곗뼲?댁쨾 ?붿껌?쇰줈 湲곕줉???ъ슜??硫붾え由ъ엯?덈떎. ?꾩슂?????듬? 李멸퀬???ъ슜?⑸땲??</p>
+        <h3 id="settings-memory-bank-title">메모리</h3>
+        <p id="settings-memory-bank-desc">저장해줘/기억해줘 요청으로 기록된 사용자 메모리입니다. 필요할 때 답변 참고에 사용됩니다.</p>
         <div class="memory-list" id="memory-list">
-          <div class="memory-empty">??λ맂 硫붾え由ш? ?꾩쭅 ?놁뒿?덈떎.</div>
+          <div class="memory-empty">저장된 메모리가 아직 없습니다.</div>
         </div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="clearAllMemories()" id="clear-memories-btn">??λ맂 硫붾え由??꾩껜 ??젣</button>
+          <button class="settings-action" type="button" onclick="clearAllMemories()" id="clear-memories-btn">저장된 메모리 전체 삭제</button>
         </div>
-        <div class="settings-help" id="memory-help">硫붾え由???젣???뺤씤 ??吏꾪뻾?⑸땲??</div>
+        <div class="settings-help" id="memory-help">메모리 삭제는 확인 후 진행됩니다.</div>
       </div>
 
       <div class="settings-card wide">
-        <h3 id="settings-language-support-title">?몄뼱 吏??/h3>
-        <p id="settings-language-support-desc">Purple Bee??吏덈Ц???욎뿬 ?덈뒗 ?몄뼱瑜?媛먯???媛?ν븳 ??媛숈? ?몄뼱濡??듯븯?ㅺ퀬 ?⑸땲?? UI??????몄뼱 ?꾨━?뗭쓣 ?쒓났?섍퀬, ?듬?? ???볦? ?ㅺ뎅???낅젰???곕씪媛묐땲??</p>
+        <h3 id="settings-language-support-title">언어 지원</h3>
+        <p id="settings-language-support-desc">Purple Bee는 질문에 섞여 있는 언어를 감지해 가능한 한 같은 언어로 답하려고 합니다. UI는 선택한 언어 우선으로 표시되고, 답변은 현재 입력 흐름을 따라갑니다.</p>
         <div class="settings-chips">
           <span class="settings-chip">Korean</span>
           <span class="settings-chip">English</span>
-          <span class="settings-chip">?ζ쑍沃?/span>
-          <span class="settings-chip">訝?뻼</span>
-          <span class="settings-chip">Espa챰ol</span>
-          <span class="settings-chip">Fran챌ais</span>
+          <span class="settings-chip">日本語</span>
+          <span class="settings-chip">中文</span>
+          <span class="settings-chip">Español</span>
+          <span class="settings-chip">Français</span>
           <span class="settings-chip">Deutsch</span>
           <span class="settings-chip">Auto detect</span>
         </div>
         <div class="settings-field" style="margin-top:14px">
-          <button class="settings-action" type="button" onclick="logoutUser()" id="settings-logout-btn">濡쒓렇?꾩썐</button>
+          <button class="settings-action" type="button" onclick="logoutUser()" id="settings-logout-btn">로그아웃</button>
         </div>
       </div>
     </div>
@@ -989,7 +989,7 @@
   <script src="/static/purple-bee-engine.js?v=20260405s"></script>
   <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
   <script src="/static/purple-bee-local.js?v=20260408c"></script>
-  <script src="/static/purple-bee-contributor-ui.js?v=20260408c"></script></body>
+  <script src="/static/purple-bee-contributor-ui.js?v=20260408e"></script></body>
 </html>
 
 
