@@ -20,6 +20,7 @@ import secrets
 import traceback
 import io
 import zipfile
+import unicodedata
 from types import SimpleNamespace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,11 @@ STATIC_ASSET_SAFE_LIMIT = 25 * 1024 * 1024
 DEFAULT_PUBLIC_EVAL_PATH = MODEL_EVALS_DIR / "public_chat_regression_ko.jsonl"
 DEFAULT_SFT_DATASET_PATH = MODEL_CORPORA_DIR / "dialogue_sft" / "chat_quality_pack_ko.jsonl"
 DEFAULT_EVAL_STEPS = [500, 1000, 2000, 5000]
+AETHER_PRETRAIN_PATH = MODEL_CORPORA_DIR / "aether_nexus" / "aether_nexus_pretrain.txt"
+AETHER_SFT_DATASET_PATH = MODEL_CORPORA_DIR / "aether_nexus" / "aether_nexus_sft.jsonl"
+AETHER_EVAL_PATH = MODEL_EVALS_DIR / "aether_nexus_regression_ko.jsonl"
+AETHER_TARGET_CONFIG_PATH = MODEL_ROOT / "configs" / "purple_bee_aether_1_0_target.json"
+AETHER_BOOTSTRAP_CONFIG_PATH = MODEL_ROOT / "configs" / "purple_bee_aether_1_0_bootstrap.json"
 RUNTIME_DIALOGUE_SEED_PATHS = [
     MODEL_CORPORA_DIR / "dialogue_sft" / "purple_bee_sft_dataset_clean.jsonl",
     MODEL_CORPORA_DIR / "dialogue_sft" / "regression_anchor_ko.jsonl",
@@ -1425,7 +1431,49 @@ dialogue_example_cache = {
 }
 
 MODEL_FAMILY_NAME = "Purple Bee"
-INITIAL_MODEL_VERSION = "1.3"
+INITIAL_MODEL_VERSION = "1.0"
+AETHER_MODEL_ID = "purple-bee-1-0"
+AETHER_MODEL_VERSION = "1.0"
+AETHER_ARCHITECTURE_NAME = "Aether-Nexus Structural Intelligence Kernel"
+
+def is_aether_model(item_or_id):
+    if isinstance(item_or_id, dict):
+        model_id = str(item_or_id.get("id") or "").strip()
+        stage = str(item_or_id.get("stage") or "").strip().lower()
+        architecture = str(item_or_id.get("architecture_name") or "").strip().lower()
+        return model_id == AETHER_MODEL_ID or stage.startswith("aether") or "aether" in architecture
+    return str(item_or_id or "").strip() == AETHER_MODEL_ID
+
+def create_aether_model_manifest():
+    return {
+        "id": AETHER_MODEL_ID,
+        "display_name": f"{MODEL_FAMILY_NAME} {AETHER_MODEL_VERSION}",
+        "version": AETHER_MODEL_VERSION,
+        "enabled": True,
+        "created_at": "2026-04-29T00:00:00+09:00",
+        "created_from": "AETHER-NEXUS_Project_Dossier_v2_0_0",
+        "stage": "aether-nexus",
+        "target_params": None,
+        "actual_params_estimate": None,
+        "trained_docs": 0,
+        "latest_loss": None,
+        "avg_loss": None,
+        "architecture_name": AETHER_ARCHITECTURE_NAME,
+        "pipeline_stage": "promoted",
+        "pipeline_message": "Purple Bee 1.0 is now driven by the Aether-Nexus structural runtime.",
+        "backend_status": "Aether adapter ready",
+        "issues": [
+            "기존 1.3 체크포인트형 실험 모델은 보관소로 격리하고, 1.0부터 구조형 런타임 커널 기준으로 다시 시작합니다."
+        ],
+        "current": True,
+        "latest": True,
+        "trainable": True,
+        "runtime": {
+            "engine": "aether-nexus",
+            "preparation_required": False,
+            "download_required": False,
+        },
+    }
 
 def now_iso():
     return datetime.now().isoformat(timespec="seconds")
@@ -1920,7 +1968,10 @@ def ensure_version_training_files(model_id):
 
     architecture_path = architecture_path_for(model_id)
     if not architecture_path.exists():
-        source_blueprint = load_architecture_blueprint()
+        if is_aether_model(model_id) and AETHER_TARGET_CONFIG_PATH.exists():
+            source_blueprint = load_architecture_blueprint(AETHER_TARGET_CONFIG_PATH)
+        else:
+            source_blueprint = load_architecture_blueprint()
         architecture_path.write_text(
             json.dumps(source_blueprint, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -2233,6 +2284,11 @@ def resolve_browser_bundle(model_id):
             tokenizer_file = candidate
     manifest_file = source_dir / "browser-manifest.json"
     report_file = source_dir / "package-report.json"
+    metadata_files = {}
+    for filename in ["config.json", "generation_config.json", "special_tokens_map.json", "tokenizer_config.json"]:
+        candidate = source_dir / filename
+        if candidate.exists():
+            metadata_files[filename] = candidate
     return {
         "source_dir": source_dir,
         "mode": "browser-package" if source_dir == package_dir else "browser-export",
@@ -2241,6 +2297,7 @@ def resolve_browser_bundle(model_id):
         "tokenizer_file": tokenizer_file if tokenizer_file and tokenizer_file.exists() else None,
         "manifest_file": manifest_file if manifest_file.exists() else None,
         "report_file": report_file if report_file.exists() else None,
+        "metadata_files": metadata_files,
     }
 
 def default_teacher_config(model_id):
@@ -2386,6 +2443,10 @@ def deployment_overview_for(model_id):
             "tokenizer": str(tokenizer_file) if tokenizer_file else "",
             "manifest": str(bundle["manifest_file"]) if bundle["manifest_file"] else str(browser_dir / "browser-manifest.json"),
             "package_report": str(bundle["report_file"]) if bundle["report_file"] else "",
+            "config": str(bundle["metadata_files"].get("config.json") or ""),
+            "generation_config": str(bundle["metadata_files"].get("generation_config.json") or ""),
+            "special_tokens_map": str(bundle["metadata_files"].get("special_tokens_map.json") or ""),
+            "tokenizer_config": str(bundle["metadata_files"].get("tokenizer_config.json") or ""),
         },
         "remote_asset_urls": remote_asset_urls,
         "sizes": {
@@ -2393,6 +2454,10 @@ def deployment_overview_for(model_id):
             "onnx_data": onnx_data_file.stat().st_size if onnx_data_file and onnx_data_file.exists() else 0,
             "tokenizer": tokenizer_file.stat().st_size if tokenizer_file and tokenizer_file.exists() else 0,
             "largest_file": max_file_size,
+            "config": bundle["metadata_files"].get("config.json").stat().st_size if bundle["metadata_files"].get("config.json") else 0,
+            "generation_config": bundle["metadata_files"].get("generation_config.json").stat().st_size if bundle["metadata_files"].get("generation_config.json") else 0,
+            "special_tokens_map": bundle["metadata_files"].get("special_tokens_map.json").stat().st_size if bundle["metadata_files"].get("special_tokens_map.json") else 0,
+            "tokenizer_config": bundle["metadata_files"].get("tokenizer_config.json").stat().st_size if bundle["metadata_files"].get("tokenizer_config.json") else 0,
         },
         "static_asset_safe_limit": STATIC_ASSET_SAFE_LIMIT,
         "static_assets_ready": bool(onnx_file and tokenizer_file),
@@ -2621,6 +2686,11 @@ def find_registry_model(registry, model_id):
     return None
 
 def create_model_manifest(version, created_from=None, source_stats=None):
+    if str(version) == AETHER_MODEL_VERSION:
+        manifest = create_aether_model_manifest()
+        if created_from:
+            manifest["created_from"] = created_from
+        return manifest
     model_id = slugify_model_version(version)
     stats = source_stats or stats_for_version(model_id)
     blueprint = load_architecture_blueprint()
@@ -2652,6 +2722,33 @@ def refresh_registry_metadata(registry):
     current_id = registry.get("current_model_id")
     latest_id = registry.get("latest_model_id")
     for item in registry.get("models", []):
+        if is_aether_model(item):
+            item.update({
+                "id": AETHER_MODEL_ID,
+                "display_name": f"{MODEL_FAMILY_NAME} {AETHER_MODEL_VERSION}",
+                "version": AETHER_MODEL_VERSION,
+                "enabled": bool(item.get("enabled", True)),
+                "current": item.get("id") == current_id or current_id == AETHER_MODEL_ID,
+                "latest": item.get("id") == latest_id or latest_id == AETHER_MODEL_ID,
+                "trainable": bool(item.get("enabled", True)),
+                "stage": "aether-nexus",
+                "architecture_name": AETHER_ARCHITECTURE_NAME,
+                "pipeline_stage": "promoted",
+                "pipeline_message": "Aether-Nexus structural runtime is active.",
+                "backend_status": "Aether adapter ready",
+                "target_params": None,
+                "actual_params_estimate": None,
+                "runtime": {
+                    "engine": "aether-nexus",
+                    "preparation_required": False,
+                    "download_required": False,
+                },
+            })
+            if not item.get("issues"):
+                item["issues"] = [
+                    "1.0은 파라미터 수 경쟁보다 의미 구조, 실행 검증, 선택적 망각을 우선하는 새 커널 계열입니다."
+                ]
+            continue
         ensure_version_training_files(item["id"])
         item["enabled"] = bool(item.get("enabled", True))
         item["current"] = item.get("id") == current_id
@@ -2675,16 +2772,21 @@ def refresh_registry_metadata(registry):
 def ensure_model_registry():
     registry = load_registry()
     if not registry.get("models"):
-        manifest = create_model_manifest(INITIAL_MODEL_VERSION)
+        manifest = create_aether_model_manifest()
         registry["models"] = [manifest]
         registry["current_model_id"] = manifest["id"]
         registry["latest_model_id"] = manifest["id"]
         model_dir_for(manifest["id"]).mkdir(parents=True, exist_ok=True)
-        sync_live_artifacts_to_version(manifest["id"])
+    if registry.get("current_model_id") != AETHER_MODEL_ID or registry.get("latest_model_id") != AETHER_MODEL_ID:
+        registry["models"] = [create_aether_model_manifest()]
+        registry["current_model_id"] = AETHER_MODEL_ID
+        registry["latest_model_id"] = AETHER_MODEL_ID
+        model_dir_for(AETHER_MODEL_ID).mkdir(parents=True, exist_ok=True)
     registry = refresh_registry_metadata(registry)
     current_id = registry.get("current_model_id")
     if current_id:
-        sync_live_artifacts_to_version(current_id)
+        if not is_aether_model(current_id):
+            sync_live_artifacts_to_version(current_id)
         training_status["active_model_id"] = current_id
     save_registry(registry)
     return registry
@@ -4256,6 +4358,71 @@ def launch_100m_training(model_id, manual_text="", dry_run=False, steps=None, ev
     if status.get("running"):
         raise RuntimeError("이미 100M 파이프라인이 실행 중입니다.")
 
+    if is_aether_model(model_id):
+        config_path = AETHER_BOOTSTRAP_CONFIG_PATH if dry_run else AETHER_TARGET_CONFIG_PATH
+        blueprint = load_architecture_blueprint(config_path)
+        requested_steps = max(1, int(steps or blueprint.get("training_defaults", {}).get("train_steps", 5000)))
+        normalized_eval_steps = normalize_eval_steps(eval_steps)
+        status = default_pipeline_status(model_id, blueprint)
+        status.update({
+            "running": not dry_run,
+            "stage": "launching",
+            "message": "Aether-Nexus dry run launching" if dry_run else "Aether-Nexus training launching",
+            "progress": 1,
+            "dry_run": bool(dry_run),
+            "corpus_path": str(AETHER_PRETRAIN_PATH),
+            "sft_dataset_path": str(AETHER_SFT_DATASET_PATH),
+            "output_dir": str(training_dir_for(model_id)),
+            "backend": detect_100m_backend(),
+            "steps_requested": requested_steps,
+            "eval_file": str(AETHER_EVAL_PATH),
+            "eval_schedule": normalized_eval_steps,
+            "eval_latest_output": str(latest_evaluation_path_for(model_id)),
+            "evaluation_history": [],
+            "latest_evaluation": None,
+            "evaluation_running": False,
+        })
+        save_pipeline_status(model_id, status)
+
+        command = [
+            sys.executable,
+            str(MODEL_SCRIPTS_DIR / "train_aether_nexus.py"),
+            "--mode", "dry-run" if dry_run else "target",
+            "--steps", str(requested_steps),
+            "--eval-steps", ",".join(str(step) for step in normalized_eval_steps),
+        ]
+        if manual_text:
+            command.extend(["--manual-text", manual_text])
+        log_path = training_dir_for(model_id) / ("aether_dry-run.log" if dry_run else "aether_target.log")
+        if dry_run:
+            completed = subprocess.run(
+                command,
+                cwd=str(PROJECT_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            log_path.write_text(completed.stdout, encoding="utf-8")
+            if completed.returncode not in (0, 2):
+                raise RuntimeError("Aether-Nexus 드라이런 실행에 실패했습니다.")
+        else:
+            log_handle = log_path.open("ab")
+            kwargs = {
+                "cwd": str(PROJECT_ROOT),
+                "stdout": log_handle,
+                "stderr": subprocess.STDOUT,
+                "stdin": subprocess.DEVNULL,
+                "close_fds": True,
+            }
+            if os.name == "nt":
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            process = subprocess.Popen(command, **kwargs)
+            status["pid"] = process.pid
+            save_pipeline_status(model_id, status)
+        return pipeline_overview_for(model_id)
+
     snapshot_path, corpus_text = prepare_100m_corpus_snapshot(model_id, manual_text)
     log_path = training_dir_for(model_id) / "train_100m.log"
     blueprint = load_architecture_blueprint(architecture_path_for(model_id))
@@ -4340,12 +4507,13 @@ def run_100m_regression_eval(model_id):
     ensure_version_training_files(model_id)
     eval_output_path = latest_evaluation_path_for(model_id)
     manual_output_path = evaluation_dir_for(model_id) / f"manual_eval_{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    eval_file_path = AETHER_EVAL_PATH if is_aether_model(model_id) else DEFAULT_PUBLIC_EVAL_PATH
     command = [
         sys.executable,
         str(MODEL_SCRIPTS_DIR / "run_public_chat_eval.py"),
         "--checkpoint", str(checkpoint_path),
         "--tokenizer", str(tokenizer_path),
-        "--eval-file", str(DEFAULT_PUBLIC_EVAL_PATH),
+        "--eval-file", str(eval_file_path),
         "--output", str(manual_output_path),
         "--device", "auto",
         "--max-new-tokens", "64",
@@ -4628,8 +4796,8 @@ def model_panel_payload():
             "archive_dir": str(cleanup_archive_dir()),
         },
         "evaluation": (current_pipeline or {}).get("evaluation") or {
-            "prompt_set": str(DEFAULT_PUBLIC_EVAL_PATH),
-            "categories": load_eval_suite().get("categories", []),
+            "prompt_set": str(AETHER_EVAL_PATH if is_aether_model((current or {}).get("id")) else DEFAULT_PUBLIC_EVAL_PATH),
+            "categories": load_eval_suite(AETHER_EVAL_PATH if is_aether_model((current or {}).get("id")) else DEFAULT_PUBLIC_EVAL_PATH).get("categories", []),
             "schedule": list(DEFAULT_EVAL_STEPS),
             "history": [],
             "latest": None,
@@ -4642,6 +4810,34 @@ def runtime_manifest_payload(model_id=None):
     registry = ensure_model_registry()
     model_id = model_id or registry.get("current_model_id")
     model_item = find_registry_model(registry, model_id) or {}
+    if is_aether_model(model_item or model_id):
+        return {
+            "family_name": registry.get("family_name", "Purple Bee"),
+            "model_id": AETHER_MODEL_ID,
+            "display_name": f"{MODEL_FAMILY_NAME} {AETHER_MODEL_VERSION}",
+            "version": AETHER_MODEL_VERSION,
+            "architecture_name": AETHER_ARCHITECTURE_NAME,
+            "target_params": None,
+            "actual_params_estimate": None,
+            "pipeline_stage": "promoted",
+            "pipeline_message": "Aether-Nexus structural runtime is active.",
+            "base_model": "Aether-Nexus structural runtime",
+            "browser_assets": {},
+            "metadata_assets": {},
+            "runtime": {
+                "engine": "aether-nexus",
+                "preparation_required": False,
+                "download_required": False,
+                "streaming": True,
+                "max_context": 4096,
+            },
+            "deployment": {
+                "storage": "server-aether-adapter",
+                "public_base_url": "",
+                "package_dir": "",
+                "asset_version": AETHER_MODEL_VERSION,
+            },
+        }
     deployment = deployment_overview_for(model_id)
     artifact_dir = Path(deployment.get("browser_dir") or "")
     packaged_manifest = load_json_if_exists(artifact_dir / "browser-manifest.json") if artifact_dir else {}
@@ -4659,6 +4855,7 @@ def runtime_manifest_payload(model_id=None):
         provider_preference = ["webgpu", "wasm"]
 
     runtime_engine = str(runtime_block.get("engine") or "").strip().lower()
+    remote_asset_urls = deployment.get("remote_asset_urls") or {}
     if runtime_engine == "transformers-js":
         payload = dict(packaged_manifest)
         payload["family_name"] = registry.get("family_name", "Purple Bee")
@@ -4683,12 +4880,47 @@ def runtime_manifest_payload(model_id=None):
         }
         return payload
 
+    if remote_asset_urls.get("onnx") and remote_asset_urls.get("tokenizer"):
+        return {
+            "family_name": registry.get("family_name", "Purple Bee"),
+            "model_id": model_id,
+            "display_name": model_item.get("display_name", model_id),
+            "version": model_item.get("version", ""),
+            "architecture_name": model_item.get("architecture_name", "Qwen2.5 0.5B Base"),
+            "target_params": model_item.get("target_params"),
+            "actual_params_estimate": model_item.get("actual_params_estimate"),
+            "pipeline_stage": model_item.get("pipeline_stage"),
+            "pipeline_message": model_item.get("pipeline_message"),
+            "browser_assets": {
+                "onnx": remote_asset_urls.get("onnx"),
+                "tokenizer": remote_asset_urls.get("tokenizer"),
+                "onnx_data": remote_asset_urls.get("onnx_data") or None,
+            },
+            "runtime": {
+                "provider_preference": provider_preference,
+                "max_context": int(runtime_block.get("max_context") or 3072),
+            },
+            "deployment": {
+                "storage": deployment.get("selected_storage"),
+                "public_base_url": str(deployment.get("public_base_url") or "").rstrip("/"),
+                "package_dir": str(artifact_dir),
+                "runtime_engine": runtime_engine or "purple-bee-onnx",
+                "remote_asset_urls": remote_asset_urls,
+            },
+        }
+
     onnx_name = Path(deployment["artifacts"].get("onnx") or "").name
     tokenizer_name = Path(deployment["artifacts"].get("tokenizer") or "").name
     onnx_data_name = Path(deployment["artifacts"].get("onnx_data") or "").name
+    metadata_names = {
+        "config": Path(deployment["artifacts"].get("config") or "").name,
+        "generation_config": Path(deployment["artifacts"].get("generation_config") or "").name,
+        "special_tokens_map": Path(deployment["artifacts"].get("special_tokens_map") or "").name,
+        "tokenizer_config": Path(deployment["artifacts"].get("tokenizer_config") or "").name,
+    }
     asset_version = ""
     version_candidates = []
-    for key in ["onnx", "onnx_data", "tokenizer", "manifest", "package_report"]:
+    for key in ["onnx", "onnx_data", "tokenizer", "manifest", "package_report", "config", "generation_config", "special_tokens_map", "tokenizer_config"]:
         raw_path = str(deployment["artifacts"].get(key) or "").strip()
         if not raw_path:
             continue
@@ -4709,10 +4941,18 @@ def runtime_manifest_payload(model_id=None):
         onnx_url = f"/api/runtime/assets/{onnx_name}{query}"
         tokenizer_url = f"/api/runtime/assets/{tokenizer_name}{query}"
         onnx_data_url = f"/api/runtime/assets/{onnx_data_name}{query}" if onnx_data_name else ""
+        metadata_urls = {
+            key: (f"/api/runtime/assets/{name}{query}" if name else None)
+            for key, name in metadata_names.items()
+        }
     else:
         onnx_url = f"/static/models/{model_id}/{onnx_name}"
         tokenizer_url = f"/static/models/{model_id}/{tokenizer_name}"
         onnx_data_url = f"/static/models/{model_id}/{onnx_data_name}" if onnx_data_name else ""
+        metadata_urls = {
+            key: (f"/static/models/{model_id}/{name}" if name else None)
+            for key, name in metadata_names.items()
+        }
 
     return {
         "family_name": registry.get("family_name", "Purple Bee"),
@@ -4724,11 +4964,16 @@ def runtime_manifest_payload(model_id=None):
         "actual_params_estimate": model_item.get("actual_params_estimate"),
         "pipeline_stage": model_item.get("pipeline_stage"),
         "pipeline_message": model_item.get("pipeline_message"),
+        "base_model": "Qwen2.5-0.5B-Instruct-ONNX",
         "browser_assets": {
             "onnx": onnx_url,
             "tokenizer": tokenizer_url,
             "onnx_data": onnx_data_url or None,
+            "onnx_filename": onnx_name,
+            "tokenizer_filename": tokenizer_name,
+            "onnx_data_filename": onnx_data_name or None,
         },
+        "metadata_assets": metadata_urls,
         "runtime": {
             "provider_preference": provider_preference,
             "max_context": int(runtime_block.get("max_context") or 2048),
@@ -5922,16 +6167,21 @@ def runtime_asset_proxy(asset_name):
     if not public_base_url:
         return jsonify({"error": "public runtime storage is not configured"}), 404
 
+    requested_name = str(asset_name or "").strip()
+    path_parts = [part for part in requested_name.split("/") if part]
+    if len(path_parts) >= 2 and path_parts[0] == model_id:
+        requested_name = "/".join(path_parts[2:] or path_parts[1:])
+
     artifacts = deployment.get("artifacts") or {}
     allowed_names = set()
-    for key in ["onnx", "onnx_data", "tokenizer"]:
+    for key in ["onnx", "onnx_data", "tokenizer", "config", "generation_config", "special_tokens_map", "tokenizer_config"]:
         value = artifacts.get(key)
         if value:
             allowed_names.add(Path(value).name)
-    if asset_name not in allowed_names:
+    if requested_name not in allowed_names:
         return jsonify({"error": "asset not found"}), 404
 
-    upstream_url = f"{public_base_url}/{asset_name}"
+    upstream_url = f"{public_base_url}/{requested_name}"
     forward_headers = {"User-Agent": HEADERS.get("User-Agent", "PurpleBee/1.0")}
     if request.headers.get("Range"):
         forward_headers["Range"] = request.headers.get("Range")
@@ -6029,39 +6279,17 @@ def chat():
     data = request.json
     query = data.get("message", "").strip()
     history = data.get("history", [])
-    use_web = data.get("web_search", True)
     session_id = data.get("session_id", "default")
 
     if not query:
         return jsonify({"error": "메시지가 비어 있습니다."}), 400
 
-    # 대화 저장
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                  (session_id, "user", query))
-        conn.commit()
-        conn.close()
-    except:
-        pass
-
     def stream():
-        full = []
-        for chunk in generate_response(query, history, use_web):
-            full.append(chunk)
+        final_text = aether_generate_reply(query, history).strip()
+        for chunk in aether_stream_text(final_text):
             yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
-        final_text = "".join(full)
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                      (session_id, "assistant", final_text[:4000]))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
-        yield f"data: {json.dumps({'done': True, 'full': final_text}, ensure_ascii=False)}\n\n"
+        save_chat_pair(session_id, query, final_text)
+        yield f"data: {json.dumps({'done': True, 'full': final_text, 'mode': 'aether-nexus'}, ensure_ascii=False)}\n\n"
 
     return Response(stream_with_context(stream()), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -6075,28 +6303,9 @@ def chat_once():
     if not query:
         return jsonify({"error": "메시지가 비어 있습니다."}), 400
 
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                  (session_id, "user", query))
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
-
-    chunks = list(generate_response(query, history, use_web=False))
-    full = "".join(chunks)
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                  (session_id, "assistant", full[:4000]))
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
-    return jsonify({"reply": full})
+    full = aether_generate_reply(query, history).strip()
+    save_chat_pair(session_id, query, full)
+    return jsonify({"reply": full, "mode": "aether-nexus"})
 
 @app.route("/api/contributor/plans")
 def contributor_plans_api():
@@ -6516,12 +6725,925 @@ def contributor_alias_complete_api(task_id):
     return jsonify({"ok": True, "task": {"id": task_id, "status": "accepted"}})
 
 
+AETHER_ROOT = Path(os.environ.get("AETHER_NEXUS_ROOT") or r"D:\Aether-Nexus")
+AETHER_PORT = int(os.environ.get("AETHER_NEXUS_PORT") or "7700")
+AETHER_DOC_PATHS = [
+    Path(r"D:\Nexus-Project-txt\AETHER-NEXUS_Project_Dossier_v2_0_0.txt"),
+    Path(r"D:\Nexus-Project-txt\AETHER-NEXUS_Natural_Language_Acquisition_Protocol_v1_0_0.txt"),
+    AETHER_ROOT / "AETHER-NEXUS_Project_Dossier_v2_0_0.txt",
+    MODEL_ROOT / "docs" / "aether_nexus_runtime_seed.md",
+]
+AETHER_RUNTIME_SEED = [
+    "AETHER-NEXUS is a localized intelligence kernel that treats language as structure, causality, memory, and execution feedback instead of simple next-token continuation.",
+    "The response path is capture, segment, anchor, map syntax, extract semantic roles, form state-event graphs, project causal hypotheses, bind context, isolate ambiguity, then reconstruct expression.",
+    "AETHER-NEXUS should answer directly, preserve the user's intent, avoid canned fallback menus, and ask for clarification only when the missing condition blocks the answer.",
+    "Learning is a cycle: useful user data is filtered, structured, versioned by an administrator, deployed, and then used as the starting point for the next version.",
+    "The system favors structural consistency, contradiction cleanup, selective forgetting, and verified memory over random accumulation.",
+]
+_AETHER_DOC_CACHE = None
+_AETHER_PROCESS = None
+
+
+def _aether_url(path):
+    return f"http://127.0.0.1:{AETHER_PORT}{path}"
+
+
+def _read_text_best_effort(path):
+    try:
+        if not path.exists():
+            return ""
+        raw = path.read_bytes()
+        for encoding in ("utf-8-sig", "utf-8", "cp949", "euc-kr", "latin-1"):
+            try:
+                return raw.decode(encoding)
+            except Exception:
+                continue
+    except Exception:
+        return ""
+    return ""
+
+
+def _aether_chunks():
+    global _AETHER_DOC_CACHE
+    if _AETHER_DOC_CACHE is not None:
+        return _AETHER_DOC_CACHE
+
+    chunks = []
+    for path in AETHER_DOC_PATHS:
+        text = _read_text_best_effort(path)
+        if not text:
+            continue
+        normalized = re.sub(r"\s+", " ", text).strip()
+        if not normalized:
+            continue
+        for i in range(0, min(len(normalized), 80000), 1400):
+            part = normalized[i:i + 1400].strip()
+            if len(part) >= 120:
+                chunks.append(part)
+    if not chunks:
+        chunks = list(AETHER_RUNTIME_SEED)
+    _AETHER_DOC_CACHE = chunks
+    return chunks
+
+
+def _aether_available(timeout=0.8):
+    try:
+        response = requests.get(_aether_url("/health"), timeout=timeout)
+        return response.ok
+    except Exception:
+        return False
+
+
+def _ensure_aether_runtime():
+    global _AETHER_PROCESS
+    if _aether_available():
+        return True
+    if os.name != "nt":
+        return False
+
+    candidates = [
+        AETHER_ROOT / "build_codex" / "aether.exe",
+        AETHER_ROOT / "build" / "aether.exe",
+    ]
+    exe = next((candidate for candidate in candidates if candidate.exists()), None)
+    if not exe:
+        return False
+
+    try:
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        _AETHER_PROCESS = subprocess.Popen(
+            [str(exe), "500", str(AETHER_PORT)],
+            cwd=str(AETHER_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creation_flags,
+        )
+        for _ in range(10):
+            time.sleep(0.25)
+            if _aether_available(timeout=0.5):
+                return True
+    except Exception:
+        return False
+    return _aether_available(timeout=0.5)
+
+
+def _query_aether_runtime(query, history=None):
+    if not _ensure_aether_runtime():
+        return ""
+    try:
+        # The native runtime currently performs best with the user's raw
+        # utterance. Instruction wrappers often get parsed as the actual topic
+        # and cause self-introduction or structural boilerplate.
+        response = requests.post(
+            _aether_url("/query"),
+            data=_normalize_user_query(query).encode("utf-8"),
+            headers={"Content-Type": "text/plain; charset=utf-8"},
+            timeout=18,
+        )
+        if not response.ok:
+            return ""
+        if "application/json" in response.headers.get("Content-Type", ""):
+            payload = response.json()
+            return trim(payload.get("reply") or payload.get("answer") or payload.get("text") or "")
+        return trim(response.text)
+    except Exception:
+        return ""
+
+
+def _is_identity_query(query):
+    raw = _normalize_user_query(query).lower()
+    return bool(re.search(
+        r"(너는\s*누구|넌\s*누구|당신은\s*누구|너는\s*뭐|넌\s*뭐|정체|purple\s*bee|aether|nexus|넥서스|에테르)",
+        raw,
+        re.I,
+    ))
+
+
+def _aether_low_value_reply(reply, query=None):
+    text = trim(reply)
+    if not text:
+        return True
+    if len(text) < 6 and not re.fullmatch(r"(응|네|예|아니|좋아)[.!?。！？…]*", text, re.I):
+        return True
+    lowered = text.lower()
+    query_text = _normalize_user_query(query or "")
+    markers = [
+        "hard to lock the intent",
+        "one more sentence",
+        "single fragment",
+        "directly supporting structure is still weak",
+        "currently treats '??'",
+        "structurally,",
+        "comes in as a statement input",
+        "from the stored structure",
+        "strongest active axes",
+        "active axes",
+        "atom",
+        "language axis",
+        "shift tone, length, and focus",
+        "same knowledge but shift",
+    ]
+    if any(marker in lowered for marker in markers):
+        return True
+    if not _is_identity_query(query_text) and re.search(r"(저는\s*AETHER|저는\s*에테르|I am AETHER|AETHER-NEXUS입니다)", text, re.I):
+        return True
+    if not _is_identity_query(query_text) and re.search(r"(한 문장으로|한 번에 한 주제|질문을 또렷하게|문장을 조금만 더)", text):
+        return True
+    # Avoid exposing internal runtime fragments or malformed mixed-language output.
+    korean_count = len(re.findall(r"[가-힣]", text))
+    ascii_words = len(re.findall(r"\b[A-Za-z]{3,}\b", text))
+    if ascii_words > 12 and korean_count < 8:
+        return True
+    if re.search(r"\b(Atom|Graph|Axis|Structurally|Recent conversation memory)\b", text):
+        return True
+    return False
+
+
+def _wants_rewrite_or_correction(query):
+    return bool(re.search(
+        r"(자연스럽|친근|편하게|쉽게\s*말|다시\s*말|말투|풀어서|그거\s*말고|그게\s*아니|아니야|아닌데|틀렸|이상|제대로)",
+        _normalize_user_query(query),
+        re.I,
+    ))
+
+
+def _language_ability_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(영어|일본어|중국어|한국어|언어|번역|translate|english|japanese|chinese)", raw, re.I):
+        return ""
+    if not re.search(r"(할\s*줄|할줄|가능|알아|번역|말해|대화|can|speak)", raw, re.I):
+        return ""
+    return _pick_reply_variant([
+        "네. 영어로도 대화할 수 있고, 한국어 문장을 영어로 자연스럽게 바꾸거나 영어 문장을 한국어로 풀어서 설명할 수 있어요. 원하면 같은 내용을 격식 있는 말투, 편한 말투, 발표용 문장으로도 바꿔드릴게요.",
+        "가능해요. 영어 대화, 번역, 문장 다듬기, 의미 해석까지 할 수 있습니다. 짧은 문장 하나만 보내도 자연스러운 표현으로 다시 만들어볼게요.",
+        "네, 영어도 다룰 수 있어요. 단순 번역뿐 아니라 문맥에 맞게 더 자연스러운 표현을 골라 설명하는 쪽으로 답하겠습니다.",
+    ])
+
+
+def _bare_topic_instruction_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(뒤에|붙이지|뭐야|알려줘|설명해줘|꼭\s*안|없이도)", raw, re.I):
+        return ""
+    return (
+        "알겠습니다. 앞으로는 단어만 던져도 먼저 주제로 보고 답하겠습니다.\n\n"
+        "예를 들어 “사과”라고만 말하면 과일인지, 사과하는 행동인지, 이전 대화에서 이어진 말인지 먼저 문맥을 보고 판단한 뒤 답할게요. "
+        "꼭 “뭐야”나 “알려줘”를 붙이지 않아도 됩니다."
+    )
+
+
+def _extract_definition_topic(query):
+    raw = _normalize_user_query(query)
+    if not raw:
+        return ""
+    asks_for_info = re.search(r"(뭐야|뭔가|뭔지|무엇|정의|뜻|알아|알려|설명|해석|개념|탐구|분석|조사|what is|who is|meaning|explain)", raw, re.I)
+    if not asks_for_info and not _is_bare_information_prompt(raw):
+        return ""
+    cleaned = re.sub(r"[?？!！]", " ", raw)
+    cleaned = re.sub(r"(이게|그게|저게|이건|그건|저건|이거|그거|저거|좀|간단히|자세히|쉽게|친근하게|전문적으로|핵심만)", " ", cleaned)
+    cleaned = re.sub(r"(뭐야|뭔가요|뭔지|무엇인지|정의|뜻|개념|알려줘|알려 줘|설명해줘|설명|해석해줘|해석|알아|탐구해줘|탐구해|탐구|분석해줘|분석해|조사해줘|조사해|what is|who is|meaning of|explain)", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"(에\s*대해|에\s*대한|에\s*관해|에\s*관한)", " ", cleaned)
+    cleaned = re.sub(r"\b(concise|briefly|simply|easy|detailed)\b", " ", cleaned, flags=re.I)
+    parts = [part for part in re.split(r"\s+", cleaned.strip()) if part]
+    if not parts:
+        return ""
+    topic = re.sub(r"([가-힣A-Za-z0-9]+)(이|가|은|는|을|를)(?=\s|$)", r"\1", " ".join(parts))
+    topic = re.sub(r"(이|가|은|는|을|를|란|이라는|라는)$", "", topic)
+    return _normalize_knowledge_topic(topic[:80])
+
+
+def _normalize_user_query(query):
+    return (
+        unicodedata.normalize("NFKC", str(query or ""))
+        .replace("뭐ㅑ", "뭐야")
+        .replace("머야", "뭐야")
+        .replace("뭐임", "뭐야")
+        .replace("모야", "뭐야")
+        .replace("알려조", "알려줘")
+        .replace("알려저", "알려줘")
+        .replace("알려쥬", "알려줘")
+        .replace("됌", "됨")
+        .replace("안되", "안 돼")
+    ).strip()
+
+
+def _normalize_knowledge_topic(topic):
+    raw = re.sub(r"\s+", " ", trim(topic))
+    raw = re.sub(r"(이|가|은|는|을|를|란|이라는|라는)$", "", raw)
+    if re.search(r"(강아지|puppy)", raw, re.I):
+        return "강아지"
+    if re.search(r"(반려견|dog)", raw, re.I):
+        return "개"
+    if re.search(r"(윤리|도덕|ethic)", raw, re.I):
+        return "윤리"
+    if re.search(r"(문학|literature)", raw, re.I):
+        return "문학"
+    if re.search(r"(역사|history)", raw, re.I):
+        return "역사"
+    if re.search(r"(철학|philosophy)", raw, re.I):
+        return "철학"
+    if re.search(r"(인공지능|AI|artificial intelligence)", raw, re.I):
+        return "인공지능"
+    return raw
+
+
+def _is_bare_information_prompt(query):
+    raw = trim(query)
+    if not raw or len(raw) > 48:
+        return False
+    if re.fullmatch(r"(안녕+|하이+|hello|hi|hey|응|어|아니|ㅇㅇ|ㄴㄴ)[!?.…\s]*", raw, re.I):
+        return False
+    if re.search(r"(우리|너|나|뭐\s*할|왜|어떻게|해줘|하자|하래|하지|말해|써줘|만들|고쳐|보여|찾아|검색|날씨|시간|오늘|내일)", raw, re.I):
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9가-힣\s._:+#-]+", raw):
+        return False
+    parts = [part for part in re.split(r"\s+", raw) if part]
+    return len(parts) <= 5 and any(re.search(r"[A-Za-z가-힣]{2,}", part) for part in parts)
+
+
+def _fetch_ko_wikipedia_summary(topic):
+    if not topic:
+        return ""
+    encoded = requests.utils.quote(topic.replace(" ", "_"))
+    urls = [
+        f"https://ko.wikipedia.org/api/rest_v1/page/summary/{encoded}",
+        f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
+    ]
+    for url in urls:
+        try:
+            response = requests.get(
+                url,
+                headers={"User-Agent": "PurpleBeeAether/1.0"},
+                timeout=4,
+            )
+            if not response.ok:
+                continue
+            payload = response.json()
+            extract = trim(payload.get("extract") or "")
+            if extract:
+                return extract[:700].rstrip()
+        except Exception:
+            continue
+    return ""
+
+
+def _tool_augmented_aether_reply(query):
+    topic = _extract_definition_topic(query)
+    if topic:
+        summary = _fetch_ko_wikipedia_summary(topic)
+        if summary:
+            return _format_knowledge_reply(topic, summary, query)
+    return ""
+
+
+def _infer_answer_style(query):
+    raw = trim(query)
+    if re.search(r"(짧게|간단|요약|핵심만|한줄|한 줄)", raw, re.I):
+        return "concise"
+    if re.search(r"(쉽게|초등|어린|친근|비유|예시|일상적으로)", raw, re.I):
+        return "easy"
+    if re.search(r"(자세히|깊게|탐구|분석|원리|배경|전문)", raw, re.I):
+        return "detailed"
+    if re.search(r"(코드|기술|개발|수식|논문|공식|엔진|아키텍처)", raw, re.I):
+        return "technical"
+    return "default"
+
+
+def _extract_aether_topic(query):
+    raw = _normalize_user_query(query)
+    cleaned = re.sub(r"[?？!！]", " ", raw)
+    cleaned = re.sub(
+        r"(그럼|일단|이제|좀|제발|바로|진짜|혹시|그러면|나는|내가|우리|너|ai|AI)",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(
+        r"(뭐야|뭔지|무엇|알아|알려줘|설명해줘|설명|해석해줘|해석|탐구해줘|탐구|분석해줘|분석|"
+        r"왜|어째서|어떻게|방법|순서|추천|비교|차이|높이는|높여|높이|올리는|올려|낮추는|낮춰|"
+        r"개선하는|개선해줘|개선|최적화|만들어줘|작성해줘|써줘|고쳐줘|수정해줘|"
+        r"고쳐|수정|실패해|실패|자꾸|검색해줘|검색|찾아줘|찾아|말해줘|말해)",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(r"(에\s*대해|에\s*대한|에\s*관해|에\s*관한|쪽으로|관련해서|기준으로)", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"(이|가|은|는|을|를|랑|와|과|도|만|부터|까지)$", "", cleaned).strip()
+    if cleaned:
+        return _normalize_knowledge_topic(cleaned[:80])
+    topic = _extract_definition_topic(raw)
+    if topic:
+        return topic
+    words = re.findall(r"[A-Za-z0-9가-힣+#._-]{2,}", raw)
+    if words:
+        return _normalize_knowledge_topic(" ".join(words[:4]))
+    return "그 주제"
+
+
+def _build_aether_intent_frame(query, history=None):
+    raw = _normalize_user_query(query)
+    lowered = raw.lower()
+    style = _infer_answer_style(raw)
+    topic = _extract_aether_topic(raw)
+    intent = "general"
+    if re.fullmatch(r"(안녕+|하이+|hello|hi|hey)[!?.…\s]*", raw, re.I):
+        intent = "greeting"
+    elif re.search(r"(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)", raw, re.I):
+        intent = "ability"
+    elif re.search(r"(심장|가슴|흉통|숨\s*쉬|호흡|어지럽|식은땀|피\s*나|자살|죽고\s*싶|응급|통증|아퍼|아파|아픔|병원)", raw, re.I):
+        intent = "health_safety"
+    elif re.search(r"(날씨|weather)", raw, re.I):
+        intent = "weather"
+    elif re.search(r"(검색|찾아|웹사이트|사이트에서|웹에서|링크|최신|오늘|지금)", raw, re.I):
+        intent = "search"
+    elif re.search(r"(요약|정리|핵심)", raw, re.I):
+        intent = "summarize"
+    elif re.search(r"(왜|원인|이유|어째서)", raw, re.I):
+        intent = "why"
+    elif re.search(r"(어떻게|방법|순서|절차|하는법|하는 법)", raw, re.I):
+        intent = "how"
+    elif re.search(r"(비교|차이|vs|장단점)", raw, re.I):
+        intent = "compare"
+    elif re.search(r"(추천|골라|선택|뭐가\s*좋)", raw, re.I):
+        intent = "recommend"
+    elif re.search(r"(탐구|분석|토론|고찰|윤리|철학|사회문제|쟁점|관점)", raw, re.I):
+        intent = "explore"
+    elif re.search(r"(만들|작성|써줘|초안|문장|글|코드|수정|고쳐)", raw, re.I):
+        intent = "create_or_fix"
+    elif re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분)", raw, re.I):
+        intent = "casual"
+    elif re.search(r"^(아니|그게\s*아니|아닌데|다시|틀렸|이상|제대로)", raw, re.I):
+        intent = "repair"
+    elif _extract_definition_topic(raw):
+        intent = "knowledge"
+    return {
+        "raw": raw,
+        "lowered": lowered,
+        "style": style,
+        "topic": topic,
+        "intent": intent,
+        "history": history if isinstance(history, list) else [],
+    }
+
+
+def _build_adaptive_aether_reply(query, history=None):
+    frame = _build_aether_intent_frame(query, history)
+    raw = frame["raw"]
+    topic = frame["topic"]
+    style = frame["style"]
+    intent = frame["intent"]
+    topic_obj = f"{topic}{_particle(topic, '을', '를')}"
+    topic_topic = f"{topic}{_particle(topic, '은', '는')}"
+
+    if intent == "repair":
+        return _pick_reply_variant([
+            "맞아요. 방금 답은 방향을 잘못 잡았어요. 이번에는 사용자가 원하는 행동을 먼저 보고, 불필요한 확인 질문 없이 바로 답하는 쪽으로 다시 맞추겠습니다.",
+            "그 지적이 맞습니다. 이전 답변은 너무 안전하게 둘러갔고, 지금 필요한 건 바로 본론으로 들어가는 답변입니다. 다시 기준을 잡고 이어갈게요.",
+            "알겠습니다. 방금 방식은 접고, 지금 문장의 의도와 맥락을 먼저 기준으로 삼겠습니다.",
+        ])
+
+    if intent == "why":
+        return (
+            "지금 현상의 원인을 보려면 겉으로 보이는 증상과 실제로 영향을 주는 조건을 나눠야 합니다.\n\n"
+            "먼저 확인할 것은 세 가지예요.\n\n"
+            "1. 언제부터 같은 현상이 반복됐는지\n"
+            "2. 반복되는 조건이 있는지\n"
+            "3. 바꾸면 바로 달라지는 요소가 있는지\n\n"
+            "이렇게 보면 단순한 느낌이 아니라 확인 가능한 원인 후보로 좁혀집니다."
+        )
+
+    if intent == "how":
+        if re.search(r"(고쳐|수정|오류|버그|문제)", raw, re.I):
+            action = "고치려면"
+        elif re.search(r"(높|올리|개선|최적|효율)", raw, re.I):
+            action = "개선하려면"
+        else:
+            action = "진행하려면"
+        if style == "concise":
+            return f"{topic_obj} {action} 목표를 작게 나누고, 첫 단계부터 실행해 확인하면 됩니다. 핵심은 한 번에 완성하려 하지 않는 거예요."
+        return (
+            f"{topic_obj} {action} 이렇게 가는 게 가장 안정적입니다.\n\n"
+            "1. 먼저 원하는 결과를 한 문장으로 정합니다.\n"
+            "2. 지금 가진 자료나 조건을 확인합니다.\n"
+            "3. 가장 작은 실행 단계를 하나 고릅니다.\n"
+            "4. 실행 결과를 보고 다음 단계를 조정합니다.\n\n"
+            "이 방식은 막연한 계획보다 실패 지점을 빨리 찾을 수 있어서 실제 작업에 강합니다."
+        )
+
+    if intent == "compare":
+        return (
+            f"{topic_obj} 비교할 때는 단순히 어느 쪽이 좋다고 보기보다 기준을 먼저 정해야 합니다.\n\n"
+            "- 성능이나 효율을 볼 것인지\n"
+            "- 안정성과 유지보수를 볼 것인지\n"
+            "- 비용과 접근성을 볼 것인지\n"
+            "- 장기적으로 확장 가능한지를 볼 것인지\n\n"
+            "기준을 정하면 답이 훨씬 또렷해집니다. 비교 대상 두 개를 알려주면 표처럼 정리해드릴게요."
+        )
+
+    if intent == "recommend":
+        return (
+            f"{topic} 선택은 목적에 따라 달라집니다. 제가 바로 추천하려면 먼저 기준을 잡아야 해요.\n\n"
+            "일반적으로는 안정성, 사용 편의성, 비용, 확장성 순서로 보는 게 좋습니다. "
+            "지금 당장 실패가 적은 선택을 원하면 보수적인 쪽을, 빠른 실험을 원하면 가볍게 시작할 수 있는 쪽을 고르는 게 맞습니다."
+        )
+
+    if intent == "summarize":
+        return (
+            f"{topic_obj} 정리할 때는 문장을 줄이는 것보다 핵심 구조를 남기는 게 중요합니다.\n\n"
+            "제가 보는 정리 기준은 이렇습니다.\n\n"
+            "- 주장: 결국 무엇을 말하는가\n"
+            "- 근거: 왜 그렇게 말하는가\n"
+            "- 조건: 언제 맞고 언제 틀릴 수 있는가\n"
+            "- 다음 행동: 그래서 무엇을 하면 되는가\n\n"
+            "자료를 붙여주면 이 기준으로 바로 압축해드릴게요."
+        )
+
+    if intent == "create_or_fix":
+        return (
+            f"{topic_obj} 만들거나 고치려면 먼저 결과물의 형태를 정해야 합니다.\n\n"
+            "제가 바로 도울 수 있는 방식은 세 가지예요.\n\n"
+            "- 초안 작성: 빈 상태에서 구조부터 잡기\n"
+            "- 문제 수정: 오류 원인과 수정 위치 찾기\n"
+            "- 품질 개선: 더 자연스럽고 안정적인 형태로 다듬기\n\n"
+            "코드나 문장을 보내주면 바로 손볼 수 있는 단위로 나눠서 이어가겠습니다."
+        )
+
+    if intent == "general":
+        if len(raw) <= 18 and not re.search(r"\s", raw):
+            return (
+                f"{topic_topic} 지금 단어만 보면 하나의 주제로 볼 수 있습니다.\n\n"
+                "먼저 큰 뜻을 잡고, 그다음 맥락에 맞춰 좁히는 게 좋아요. "
+                "일상적인 의미, 전문적인 의미, 예시 중심 설명 중에서 지금은 일상적인 큰 그림부터 잡는 방식이 가장 자연스럽습니다."
+            )
+        return _pick_reply_variant([
+            f"{raw}에 대해 바로 이어서 말하면, 핵심은 먼저 의도를 잡고 그에 맞는 답변 형태를 고르는 것입니다. 지금 문장은 설명, 판단, 실행 제안 중 하나로 확장될 수 있어요.",
+            f"{raw}은 단순히 한 문장으로 끊기보다 맥락을 보고 답하는 게 맞습니다. 먼저 핵심을 잡고, 필요한 경우 근거와 예시를 붙여서 이해하기 쉬운 형태로 풀어가겠습니다.",
+            f"좋아요. {raw}은 지금 대화에서 바로 다룰 수 있는 주제입니다. 먼저 큰 그림을 잡고, 너무 모호한 부분은 답변 안에서 자연스럽게 좁혀가겠습니다.",
+        ])
+
+    return ""
+
+
+def _first_sentence(text):
+    normalized = re.sub(r"\s+", " ", trim(text))
+    match = re.match(r"^(.+?[.!?。！？])\s", normalized)
+    return trim((match.group(1) if match else normalized)[:260])
+
+
+def _first_sentences(text, max_count=2):
+    normalized = re.sub(r"\s+", " ", trim(text))
+    if not normalized:
+        return ""
+    parts = re.findall(r"[^.!?。！？]+[.!?。！？]?", normalized) or [normalized]
+    return trim(" ".join(parts[:max_count]))
+
+
+def _pick_reply_variant(options):
+    choices = [trim(item) for item in options if trim(item)]
+    if not choices:
+        return ""
+    return random.choice(choices)
+
+
+def _format_knowledge_reply(topic, summary, query):
+    subject = _normalize_knowledge_topic(topic)
+    body = re.sub(r"\s+", " ", trim(summary))
+    short = _strip_subject_prefix(_first_sentences(body, 2), subject)
+    compact_body = _first_sentences(body, 4)
+    style = _infer_answer_style(query)
+    subject_topic = f"{subject}{_particle(subject, '은', '는')}"
+    subject_object = f"{subject}{_particle(subject, '을', '를')}"
+
+    if style == "concise":
+        return _pick_reply_variant([
+            f"{subject_topic} {short}",
+            f"짧게 보면 {subject_topic} {short}",
+            f"핵심만 말하면 {subject}: {short}",
+        ])
+    if style == "easy":
+        lead = _pick_reply_variant([
+            f"쉽게 말하면, {subject_topic} {short}",
+        f"{subject_object} 아주 편하게 풀면, {short}",
+            f"일상적인 말로 바꾸면 {subject_topic} {short}",
+        ])
+        tail = _pick_reply_variant([
+            "처음에는 정의보다 '어디에 쓰이고 왜 중요한지'를 같이 보면 훨씬 빨리 잡혀요.",
+            "비유로 더 풀어달라고 하면 더 쉬운 예시로 이어서 설명할게요.",
+            "지금은 큰 그림만 잡고, 원하면 예시나 원리 쪽으로 더 내려갈 수 있어요.",
+        ])
+        return f"{lead}\n\n{tail}"
+    if style in ("detailed", "technical"):
+        lead = _pick_reply_variant([
+            f"{subject}에 대해 조금 체계적으로 정리해볼게요.",
+            f"{subject_topic} 개념, 배경, 실제 쓰임을 나눠서 보면 선명해집니다.",
+            f"{subject_object} 깊게 보려면 먼저 정의와 맥락을 분리하는 게 좋아요.",
+        ])
+        tail = _pick_reply_variant([
+            "더 깊게 들어가면 역사, 구조, 실제 사례 순서로 확장하면 됩니다.",
+            "다음 단계로는 원리, 장단점, 실제 사례를 비교해보면 이해가 단단해져요.",
+            "필요하면 이 내용을 시험용 요약, 발표용 설명, 개발자 관점 설명으로 다시 바꿔드릴 수 있어요.",
+        ])
+        return f"{lead}\n\n{body}\n\n{tail}"
+    lead = _pick_reply_variant([
+        f"{subject}에 대해 바로 말하면, {short}",
+        f"{subject_topic} 기본적으로 {short}",
+        f"먼저 큰 그림부터 보면, {subject_topic} {short}",
+        f"{subject_object} 설명하면 이렇게 정리됩니다. {short}",
+    ])
+    compact_extra = f"\n\n조금 더 풀면 {compact_body}" if _should_append_compact(short, compact_body) else ""
+    return (
+        f"{lead}{compact_extra}\n\n"
+        "필요하면 이 내용을 더 쉽게, 더 전문적으로, 또는 예시 중심으로 다시 바꿔서 설명할 수 있어요."
+    )
+
+
+def _strip_subject_prefix(text, subject):
+    value = trim(text)
+    clean_subject = trim(subject)
+    if not value or not clean_subject:
+        return value
+    escaped = re.escape(clean_subject)
+    stripped = re.sub(rf"^{escaped}(?:\([^)]*\))?\s*(?:은|는|이|가|란|이라는|이란)\s*", "", value, flags=re.I).strip()
+    return stripped or value
+
+
+def _should_append_compact(short_text, compact_text):
+    short = re.sub(r"\s+", " ", trim(short_text))
+    compact = re.sub(r"\s+", " ", trim(compact_text))
+    if not short or not compact:
+        return False
+    if short in compact or compact in short:
+        return False
+    return len(compact) > len(short) + 24
+
+
+def _classify_aether_intent(query, history=None):
+    raw = _normalize_user_query(query)
+    if not raw:
+        return {"kind": "empty", "confidence": 1}
+    if re.fullmatch(r"(안녕+|하이+|hello|hi|hey)[!?.…\s]*", raw, re.I):
+        return {"kind": "greeting", "confidence": 0.98}
+    if re.search(r"(심장|가슴|흉통|숨\s*쉬|호흡|어지럽|식은땀|피\s*나|자살|죽고\s*싶|응급|통증|아퍼|아파|아픔|병원)", raw, re.I):
+        return {"kind": "health_safety", "confidence": 0.86}
+    if re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분)", raw, re.I):
+        return {"kind": "casual", "confidence": 0.8}
+    if re.search(r"(탐구|분석|토론|고찰|윤리|철학|사회문제|문제에\s*대해|쟁점|관점)", raw, re.I):
+        return {"kind": "explore", "topic": _extract_definition_topic(raw) or raw, "confidence": 0.82}
+    if re.search(r"(요약|정리|핵심)", raw, re.I):
+        return {"kind": "summarize", "confidence": 0.75}
+    if re.search(r"(만들|작성|써줘|초안|문장|글|코드|수정|고쳐)", raw, re.I):
+        return {"kind": "create_or_fix", "confidence": 0.75}
+    topic = _extract_definition_topic(raw)
+    if topic:
+        return {"kind": "knowledge", "topic": topic, "confidence": 0.72}
+    return {"kind": "general", "confidence": 0.5}
+
+
+def _build_casual_reply(query):
+    raw = trim(query)
+    if re.search(r"(우리\s*뭐|뭐\s*할까|뭐\s*할래)", raw, re.I):
+        return _pick_reply_variant([
+            "좋아요. 지금은 가볍게 잡담을 이어가도 되고, 막힌 문제를 같이 풀어도 되고, 아이디어 하나 잡아서 바로 만들어봐도 좋아요. 오늘 컨디션이 어떤 쪽인지부터 맞춰볼게요.",
+            "우리라면 세 가지가 괜찮겠어요. 머리 식히는 대화, 지금 프로젝트 점검, 아니면 작은 기능 하나 바로 만들기. 저는 지금 흐름상 프로젝트 점검이 제일 실속 있어 보여요.",
+            "좋아요. 너무 거창하게 시작하지 말고, 지금 가장 신경 쓰이는 것 하나만 꺼내서 같이 정리해봐요. 대화든 코드든 거기서 자연스럽게 이어가면 됩니다.",
+        ])
+    if re.search(r"(뭐해|하고\s*있어)", raw, re.I):
+        return _pick_reply_variant([
+            "지금은 네가 보낸 말을 보고 의도부터 잡고 있어요. 짧은 말이면 맥락을 이어보고, 중요한 말이면 먼저 위험도나 목적을 분리해서 답하려고 해요.",
+            "나는 지금 대화 흐름을 정리하는 중이에요. 그냥 잡담이면 편하게 받고, 작업 얘기면 바로 다음 행동으로 바꿔볼게요.",
+            "지금은 대기하면서 네 다음 말을 받을 준비 중이에요. 한 줄만 던져도 맥락을 이어서 같이 잡아볼게요.",
+        ])
+    if re.search(r"(심심|잡담|놀자|대화)", raw, re.I):
+        return _pick_reply_variant([
+            "그럼 가볍게 가볼까요. 요즘 머릿속에 제일 많이 맴도는 게 프로젝트인지, 게임인지, 아니면 그냥 쉬고 싶은 건지부터 하나만 골라봐요.",
+            "좋아요. 잡담 모드로 가면 너무 딱딱하게 굴지 않고 편하게 이어갈게요. 오늘 기분을 색깔로 치면 어떤 쪽이에요?",
+            "그럼 잠깐 숨 돌리는 대화로 가죠. 요즘 제일 신경 쓰이는 일 하나만 말해줘도 거기서 자연스럽게 풀어볼게요.",
+        ])
+    return _pick_reply_variant([
+        "좋아요. 편하게 이어가요. 지금 말한 흐름에서 제일 자연스러운 다음 질문을 같이 잡아볼게요.",
+        "알겠어요. 너무 틀에 맞추지 않고, 지금 말의 뉘앙스를 기준으로 이어가볼게요.",
+        "좋습니다. 방금 말은 그대로 받고, 필요한 만큼만 정리해서 이어갈게요.",
+    ])
+
+
+def _build_health_safety_reply(query):
+    raw = trim(query)
+    chest_like = re.search(r"(심장|가슴|흉통|왼쪽\s*가슴|명치|숨\s*쉬|호흡)", raw, re.I)
+    repeated = re.search(r"(3일|사흘|며칠|반복|비슷한\s*시간|20분|오래|계속)", raw, re.I)
+    red_flags = re.search(r"(식은땀|숨\s*참|호흡곤란|어지럼|실신|턱|팔|등으로|압박|쥐어짜|가만히\s*있어도)", raw, re.I)
+    if chest_like and (repeated or red_flags):
+        return (
+            "이건 가볍게 넘기면 안 되는 패턴입니다.\n\n"
+            "심장 쪽이나 가슴 통증이 반복되거나 20분 이상 지속된다면 단순 근육통일 수도 있지만, 협심증 같은 심혈관 문제도 배제하면 안 됩니다.\n\n"
+            "바로 병원 또는 응급실을 고려해야 하는 신호는 다음과 같습니다.\n\n"
+            "- 쥐어짜는 느낌이나 강한 압박감\n"
+            "- 왼쪽 팔, 턱, 등으로 퍼지는 통증\n"
+            "- 숨참, 식은땀, 어지럼, 실신 느낌\n"
+            "- 가만히 있어도 통증이 계속됨\n"
+            "- 비슷한 시간대에 반복되고 20분 이상 지속됨\n\n"
+            "숨 쉬거나 움직일 때 더 아프면 근육, 갈비뼈, 흉막 쪽 가능성도 있지만, 반복되는 흉통은 한 번은 진료로 확인하는 게 안전합니다. 지금 통증이 있거나 위 신호가 하나라도 있으면 지체하지 말고 응급 진료를 받아 주세요."
+        )
+    return (
+        "건강 관련 증상은 먼저 위험 신호부터 확인하는 게 안전합니다.\n\n"
+        "통증이 심해지거나, 숨참/식은땀/어지럼/의식 저하/피가 남 같은 증상이 있으면 바로 진료를 받아야 합니다. 증상이 반복되거나 일상생활에 영향을 주는 정도라면 가까운 병원에서 확인하는 편이 좋습니다.\n\n"
+        "가능하면 위치, 시작 시간, 지속 시간, 움직임이나 호흡과의 관계, 동반 증상을 같이 알려주면 더 안전하게 정리해드릴 수 있어요."
+    )
+
+
+def _build_exploration_reply(topic, query):
+    subject = _normalize_knowledge_topic(topic or query)
+    if _infer_answer_style(query) == "concise":
+        return f"{subject}의 핵심은 '무엇이 옳은가'만이 아니라, 누구에게 어떤 영향이 생기고 어떤 기준으로 판단할지를 따지는 데 있습니다."
+    return (
+        f"{subject}{_particle(subject, '을', '를')} 탐구하려면 먼저 기준을 나눠서 보는 게 좋습니다.\n\n"
+        "첫째, 가치 기준입니다. 무엇을 더 중요하게 볼지 정해야 합니다. 예를 들면 안전, 자유, 공정성, 책임, 효율 같은 기준이 서로 충돌할 수 있습니다.\n\n"
+        "둘째, 영향 범위입니다. 어떤 선택이 개인, 주변 사람, 사회 전체에 어떤 결과를 만드는지 봐야 합니다.\n\n"
+        "셋째, 책임의 위치입니다. 문제가 생겼을 때 누가 알고 있었고, 누가 선택했고, 누가 피해를 받는지 분리해야 판단이 흐려지지 않습니다.\n\n"
+        "짧게 말하면, 좋은 탐구는 정답 하나를 빨리 고르는 게 아니라 기준과 결과를 분리해서 더 덜 위험하고 더 납득 가능한 결론으로 좁혀가는 과정입니다."
+    )
+
+
+def _has_final_consonant(text):
+    value = trim(text)
+    if not value:
+        return False
+    ch = value[-1]
+    code = ord(ch)
+    if 0xAC00 <= code <= 0xD7A3:
+        return ((code - 0xAC00) % 28) != 0
+    return False
+
+
+def _particle(text, consonant_form, vowel_form):
+    return consonant_form if _has_final_consonant(text) else vowel_form
+
+
+def _build_ability_reply(query):
+    style = _infer_answer_style(query)
+    if style == "concise":
+        return "저는 질문 의도 파악, 자료 요약, 코드/오류 분석, 주제 설명, 웹 확인이 필요한 질문 보강을 도와줄 수 있어요."
+    return (
+        "저는 Purple Bee입니다. 지금 목표는 단순히 정해진 문장을 꺼내는 게 아니라, 사용자의 말에서 의도와 필요한 행동을 먼저 잡아 답하는 쪽입니다.\n\n"
+        "지금 바로 도울 수 있는 일은 이런 쪽이에요.\n\n"
+        "- 짧은 말이나 오타가 섞인 질문도 의도부터 파악하기\n"
+        "- 문서, 파일, 코드, 오류 화면을 읽고 핵심만 정리하기\n"
+        "- 어려운 개념을 쉽게 풀거나 전문적으로 분석하기\n"
+        "- 최신 확인이 필요한 내용은 웹 정보와 함께 검증하기\n"
+        "- 대화 흐름을 참고해서 같은 말을 반복하지 않고 이어가기\n\n"
+        "그냥 “사과”, “강아지”, “이 코드 왜 안 돼?”처럼 짧게 던져도 먼저 해석해서 답해볼게요."
+    )
+
+
+def _build_search_intent_reply(query):
+    cleaned = _normalize_user_query(query)
+    topic = re.sub(r"(웹사이트에서|사이트에서|웹에서|검색해줘|검색|찾아줘|찾아|링크|좀|해줘)", " ", cleaned, flags=re.I)
+    topic = re.sub(r"\s+", " ", topic).strip() or cleaned
+    encoded = requests.utils.quote(topic)
+    return (
+        f"{topic} 쪽은 웹 확인이 필요한 요청으로 보입니다.\n\n"
+        "지금 바로 볼 만한 경로를 먼저 정리하면 이렇습니다.\n\n"
+        f"- Google 검색: https://www.google.com/search?q={encoded}\n"
+        f"- DuckDuckGo 검색: https://duckduckgo.com/?q={encoded}\n\n"
+        "원하는 게 공식 사이트 찾기, 설치 방법, 오류 해결, 최신 뉴스 중 어느 쪽인지 말해주면 그 방향으로 더 좁혀서 정리하겠습니다."
+    )
+
+
+def _build_common_knowledge_reply(query):
+    # Legacy seed replies used to live here. Keep the function as a no-op so
+    # all ordinary knowledge questions go through dynamic retrieval first.
+    return ""
+
+
+def _build_direct_general_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    style = _infer_answer_style(raw)
+    previous = []
+    if isinstance(history, list):
+        for item in history[-4:]:
+            if isinstance(item, dict):
+                content = trim(item.get("content") or item.get("text") or "")
+                if content:
+                    previous.append(content)
+    context_hint = "방금 흐름도 참고해서 말하면, " if previous else ""
+    if style == "concise":
+        return f"{context_hint}{raw}에 대해서는 핵심부터 짚으면 됩니다. 원하는 게 설명인지, 비교인지, 해결 방법인지에 따라 바로 이어서 좁혀볼 수 있어요."
+    if style == "easy":
+        return f"{context_hint}{raw}은 쉽게 풀어서 먼저 큰 그림을 잡는 게 좋아요. 어려운 말보다 예시와 비유를 붙이면 훨씬 빨리 이해됩니다."
+    if style in ("detailed", "technical"):
+        return (
+            f"{context_hint}{raw}은 바로 결론부터 내리기보다 구조를 나눠보는 편이 좋습니다.\n\n"
+            "- 먼저 사용자가 얻고 싶은 결과를 정합니다.\n"
+            "- 확실한 정보와 아직 모호한 정보를 분리합니다.\n"
+            "- 필요한 근거가 있으면 자료나 웹 확인으로 보강합니다.\n"
+            "- 마지막에는 실행 가능한 형태로 다시 정리합니다."
+        )
+    variants = [
+        f"{context_hint}{raw}에 대해서는 먼저 핵심을 작게 잡는 게 좋아요. 지금 문장만 보면 정보 요청인지, 의견을 원하는지, 실행을 원하는지 중 하나로 이어질 수 있습니다.",
+        f"{context_hint}지금 질문은 바로 이어서 다룰 수 있어요. 제가 먼저 가능한 해석을 잡고, 모호한 부분은 최소한만 확인하면서 답을 좁혀가겠습니다.",
+        f"{context_hint}좋아요. 이건 형식보다 사용자가 지금 얻고 싶은 결과를 맞추는 게 중요합니다. 설명, 비교, 해결 순서 중 원하는 방식으로 이어갈 수 있어요.",
+    ]
+    return _pick_reply_variant(variants)
+
+
+def _score_aether_chunk(query, chunk):
+    q_tokens = set(re.findall(r"[A-Za-z0-9가-힣]{2,}", query.lower()))
+    if not q_tokens:
+        return 0
+    c = chunk.lower()
+    return sum(1 for token in q_tokens if token in c)
+
+
+def _aether_structural_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    lowered = raw.lower()
+    if not raw:
+        return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요."
+    if re.fullmatch(r"(안녕+|하이+|hello|hi|hey)[!?.\s]*", lowered):
+        return "안녕하세요. 지금 궁금한 걸 편하게 던져 주세요. 짧게 말해도 의도부터 잡아서 이어가볼게요."
+
+    if re.search(r"(aether|nexus|넥서스|에테르|구조|아키텍처|프로젝트|요약)", lowered):
+        return (
+            "Aether-Nexus는 Purple Bee를 고정 답변 생성기가 아니라 구조형 지능 커널로 바꾸기 위한 새 실행 방향입니다.\n\n"
+            "- 자연어를 단순 문장으로 보지 않고 의도, 조건, 상태, 사건, 원인 관계로 분해합니다.\n"
+            "- 사용자의 자료와 대화를 그대로 쌓지 않고, 가치 있는 조각만 필터링해 기억 후보로 승격합니다.\n"
+            "- 관리자는 학습된 내용을 검토한 뒤 버전을 만들고 배포하며, 새 버전은 다시 다음 학습의 출발점이 됩니다.\n"
+            "- 답변은 먼저 직접적으로 하고, 필요한 경우에만 근거와 다음 행동을 붙입니다.\n\n"
+            "지금 웹사이트에는 이 구조를 우선 응답 경로로 연결해두고, 기존 준비물 설치와 브라우저 ONNX 경로는 대화 흐름에서 분리하는 중입니다."
+        )
+
+    chunks = sorted(_aether_chunks(), key=lambda part: _score_aether_chunk(raw, part), reverse=True)[:3]
+    context = " ".join(chunks)
+    topic = re.sub(r"[?？!！]", "", raw).strip()
+    topic = topic[:80] or "요청"
+
+    if any(word in raw for word in ("요약", "정리", "핵심")):
+        lead = _pick_reply_variant([
+            f"{topic}의 핵심은 먼저 목적, 근거, 다음 행동을 분리해서 보는 것입니다.",
+            f"{topic}은 핵심 주장과 근거를 따로 놓고 보면 훨씬 선명합니다.",
+            f"{topic}을 정리하려면 먼저 반복되는 말과 실제 결론을 분리해야 합니다.",
+        ])
+    elif any(word in raw for word in ("학습", "배워", "훈련", "딥러닝")):
+        lead = _pick_reply_variant([
+            f"{topic}은 Aether 방식으로 보면 데이터를 그대로 쌓는 일이 아니라, 의미 단위와 인과 구조를 검증 가능한 기억으로 바꾸는 일입니다.",
+            f"{topic}에서 중요한 건 많은 문장을 저장하는 게 아니라, 쓸모 있는 의미 조각을 골라내는 것입니다.",
+        ])
+    elif any(word in raw for word in ("왜", "원인", "문제")):
+        lead = _pick_reply_variant([
+            f"{topic}에서 먼저 볼 지점은 표면 증상과 실제 원인을 분리하는 것입니다.",
+            f"{topic}은 바로 결론을 내리기보다 증상, 원인 후보, 확인 방법을 나눠야 합니다.",
+        ])
+    elif any(word in raw for word in ("어떻게", "방법", "만드는", "진행")):
+        lead = _pick_reply_variant([
+            f"{topic}은 단계로 나누면 훨씬 안정적으로 진행할 수 있습니다.",
+            f"{topic}은 먼저 목표를 작게 쪼개고, 실패 지점을 하나씩 줄이는 방식이 좋습니다.",
+        ])
+    else:
+        lead = _pick_reply_variant([
+            f"{topic}에 대해 바로 답하겠습니다.",
+            f"{topic}을 지금 문맥 기준으로 먼저 정리해볼게요.",
+            f"{topic}은 이렇게 접근하면 좋겠습니다.",
+        ])
+
+    bullets = [
+        "입력 문장을 먼저 의도와 조건으로 나눕니다.",
+        "확실한 정보와 아직 모호한 정보를 분리합니다.",
+        "필요한 경우 기억, 문서, 실행 결과를 연결해 검증합니다.",
+        "마지막에는 사용자가 바로 움직일 수 있는 형태로 다시 표현합니다.",
+    ]
+    if context:
+        random.shuffle(bullets)
+        return f"{lead}\n\n- {bullets[0]}\n- {bullets[1]}\n- {bullets[2]}\n- {bullets[3]}"
+    random.shuffle(bullets)
+    return f"{lead}\n\n- " + "\n- ".join(bullets)
+
+
+def aether_generate_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    lowered = raw.lower()
+    intent = _classify_aether_intent(raw, history)
+    if not raw:
+        return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요."
+    if re.fullmatch(r"(안녕+|하이+|hello|hi|hey)[!?.\s]*", lowered):
+        return _pick_reply_variant([
+            "안녕하세요. 지금 떠오른 걸 그대로 말해 주세요. 짧게 던져도 문맥을 잡아서 이어가볼게요.",
+            "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
+            "반가워요. 그냥 대화해도 좋고, 바로 궁금한 걸 물어봐도 좋아요.",
+            "안녕하세요. 가볍게 시작해도 좋고, 바로 본론으로 들어가도 좋아요.",
+        ])
+    if intent["kind"] == "health_safety":
+        return _build_health_safety_reply(raw)
+    if re.search(r"(검색|찾아|웹사이트|사이트에서|웹에서|링크)", raw, re.I):
+        return _build_search_intent_reply(raw)
+    if _wants_rewrite_or_correction(raw):
+        adaptive = _build_adaptive_aether_reply(raw, history)
+        if adaptive and not _aether_low_value_reply(adaptive, raw):
+            return adaptive
+    language_reply = _language_ability_reply(raw)
+    if language_reply:
+        return language_reply
+    bare_instruction = _bare_topic_instruction_reply(raw)
+    if bare_instruction:
+        return bare_instruction
+    if intent["kind"] == "explore":
+        return _build_exploration_reply(intent.get("topic") or raw, raw)
+
+    # From here on, prefer actual runtime / dynamic knowledge over canned
+    # branches. This prevents the UI from feeling like a fixed-answer bot.
+    reply = _query_aether_runtime(query, history)
+    if reply and not _aether_low_value_reply(reply, raw):
+        return reply
+
+    reply = _tool_augmented_aether_reply(raw)
+    if reply:
+        return reply
+
+    if re.search(r"(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)", raw, re.I):
+        return _build_ability_reply(raw)
+    if intent["kind"] == "casual":
+        return _build_casual_reply(raw)
+    if re.search(r"(aether|nexus|넥서스|에테르|구조|아키텍처|프로젝트|요약)", lowered):
+        return _aether_structural_reply(raw, history)
+
+    adaptive = _build_adaptive_aether_reply(raw, history)
+    if adaptive and not _aether_low_value_reply(adaptive, raw):
+        return adaptive
+    return _build_direct_general_reply(query, history)
+
+
+def aether_stream_text(text, chunk_size=18):
+    words = re.findall(r"\S+\s*|\n", text or "")
+    if not words:
+        return
+    chunk = ""
+    for word in words:
+        chunk += word
+        if len(chunk) >= chunk_size or word == "\n":
+            yield chunk
+            chunk = ""
+    if chunk:
+        yield chunk
+
+
+def save_chat_pair(session_id, query, reply):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
+                  (session_id, "user", query))
+        c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
+                  (session_id, "assistant", reply[:4000]))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 @app.route("/api/pbx_chat", methods=["POST", "OPTIONS"])
 def pbx_chat():
     """
-    Purple Bee JS 클라이언트 전용 채팅 엔드포인트.
-    브라우저 모델이 실패할 때 이 엔드포인트로 폴백.
-    SSE 스트리밍 방식으로 실시간 타이핑 효과 제공.
+    Purple Bee public chat endpoint.
+    The public UI now talks to the Aether-Nexus adapter first, so browser
+    model preparation failures no longer block normal conversation.
     """
     if request.method == "OPTIONS":
         return local_runtime_preflight_response()
@@ -6529,33 +7651,20 @@ def pbx_chat():
     data = request.json or {}
     query = (data.get("message") or data.get("query") or "").strip()
     history = data.get("history", [])
-    use_web = data.get("web_search", True)
     session_id = data.get("session_id", "pbx_default")
 
     if not query:
         return jsonify({"error": "메시지가 비어 있어요."}), 400
 
     def stream():
-        full = []
-        for chunk in generate_response(query, history, use_web):
-            full.append(chunk)
-            yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
-        final_text = "".join(full).strip()
+        final_text = aether_generate_reply(query, history).strip()
         if not final_text:
-            yield f"data: {json.dumps({'done': True, 'full': '', 'ok': False, 'code': 'PB-ANSWER-FAILED'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'done': True, 'full': '', 'ok': False, 'code': 'AETHER-EMPTY'}, ensure_ascii=False)}\n\n"
             return
-        yield f"data: {json.dumps({'done': True, 'full': final_text, 'ok': True}, ensure_ascii=False)}\n\n"
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                      (session_id, "user", query))
-            c.execute("INSERT INTO conversations (session_id, role, content) VALUES (?,?,?)",
-                      (session_id, "assistant", final_text[:4000]))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
+        for chunk in aether_stream_text(final_text):
+            yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'done': True, 'full': final_text, 'ok': True, 'mode': 'aether-nexus'}, ensure_ascii=False)}\n\n"
+        save_chat_pair(session_id, query, final_text)
 
     resp = Response(
         stream_with_context(stream()),
@@ -6571,28 +7680,28 @@ def pbx_chat():
 
 @app.route("/api/pbx_chat_sync", methods=["POST", "OPTIONS"])
 def pbx_chat_sync():
-    """동기식 JSON 응답 버전 (스트리밍 불가 환경용)"""
+    """Synchronous JSON response for workers and restricted streaming clients."""
     if request.method == "OPTIONS":
         return local_runtime_preflight_response()
 
     data = request.json or {}
     query = (data.get("message") or data.get("query") or "").strip()
     history = data.get("history", [])
-    use_web = data.get("web_search", True)
+    session_id = data.get("session_id", "pbx_default")
 
     if not query:
         return jsonify({"error": "메시지가 비어 있어요."}), 400
 
-    chunks = list(generate_response(query, history, use_web))
-    full = "".join(chunks).strip()
+    full = aether_generate_reply(query, history).strip()
     if not full:
         return local_runtime_corsify(jsonify({
             "reply": "",
             "ok": False,
-            "code": "PB-ANSWER-FAILED",
-            "error": "model_generation_failed",
+            "code": "AETHER-EMPTY",
+            "error": "aether_generation_failed",
         })), 503
-    return local_runtime_corsify(jsonify({"reply": full, "ok": True}))
+    save_chat_pair(session_id, query, full)
+    return local_runtime_corsify(jsonify({"reply": full, "ok": True, "mode": "aether-nexus"}))
 
 @app.route("/api/local_runtime/status", methods=["GET", "OPTIONS"])
 def local_runtime_status():
@@ -6640,6 +7749,13 @@ def status():
     }
     return jsonify({
         "ok": True,
+        "active_mode": "aether-nexus",
+        "aether": {
+            "local_runtime_available": _aether_available(timeout=0.35),
+            "port": AETHER_PORT,
+            "root": str(AETHER_ROOT),
+            "reference_chunks": len(_aether_chunks()),
+        },
         "model": stats,
         "llm_runtime": runtime_diag,
         "training": training_status,
