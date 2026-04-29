@@ -17,6 +17,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+node_modules/
 
 # Large training artifacts and browser binaries
 Model/versions/**/checkpoints/

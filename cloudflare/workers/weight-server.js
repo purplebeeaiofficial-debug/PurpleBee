@@ -1,5 +1,5 @@
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
@@ -11,15 +11,17 @@ export default {
 
     if (url.pathname === "/api/health" || url.pathname === "/api/status") {
       const publicBackend = await resolvePublicBackendConfig(request, env);
+      const publicBackendEnabled = String(env.PURPLE_BEE_ENABLE_PUBLIC_BACKEND || "").trim() === "1";
       return jsonResponse(
         {
           ok: true,
           service: "Purple Bee Cloudflare Static Worker",
-          mode: "website-runtime",
-          computeMode: "worker-server-runtime",
-          modelAsset: "/api/runtime/browser-manifest",
-          trainingMode: "management-panel-only",
+          mode: "aether-nexus",
+          computeMode: publicBackendEnabled ? "public-backend-aether-adapter" : "aether-worker-primary",
+          modelAsset: null,
+          trainingMode: "admin-versioned-learning-cycle",
           publicBackendConfigured: Boolean(publicBackend.configured),
+          publicBackendEnabled,
           publicBackendBaseUrl: publicBackend.publicApiBaseUrl || null,
           time: new Date().toISOString(),
         },
@@ -29,18 +31,15 @@ export default {
     }
 
     if (url.pathname === "/api/pbx_chat") {
-      return handlePbxChat(request, env, true);
+      return handlePbxChat(request, env, true, ctx);
     }
     if (url.pathname === "/api/pbx_chat_sync") {
-      return handlePbxChat(request, env, false);
+      return handlePbxChat(request, env, false, ctx);
     }
 
     if (url.pathname === "/api/runtime/browser-manifest") {
       const runtimeConfig = await resolveRuntimeConfig(request, env);
       if (runtimeConfig) {
-        if (runtimeConfig.mode === "transformers-js") {
-          return jsonResponse(runtimeConfig.manifest, 200, request);
-        }
         return jsonResponse(buildBrowserManifest(request, runtimeConfig), 200, request);
       }
       return jsonResponse(
@@ -69,20 +68,58 @@ export default {
       return proxyExternalAsset(request, upstreamUrl, "hf-proxy");
     }
 
-    if (url.pathname.startsWith("/api/runtime/assets/")) {
-      const runtimeConfig = await resolveRuntimeConfig(request, env);
-      if (!runtimeConfig) {
+  if (url.pathname.startsWith("/api/runtime/assets/")) {
+    const runtimeConfig = await resolveRuntimeConfig(request, env);
+    if (!runtimeConfig) {
         return jsonResponse(
           { ok: false, message: "Runtime asset config is not available." },
           404,
           request,
         );
-      }
-      const requestedName = decodeURIComponent(url.pathname.split("/").pop() || "");
-      const upstreamUrl = runtimeConfig.assetMap[requestedName];
-      if (!upstreamUrl) {
-        return jsonResponse(
-          { ok: false, message: "Requested runtime asset was not found." },
+    }
+    const rawAssetPath = decodeURIComponent(url.pathname.replace(/^\/api\/runtime\/assets\//, ""));
+    const pathParts = rawAssetPath.split("/").filter(Boolean);
+    let requestedName = rawAssetPath;
+    if (pathParts.length >= 2 && pathParts[0] === String(runtimeConfig.modelId || "").trim()) {
+      requestedName = pathParts.slice(2).join("/") || pathParts.slice(1).join("/");
+    }
+    const repoParts = String(runtimeConfig.runtime?.model_repo || "").trim().split("/").filter(Boolean);
+    const strippedRepoPath = repoParts.length && pathParts.length > repoParts.length
+      && repoParts.every((part, index) => pathParts[index] === part)
+      ? pathParts.slice(repoParts.length).join("/")
+      : "";
+    const strippedRepoRevisionPath = repoParts.length && pathParts.length > (repoParts.length + 1)
+      && repoParts.every((part, index) => pathParts[index] === part)
+      ? pathParts.slice(repoParts.length + 1).join("/")
+      : "";
+    const strippedResolvePath = repoParts.length
+      && pathParts.length > (repoParts.length + 2)
+      && repoParts.every((part, index) => pathParts[index] === part)
+      && pathParts[repoParts.length] === "resolve"
+      ? pathParts.slice(repoParts.length + 2).join("/")
+      : "";
+    const requestedBasename = pathParts.length ? pathParts[pathParts.length - 1] : requestedName;
+    const requestedTail = pathParts.length >= 2 ? pathParts.slice(-2).join("/") : requestedName;
+    const candidateKeys = [
+      requestedName,
+      rawAssetPath,
+      strippedResolvePath,
+      strippedRepoRevisionPath,
+      strippedRepoPath,
+      pathParts.length >= 3 ? pathParts.slice(3).join("/") : "",
+      pathParts.length >= 2 ? pathParts.slice(2).join("/") : "",
+      pathParts.length >= 1 ? pathParts.slice(1).join("/") : "",
+      requestedTail,
+      requestedBasename,
+      requestedBasename ? `onnx/${requestedBasename}` : "",
+      requestedBasename ? `assets/${requestedBasename}` : "",
+    ].filter(Boolean);
+    const upstreamUrl = candidateKeys
+      .map((key) => runtimeConfig.assetMap[key])
+      .find(Boolean);
+    if (!upstreamUrl) {
+      return jsonResponse(
+        { ok: false, message: "Requested runtime asset was not found." },
           404,
           request,
         );
@@ -111,6 +148,19 @@ export default {
     }
 
     if (isMarketingProxyPath(url.pathname)) {
+      if (env.ASSETS) {
+        const marketingAssetRequest = new Request(new URL(normalizeMarketingAssetPath(url.pathname), request.url), request);
+        const marketingAsset = await env.ASSETS.fetch(marketingAssetRequest);
+        if (marketingAsset.ok) {
+          const headers = new Headers(marketingAsset.headers);
+          headers.set("Cache-Control", "public, max-age=300");
+          headers.set("Content-Type", headers.get("Content-Type") || "text/html; charset=UTF-8");
+          return new Response(marketingAsset.body, {
+            status: marketingAsset.status,
+            headers,
+          });
+        }
+      }
       const publicBackend = await resolvePublicBackendConfig(request, env);
       const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
       if (upstreamBase) {
@@ -134,7 +184,7 @@ export default {
   },
 };
 
-async function handlePbxChat(request, env, streaming) {
+async function handlePbxChat(request, env, streaming, ctx = null) {
   const corsH = corsHeaders(request);
 
   if (request.method !== "POST") {
@@ -163,35 +213,16 @@ async function handlePbxChat(request, env, streaming) {
   }
 
   const publicBackend = await resolvePublicBackendConfig(request, env);
+  const publicBackendEnabled = String(env.PURPLE_BEE_ENABLE_PUBLIC_BACKEND || "").trim() === "1";
+  if (!publicBackendEnabled) {
+    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
+    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-primary");
+  }
+
   const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
   if (!upstreamBase) {
-    if (streaming) {
-      const enc = new TextEncoder();
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "public_backend_not_configured" })}\n\n`));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 503,
-        headers: {
-          ...corsH,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "X-Accel-Buffering": "no",
-        },
-      });
-    }
-    return new Response(JSON.stringify({
-      ok: false,
-      reply: "",
-      code: "PB-ANSWER-FAILED",
-      error: "public_backend_not_configured",
-    }), {
-      status: 503,
-      headers: { ...corsH, "Content-Type": "application/json" },
-    });
+    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
+    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
   }
 
   const upstreamUrl = `${upstreamBase}/api/pbx_chat_sync`;
@@ -202,40 +233,21 @@ async function handlePbxChat(request, env, streaming) {
   }
 
   let upstreamResponse;
+  const upstreamController = new AbortController();
+  const upstreamTimeout = setTimeout(() => upstreamController.abort("backend-timeout"), 4500);
   try {
     upstreamResponse = await fetch(upstreamUrl, {
       method: "POST",
       headers: upstreamHeaders,
       body: JSON.stringify(body),
+      signal: upstreamController.signal,
     });
   } catch (_error) {
-    if (streaming) {
-      const enc = new TextEncoder();
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "public_backend_unreachable" })}\n\n`));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 502,
-        headers: {
-          ...corsH,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "X-Accel-Buffering": "no",
-        },
-      });
-    }
-    return new Response(JSON.stringify({
-      ok: false,
-      reply: "",
-      code: "PB-ANSWER-FAILED",
-      error: "public_backend_unreachable",
-    }), {
-      status: 502,
-      headers: { ...corsH, "Content-Type": "application/json" },
-    });
+    pbWakePublicBackend(upstreamBase, env, ctx);
+    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
+    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
+  } finally {
+    clearTimeout(upstreamTimeout);
   }
 
   let upstreamPayload = null;
@@ -246,35 +258,11 @@ async function handlePbxChat(request, env, streaming) {
   }
 
   const upstreamReply = String(upstreamPayload?.reply || "").trim();
+  const upstreamMode = String(upstreamPayload?.mode || "aether-public-backend").trim() || "aether-public-backend";
   const upstreamOk = Boolean(upstreamPayload?.ok) && !!upstreamReply;
-  if (!upstreamResponse.ok || !upstreamOk || looksLikeFixedWebsiteReply(upstreamReply)) {
-    if (streaming) {
-      const enc = new TextEncoder();
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: "", ok: false, code: "PB-ANSWER-FAILED", error: "model_generation_failed" })}\n\n`));
-          controller.close();
-        },
-      });
-      return new Response(stream, {
-        status: 503,
-        headers: {
-          ...corsH,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "X-Accel-Buffering": "no",
-        },
-      });
-    }
-    return new Response(JSON.stringify({
-      ok: false,
-      reply: "",
-      code: "PB-ANSWER-FAILED",
-      error: "model_generation_failed",
-    }), {
-      status: 503,
-      headers: { ...corsH, "Content-Type": "application/json" },
-    });
+  if (!upstreamResponse.ok || !upstreamOk || pbLooksLikeFixedWebsiteReplyStable(upstreamReply)) {
+    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
+    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
   }
 
   if (streaming) {
@@ -293,7 +281,7 @@ async function handlePbxChat(request, env, streaming) {
         if (chunk.length) {
           controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: chunk.join(" ") })}\n\n`));
         }
-        controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: upstreamReply, ok: true })}\n\n`));
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: upstreamReply, ok: true, mode: upstreamMode })}\n\n`));
         controller.close();
       },
     });
@@ -311,10 +299,897 @@ async function handlePbxChat(request, env, streaming) {
   return new Response(JSON.stringify({
     ok: true,
     reply: upstreamReply,
+    mode: upstreamMode,
   }), {
     status: 200,
     headers: { ...corsH, "Content-Type": "application/json" },
   });
+}
+
+function pbWakePublicBackend(upstreamBase, env, ctx) {
+  const base = String(upstreamBase || "").trim().replace(/\/+$/, "");
+  if (!base || !ctx || typeof ctx.waitUntil !== "function") return;
+  const headers = new Headers({ "Accept": "application/json" });
+  const upstreamApiKey = String(env.PURPLE_BEE_PUBLIC_API_KEY || "").trim();
+  if (upstreamApiKey) headers.set("X-Api-Key", upstreamApiKey);
+  ctx.waitUntil(
+    fetch(`${base}/api/health`, { headers }).catch(() => null),
+  );
+}
+
+// Clean public-runtime helper set kept for shared UTF-8-safe utilities.
+function pbLegacyCleanPbxReplyResponse(reply, streaming, corsH, mode = "aether-nexus") {
+  const text = String(reply || "").trim() || "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+  if (streaming) {
+    const enc = new TextEncoder();
+    const parts = text.match(/\S+\s*|\n/g) || [text];
+    const stream = new ReadableStream({
+      start(controller) {
+        let chunk = "";
+        for (const part of parts) {
+          chunk += part;
+          if (chunk.length >= 24 || part === "\n") {
+            controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+            chunk = "";
+          }
+        }
+        if (chunk) controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: text, ok: true, mode })}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        ...corsH,
+        "Content-Type": "text/event-stream; charset=UTF-8",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+  return new Response(JSON.stringify({ ok: true, reply: text, mode }), {
+    status: 200,
+    headers: { ...corsH, "Content-Type": "application/json; charset=UTF-8" },
+  });
+}
+
+function pbLegacyCleanLooksLikeFixedWebsiteReply(reply) {
+  const text = String(reply || "").trim();
+  if (!text) return true;
+  if (/[�]/.test(text)) return true;
+  const brokenHangulMarkers = ["吏", "湲", "諛", "援", "蹂", "媛", "먯", "댁", "섏", "쒕"];
+  const markerCount = brokenHangulMarkers.reduce((count, marker) => count + (text.includes(marker) ? 1 : 0), 0);
+  if (markerCount >= 3) return true;
+  return [
+    "조금 더 구체적으로",
+    "어떤 부분이 궁금",
+    "한 줄만 더",
+    "답변 생성에 실패",
+    "같은 뜻으로 한 번만",
+  ].some((marker) => text.includes(marker));
+}
+
+async function pbLegacyCleanAetherWorkerReply(query, history = []) {
+  const raw = pbNormalize(query);
+  if (!raw) return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요.";
+
+  if (/^(안녕+|하이+|hello|hi|hey)[!?.…\s]*$/i.test(raw)) {
+    return pbPick([
+      "안녕하세요. 편하게 말해 주세요. 짧게 던져도 의도부터 잡아서 이어가볼게요.",
+      "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
+      "반가워요. 대화든 작업이든 지금 필요한 쪽으로 바로 맞춰볼게요.",
+    ], raw);
+  }
+
+  if (/(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)/i.test(raw)) {
+    return [
+      "저는 대화의 의도를 먼저 잡고, 필요한 경우 자료나 웹 정보를 함께 확인해서 답하는 Purple Bee입니다.",
+      "",
+      "할 수 있는 일은 크게 네 가지예요.",
+      "- 일상 대화나 짧은 질문을 자연스럽게 이어가기",
+      "- 문서, 파일, 코드, 오류 내용을 읽고 핵심 정리하기",
+      "- 특정 주제를 쉽게 풀거나 전문적으로 분석하기",
+      "- 웹 확인이 필요한 질문은 필요할 때만 검색해서 최신 정보 보강하기",
+      "",
+      "지금은 그냥 한 줄로 물어봐도 됩니다. 예를 들면 “사과”, “강아지”, “이 코드 왜 안 돼?”처럼요.",
+    ].join("\n");
+  }
+
+  if (/(심장|가슴|흉통|호흡|숨\s*쉬|식은땀|어지럼|통증|아파|아퍼|병원|응급)/i.test(raw)) {
+    return pbHealthReply(raw);
+  }
+
+  if (/(우리\s*뭐|뭐\s*할까|심심|잡담|대화하자|놀자|뭐해)/i.test(raw)) {
+    return pbPick([
+      "좋아요. 가볍게 잡담으로 시작해도 되고, 지금 머릿속에 있는 문제 하나를 같이 정리해도 좋아요. 작은 주제 하나만 던져보세요.",
+      "우리라면 지금 가장 부담 없는 것부터 해보죠. 아이디어 정리, 짧은 대화, 코드 점검, 자료 요약 중 하나를 골라도 되고 그냥 아무 말이나 던져도 됩니다.",
+      "좋아요. 오늘은 너무 거창하게 가지 말고, 지금 신경 쓰이는 것 하나를 꺼내서 같이 풀어봅시다.",
+    ], raw);
+  }
+
+  if (/(아니|그게\s*아니|다시|틀렸|이상|제대로)/i.test(raw)) {
+    return "알겠어요. 방금 방향은 접고 다시 맞춰볼게요. 원하는 기준을 한 줄만 더 주면 그 기준으로 바로 다시 답하겠습니다.";
+  }
+
+  if (/(날씨|weather)/i.test(raw)) {
+    const weather = await pbWeatherReply(raw);
+    if (weather) return weather;
+    return "날씨는 지역명이 있어야 정확히 볼 수 있어요. 예를 들면 “군산 날씨”처럼 지역과 함께 물어봐 주세요.";
+  }
+
+  if (/(검색|찾아|웹사이트|사이트에서|링크)/i.test(raw)) {
+    return "웹에서 확인이 필요한 요청으로 보입니다. 지금은 검색이 필요한 핵심어를 뽑아 확인한 뒤, 링크와 요약을 함께 정리하는 방식이 가장 안전합니다. 검색할 주제를 한 줄로 더 좁혀주면 바로 이어가겠습니다.";
+  }
+
+  const topic = pbExtractTopic(raw);
+  if (topic) {
+    const summary = await pbWikiSummary(topic);
+    if (summary) return pbKnowledgeReply(topic, summary, raw);
+  }
+
+  if (/(코드|코딩|python|파이썬|error|오류|버그|함수|html|css|js)/i.test(raw)) {
+    return [
+      "코딩 쪽으로 보면 먼저 증상과 원인을 분리하는 게 좋아요.",
+      "",
+      "- 에러 메시지가 있으면 가장 먼저 그 줄을 봅니다.",
+      "- 코드가 있으면 입력값, 실행 흐름, 실패 지점을 나눠 확인합니다.",
+      "- 수정은 한 번에 크게 바꾸기보다 작은 패치로 검증하는 편이 안전합니다.",
+      "",
+      "코드나 오류 화면을 보내주면 바로 원인 후보부터 좁혀볼게요.",
+    ].join("\n");
+  }
+
+  if (/(요약|정리|핵심)/i.test(raw)) {
+    return "좋아요. 자료를 보내주면 핵심 주장, 근거, 놓치면 안 되는 내용, 다음 행동 순서로 짧고 읽기 쉽게 정리해드릴게요.";
+  }
+
+  return pbGeneralReply(raw, history);
+}
+
+function pbNormalize(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .replace(/머야|모야|뭐임|뭐ㅑ/g, "뭐야")
+    .replace(/알려조|알려쥬|알려저/g, "알려줘")
+    .replace(/([가-힣])\1{4,}/g, "$1$1")
+    .trim();
+}
+
+function pbPick(items, seed = "") {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return "";
+  let hash = 0;
+  for (const ch of String(seed || Date.now())) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const jitter = new Uint32Array(1);
+  try {
+    crypto.getRandomValues(jitter);
+  } catch (_) {
+    jitter[0] = Math.floor(Math.random() * 0xffffffff);
+  }
+  hash = (hash + Math.floor(Date.now() / 30000) + jitter[0]) >>> 0;
+  return list[hash % list.length];
+}
+
+function pbHasFinalConsonant(text) {
+  const chars = Array.from(String(text || "").trim());
+  if (!chars.length) return false;
+  const code = chars[chars.length - 1].charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return false;
+  return ((code - 0xac00) % 28) !== 0;
+}
+
+function pbParticle(text, consonantForm, vowelForm) {
+  return pbHasFinalConsonant(text) ? consonantForm : vowelForm;
+}
+
+function pbExtractTopic(query) {
+  const raw = pbNormalize(query);
+  const asks = /(뭐야|무엇|정의|뜻|개념|알려|설명|해석|탐구|분석|what is|meaning|explain)/i.test(raw);
+  const bare = /^[A-Za-z0-9가-힣\s._:+#-]{2,40}$/.test(raw)
+    && !/(안녕|하이|우리|너|나|왜|어떻게|해줘|하자|만들|고쳐|검색|날씨|오늘|내일)/i.test(raw);
+  if (!asks && !bare) return "";
+  const cleaned = raw
+    .replace(/[?？!！]/g, " ")
+    .replace(/(이게|그게|저게|이건|그건|저건|이거|그거|저거|좀|간단히|자세히|쉽게|친근하게|전문적으로|핵심만)/g, " ")
+    .replace(/(뭐야|뭔가요|뭔지|무엇인지|정의|뜻|개념|알려줘|알려 줘|설명해줘|설명|해석해줘|해석|알아|탐구해줘|탐구|분석해줘|분석|what is|meaning of|explain)/gi, " ")
+    .replace(/(에\s*대해|에\s*대한|에\s*관해|에\s*관한)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const topic = cleaned
+    .replace(/([가-힣A-Za-z0-9]+)(이|가|은|는|을|를)(?=\s|$)/g, "$1")
+    .replace(/(이|가|은|는|을|를|란|이라는|라는)$/g, "")
+    .trim()
+    .slice(0, 80);
+  return pbNormalizeKnowledgeTopic(topic);
+}
+
+function pbNormalizeKnowledgeTopic(topic) {
+  const raw = String(topic || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  if (/(강아지|반려견|dog|puppy)/i.test(raw)) return "개";
+  if (/(윤리적\s*문제|윤리|도덕|ethic)/i.test(raw)) return "윤리";
+  if (/(인공지능|AI|artificial intelligence)/i.test(raw)) return "인공지능";
+  if (/(문학|literature)/i.test(raw)) return "문학";
+  if (/(철학|philosophy)/i.test(raw)) return "철학";
+  if (/(역사|history)/i.test(raw)) return "역사";
+  return raw;
+}
+
+async function pbWikiSummary(topic) {
+  const subject = String(topic || "").trim();
+  if (!subject) return "";
+  const encoded = encodeURIComponent(subject.replace(/\s+/g, "_"));
+  for (const base of ["https://ko.wikipedia.org/api/rest_v1/page/summary/", "https://en.wikipedia.org/api/rest_v1/page/summary/"]) {
+    try {
+      const response = await fetch(`${base}${encoded}`, {
+        headers: { "accept": "application/json", "user-agent": "PurpleBeeWorker/1.0" },
+      });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const text = String(payload.extract || "").replace(/\s+/g, " ").trim();
+      if (text) return text.slice(0, 900);
+    } catch (_) {}
+  }
+  return "";
+}
+
+function pbCommonKnowledgeReply(query) {
+  // Deliberately disabled: fixed seed facts made Purple Bee feel canned.
+  // Knowledge requests should go through dynamic retrieval first.
+  return "";
+}
+
+function pbExplorationReply(query) {
+  const raw = pbNormalize(query);
+  const topic = raw
+    .replace(/[?？!！]/g, " ")
+    .replace(/(탐구해줘|탐구해|탐구|분석해줘|분석해|분석|알려줘|설명해줘|에\s*대해|에\s*대한|좀|자세히|깊게)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "그 주제";
+  const topicWithObject = `${topic}${pbParticle(topic, "을", "를")}`;
+  return [
+    `${topicWithObject} 탐구하려면 먼저 “무엇이 문제인지”와 “어떤 기준으로 판단할지”를 나누는 게 좋습니다.`,
+    "",
+    "핵심은 보통 세 갈래로 볼 수 있어요.",
+    "",
+    `1. 사실: ${topic}에서 실제로 어떤 일이 일어나는가`,
+    "2. 가치: 누구의 이익, 권리, 안전, 자유가 충돌하는가",
+    "3. 판단: 어떤 선택이 더 책임 있고 지속 가능한가",
+    "",
+    "이렇게 나누면 감정적인 찬반보다 훨씬 또렷하게 볼 수 있습니다. 원하면 제가 찬성/반대 논거, 실제 사례, 결론 초안 순서로 이어서 정리해드릴게요.",
+  ].join("\n");
+}
+
+function pbExtractAetherTopic(query) {
+  const raw = pbNormalize(query);
+  const cleaned = raw
+    .replace(/[?？!！]/g, " ")
+    .replace(/(그럼|일단|이제|좀|제발|바로|진짜|혹시|그러면|나는|내가|우리|너|ai|AI)/gi, " ")
+    .replace(/(뭐야|뭔지|무엇|알아|알려줘|설명해줘|설명|해석해줘|해석|탐구해줘|탐구|분석해줘|분석|왜|어째서|어떻게|방법|순서|추천|비교|차이|높이는|높여|높이|올리는|올려|낮추는|낮춰|개선하는|개선해줘|개선|최적화|만들어줘|작성해줘|써줘|고쳐줘|수정해줘|고쳐|수정|실패해|실패|자꾸|검색해줘|검색|찾아줘|찾아|말해줘|말해)/gi, " ")
+    .replace(/(에\s*대해|에\s*대한|에\s*관해|에\s*관한|쪽으로|관련해서|기준으로)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/(이|가|은|는|을|를|랑|와|과|도|만|부터|까지)$/g, "")
+    .trim();
+  if (cleaned) return pbNormalizeKnowledgeTopic(cleaned.slice(0, 80));
+  const topic = pbExtractTopic(raw);
+  if (topic) return topic;
+  const words = raw.match(/[A-Za-z0-9가-힣+#._-]{2,}/g) || [];
+  return words.length ? pbNormalizeKnowledgeTopic(words.slice(0, 4).join(" ")) : "그 주제";
+}
+
+function pbInferStyle(query) {
+  const raw = String(query || "");
+  if (/(짧게|간단|요약|핵심만|한줄|한 줄)/i.test(raw)) return "concise";
+  if (/(쉽게|초등|어린|친근|비유|예시|일상적으로)/i.test(raw)) return "easy";
+  if (/(자세히|깊게|탐구|분석|원리|배경|전문)/i.test(raw)) return "detailed";
+  if (/(코드|기술|개발|수식|논문|공식|엔진|아키텍처)/i.test(raw)) return "technical";
+  return "default";
+}
+
+function pbAdaptiveAetherReply(query, history = []) {
+  const raw = pbNormalize(query);
+  const topic = pbExtractAetherTopic(raw);
+  const style = pbInferStyle(raw);
+  const topicObject = `${topic}${pbParticle(topic, "을", "를")}`;
+  const topicTopic = `${topic}${pbParticle(topic, "은", "는")}`;
+
+  if (/^(아니|그게\s*아니|아닌데|다시|틀렸|이상|제대로)/i.test(raw)) {
+    return pbPick([
+      "맞아요. 방금 답은 방향을 잘못 잡았어요. 이번에는 사용자가 원하는 행동을 먼저 보고, 불필요한 확인 질문 없이 바로 답하는 쪽으로 다시 맞추겠습니다.",
+      "그 지적이 맞습니다. 이전 답변은 너무 안전하게 둘러갔고, 지금 필요한 건 바로 본론으로 들어가는 답변입니다. 다시 기준을 잡고 이어갈게요.",
+      "알겠습니다. 방금 방식은 접고, 지금 문장의 의도와 맥락을 먼저 기준으로 삼겠습니다.",
+    ], raw);
+  }
+
+  if (/(왜|원인|이유|어째서)/i.test(raw)) {
+    return [
+      "지금 현상의 원인을 보려면 겉으로 보이는 증상과 실제로 영향을 주는 조건을 나눠야 합니다.",
+      "",
+      "먼저 확인할 것은 세 가지예요.",
+      "",
+      "1. 언제부터 같은 현상이 반복됐는지",
+      "2. 반복되는 조건이 있는지",
+      "3. 바꾸면 바로 달라지는 요소가 있는지",
+      "",
+      "이렇게 보면 단순한 느낌이 아니라 확인 가능한 원인 후보로 좁혀집니다.",
+    ].join("\n");
+  }
+
+  if (/(어떻게|방법|순서|절차|하는법|하는 법)/i.test(raw)) {
+    let action = "진행하려면";
+    if (/(고쳐|수정|오류|버그|문제)/i.test(raw)) action = "고치려면";
+    else if (/(높|올리|개선|최적|효율)/i.test(raw)) action = "개선하려면";
+    if (style === "concise") return `${topicObject} ${action} 목표를 작게 나누고, 첫 단계부터 실행해 확인하면 됩니다. 핵심은 한 번에 완성하려 하지 않는 거예요.`;
+    return [
+      `${topicObject} ${action} 이렇게 가는 게 가장 안정적입니다.`,
+      "",
+      "1. 먼저 원하는 결과를 한 문장으로 정합니다.",
+      "2. 지금 가진 자료나 조건을 확인합니다.",
+      "3. 가장 작은 실행 단계를 하나 고릅니다.",
+      "4. 실행 결과를 보고 다음 단계를 조정합니다.",
+      "",
+      "이 방식은 막연한 계획보다 실패 지점을 빨리 찾을 수 있어서 실제 작업에 강합니다.",
+    ].join("\n");
+  }
+
+  if (/(비교|차이|vs|장단점)/i.test(raw)) {
+    return [
+      `${topicObject} 비교할 때는 단순히 어느 쪽이 좋다고 보기보다 기준을 먼저 정해야 합니다.`,
+      "",
+      "- 성능이나 효율을 볼 것인지",
+      "- 안정성과 유지보수를 볼 것인지",
+      "- 비용과 접근성을 볼 것인지",
+      "- 장기적으로 확장 가능한지를 볼 것인지",
+      "",
+      "기준을 정하면 답이 훨씬 또렷해집니다. 비교 대상 두 개를 알려주면 표처럼 정리해드릴게요.",
+    ].join("\n");
+  }
+
+  if (/(추천|골라|선택|뭐가\s*좋)/i.test(raw)) {
+    return `${topic} 선택은 목적에 따라 달라집니다. 일반적으로는 안정성, 사용 편의성, 비용, 확장성 순서로 보는 게 좋아요. 지금 당장 실패가 적은 선택을 원하면 보수적인 쪽을, 빠른 실험을 원하면 가볍게 시작할 수 있는 쪽이 맞습니다.`;
+  }
+
+  if (/(요약|정리|핵심)/i.test(raw)) {
+    return [
+      `${topicObject} 정리할 때는 문장을 줄이는 것보다 핵심 구조를 남기는 게 중요합니다.`,
+      "",
+      "- 주장: 결국 무엇을 말하는가",
+      "- 근거: 왜 그렇게 말하는가",
+      "- 조건: 언제 맞고 언제 틀릴 수 있는가",
+      "- 다음 행동: 그래서 무엇을 하면 되는가",
+      "",
+      "자료를 붙여주면 이 기준으로 바로 압축해드릴게요.",
+    ].join("\n");
+  }
+
+  if (/(만들|작성|써줘|초안|문장|글|코드|수정|고쳐)/i.test(raw)) {
+    return [
+      `${topicObject} 만들거나 고치려면 먼저 결과물의 형태를 정해야 합니다.`,
+      "",
+      "- 초안 작성: 빈 상태에서 구조부터 잡기",
+      "- 문제 수정: 오류 원인과 수정 위치 찾기",
+      "- 품질 개선: 더 자연스럽고 안정적인 형태로 다듬기",
+      "",
+      "코드나 문장을 보내주면 바로 손볼 수 있는 단위로 나눠서 이어가겠습니다.",
+    ].join("\n");
+  }
+
+  if (raw.length <= 18 && !/\s/.test(raw)) {
+    return `${topicTopic} 지금 단어만 보면 하나의 주제로 볼 수 있습니다.\n\n먼저 큰 뜻을 잡고, 그다음 맥락에 맞춰 좁히는 게 좋아요. 일상적인 의미, 전문적인 의미, 예시 중심 설명 중에서 지금은 일상적인 큰 그림부터 잡는 방식이 가장 자연스럽습니다.`;
+  }
+
+  const contextHint = Array.isArray(history) && history.length ? "방금 흐름도 참고해서 말하면, " : "";
+  return pbPick([
+    `${contextHint}${raw}에 대해 바로 이어서 말하면, 핵심은 먼저 의도를 잡고 그에 맞는 답변 형태를 고르는 것입니다. 지금 문장은 설명, 판단, 실행 제안 중 하나로 확장될 수 있어요.`,
+    `${contextHint}${raw}은 단순히 한 문장으로 끊기보다 맥락을 보고 답하는 게 맞습니다. 먼저 핵심을 잡고, 필요한 경우 근거와 예시를 붙여서 이해하기 쉬운 형태로 풀어가겠습니다.`,
+    `${contextHint}좋아요. ${raw}은 지금 대화에서 바로 다룰 수 있는 주제입니다. 먼저 큰 그림을 잡고, 너무 모호한 부분은 답변 안에서 자연스럽게 좁혀가겠습니다.`,
+  ], raw);
+}
+
+function pbKnowledgeReply(topic, summary, query) {
+  const subject = String(topic || "").trim();
+  const body = String(summary || "").replace(/\s+/g, " ").trim();
+  const topicParticle = `${subject}${pbParticle(subject, "은", "는")}`;
+  const objectParticle = `${subject}${pbParticle(subject, "을", "를")}`;
+  const stripped = pbStripSubject(pbFirstSentences(body, 2), subject);
+  const compactBody = pbFirstSentences(body, 4);
+  if (/(짧게|간단|핵심만|한 줄|한줄)/i.test(query)) {
+    return pbPick([
+      `${topicParticle} ${stripped}`,
+      `핵심만 보면 ${topicParticle} ${stripped}`,
+      `짧게 정리하면 ${subject}: ${stripped}`,
+    ], `${query}:${body.length}`);
+  }
+  if (/(쉽게|친근|비유|예시|일상)/i.test(query)) {
+    return pbPick([
+      `쉽게 말하면 ${topicParticle} ${stripped}\n\n딱 정의만 외우기보다, 실제로 어디에서 보고 쓰는지까지 같이 보면 훨씬 자연스럽게 잡혀요.`,
+      `${objectParticle} 편하게 풀면 이래요. ${stripped}\n\n예시를 붙이면 더 쉬운데, 지금은 먼저 큰 뜻부터 잡으면 됩니다.`,
+      `일상적으로 말하면 ${topicParticle} ${stripped}\n\n너무 어렵게 볼 필요 없이 “무엇이고 어떤 상황에서 쓰이는가”를 같이 보면 돼요.`,
+    ], `${query}:${body.length}`);
+  }
+  return pbPick([
+    `${subject}에 대해 바로 말하면, ${stripped}${pbShouldAppendCompact(stripped, compactBody) ? `\n\n조금 더 풀면 ${compactBody}` : ""}`,
+    `${topicParticle} 기본적으로 ${stripped}\n\n중요한 건 단어의 정의만 보는 게 아니라, 실제로 어디에 쓰이고 어떤 맥락에서 말하는지도 같이 보는 거예요.`,
+    `먼저 큰 그림부터 보면, ${topicParticle} ${stripped}\n\n필요하면 이걸 더 쉬운 예시나 전문적인 배경 설명으로 이어서 풀 수 있습니다.`,
+    `${objectParticle} 설명하면 이렇게 정리됩니다. ${stripped}\n\n한 문장으로 끝내기보다 핵심 뜻과 쓰임을 같이 보면 더 자연스럽게 이해됩니다.`,
+  ], `${query}:${body.length}`);
+}
+
+function pbStripSubject(text, subject) {
+  const escaped = String(subject || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return String(text || "").replace(new RegExp(`^${escaped}(?:\\([^)]*\\))?\\s*(?:은|는|이|가|란|이라는|이란)\\s*`, "i"), "").trim();
+}
+
+function pbFirstSentences(text, maxCount = 2) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  const parts = normalized.match(/[^.!?。！？]+[.!?。！？]?/g) || [normalized];
+  return parts.slice(0, maxCount).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function pbShouldAppendCompact(shortText, compactText) {
+  const short = String(shortText || "").replace(/\s+/g, " ").trim();
+  const compact = String(compactText || "").replace(/\s+/g, " ").trim();
+  if (!short || !compact) return false;
+  if (compact.includes(short) || short.includes(compact)) return false;
+  return compact.length > short.length + 24;
+}
+
+function pbHealthReply(query) {
+  const serious = /(심장|가슴|흉통|숨참|식은땀|어지럼|20분|반복|3일|며칠|응급)/i.test(query);
+  if (serious) {
+    return [
+      "이건 가볍게 넘기면 안 되는 패턴입니다.",
+      "",
+      "가슴이나 심장 쪽 통증이 반복되거나 20분 이상 이어진다면 단순 근육통일 수도 있지만, 협심증 같은 심혈관 문제도 배제하면 안 됩니다.",
+      "",
+      "바로 진료를 고려해야 하는 신호는 다음과 같습니다.",
+      "- 쥐어짜는 느낌이나 강한 압박감",
+      "- 왼쪽 팔, 턱, 등으로 퍼지는 통증",
+      "- 숨참, 식은땀, 어지럼, 의식 저하",
+      "- 가만히 있어도 지속되는 통증",
+      "",
+      "이 중 하나라도 있으면 응급 진료를 권합니다. 증상이 멈췄더라도 반복된다면 내과나 심장내과에서 심전도와 혈액검사를 확인하는 편이 안전합니다.",
+    ].join("\n");
+  }
+  return "건강 증상은 먼저 위험 신호부터 확인하는 게 안전합니다. 통증 위치, 지속 시간, 움직임이나 호흡과의 관계, 동반 증상을 알려주면 더 안전하게 정리해드릴게요.";
+}
+
+async function pbWeatherReply(query) {
+  const match = String(query || "").match(/([가-힣A-Za-z]{2,20})\s*(날씨|weather)/i);
+  const place = match ? match[1] : "";
+  if (!place) return "";
+  try {
+    const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(place)}&count=1&language=ko&format=json`);
+    if (!geo.ok) return "";
+    const geoPayload = await geo.json();
+    const first = Array.isArray(geoPayload.results) ? geoPayload.results[0] : null;
+    if (!first) return "";
+    const weather = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${first.latitude}&longitude=${first.longitude}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1`);
+    if (!weather.ok) return "";
+    const payload = await weather.json();
+    const current = payload.current || {};
+    const daily = payload.daily || {};
+    const max = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[0] : null;
+    const min = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[0] : null;
+    const rain = Array.isArray(daily.precipitation_probability_max) ? daily.precipitation_probability_max[0] : null;
+    return `${place} 기준으로 지금 확인한 날씨예요.\n\n- 현재 ${pbNumber(current.temperature_2m)}°C, 체감 ${pbNumber(current.apparent_temperature)}°C\n- 바람 ${pbNumber(current.wind_speed_10m)}km/h\n- 오늘 예상 최저 ${pbNumber(min)}°C / 최고 ${pbNumber(max)}°C\n- 오늘 강수확률 최대 ${pbNumber(rain)}%`;
+  } catch (_) {
+    return "";
+  }
+}
+
+function pbNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? String(Math.round(n * 10) / 10) : "?";
+}
+
+function pbGeneralReply(query, history = []) {
+  const recent = Array.isArray(history) ? history.filter((item) => item && item.role === "user").slice(-2) : [];
+  const contextHint = recent.length ? "방금 흐름도 참고해서 말하면, " : "";
+  return pbPick([
+    `${contextHint}${query}에 대해서는 먼저 핵심을 작게 잡는 게 좋아요. 지금 문장만 보면 정보 요청인지, 의견을 원하는지, 실행을 원하는지 중 하나로 이어질 수 있습니다. 원하는 방향을 말해주면 그쪽으로 바로 깊게 답하겠습니다.`,
+    `${contextHint}지금 질문은 바로 이어서 다룰 수 있어요. 제가 먼저 가능한 해석을 잡고, 모호한 부분은 최소한만 확인하면서 답을 좁혀가겠습니다.`,
+    `${contextHint}좋아요. 이건 너무 형식적으로 나누기보다, 사용자가 지금 얻고 싶은 결과를 먼저 맞추는 게 중요합니다. 설명, 비교, 해결 순서 중 원하는 방식으로 이어갈 수 있어요.`,
+  ], query);
+}
+
+function pbLastAssistantText(history = []) {
+  if (!Array.isArray(history)) return "";
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const item = history[i];
+    if (item && item.role === "assistant") return String(item.content || item.text || "").trim();
+  }
+  return "";
+}
+
+function pbLastUserText(history = []) {
+  if (!Array.isArray(history)) return "";
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const item = history[i];
+    if (item && item.role === "user") return String(item.content || item.text || "").trim();
+  }
+  return "";
+}
+
+function pbRepairReply(query, history = []) {
+  const raw = pbNormalize(query);
+  const lastAssistant = pbLastAssistantText(history);
+  const lastUser = pbLastUserText(history);
+  const wantsNatural = /(자연스럽|친근|편하게|말투|다시\s*말|쉽게)/i.test(raw);
+  if (wantsNatural && lastAssistant) {
+    const topic = pbExtractTopic(lastUser) || pbExtractAetherTopic(lastUser) || "그 내용";
+    return pbPick([
+      `좋아요. 더 자연스럽게 말하면, ${topic}${pbParticle(topic, "은", "는")} 딱딱한 정의보다 “무엇이고 왜 중요한지”를 같이 보면 이해가 쉬워요. 방금 답은 설명이 너무 기계적이었으니, 다음부터는 먼저 쉬운 말로 풀고 필요한 근거만 붙이겠습니다.`,
+      `응, 그 답은 너무 설명문처럼 들렸어요. 더 편하게 바꾸면 “${topic}${pbParticle(topic, "은", "는")} 이런 의미이고, 실제로는 이런 상황에서 쓰인다”처럼 맥락부터 잡아주는 게 맞습니다.`,
+      `맞아요. 방금 답은 정보는 있어도 말맛이 부족했어요. 앞으로는 ${topic}${pbParticle(topic, "을", "를")} 설명할 때 정의만 던지지 않고, 예시와 사용 맥락까지 붙여서 자연스럽게 이어갈게요.`,
+    ], `${raw}:${lastAssistant.length}:${history.length}`);
+  }
+  return pbPick([
+    "맞아요. 방금 답은 의도를 너무 좁게 잡았어요. 이번에는 네가 틀렸다고 느낀 지점을 기준으로 다시 맞춰볼게요.",
+    "알겠어요. 이전 답은 접고, 지금 말한 기준을 우선으로 두겠습니다.",
+    "좋아요. 그 방향이 아니었다면 답변 방식을 바꿔야 해요. 원하는 톤이나 목적을 바로 이어서 반영할게요.",
+  ], `${raw}:${Array.isArray(history) ? history.length : 0}`);
+}
+
+function pbMetaQualityReply(query) {
+  const raw = pbNormalize(query);
+  if (!/(고정|반복|똑같|품질|답변|기계적|자연스럽)/i.test(raw)) return "";
+  return [
+    "맞아요. 이 증상은 모델이 스스로 문장을 끝까지 생성하기보다, 중간 안전망 문장이 먼저 응답을 차지할 때 생깁니다.",
+    "",
+    "그래서 지금은 답변 경로를 이렇게 바꾸는 게 맞습니다.",
+    "",
+    "1. 먼저 실제 모델 또는 동적 지식 조회가 답하게 합니다.",
+    "2. 고정 문장은 실패를 숨기는 용도가 아니라 오류를 알려주는 최소 장치로만 둡니다.",
+    "3. 같은 질문이 반복되면 이전 답변을 그대로 쓰지 말고, 말투와 초점을 바꿔 다시 생성합니다.",
+    "",
+    "즉 문제는 질문이 아니라 응답 파이프라인의 우선순위입니다. 고정 문장이 앞에 있으면 AI처럼 보일 수 없어요.",
+  ].join("\n");
+}
+
+function buildPbxReplyResponse(reply, streaming, corsH, mode = "aether-nexus") {
+  const text = String(reply || "").trim() || "지금 응답을 완성하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
+  if (streaming) {
+    const enc = new TextEncoder();
+    const words = text.split(/\s+/).filter(Boolean);
+    const stream = new ReadableStream({
+      start(controller) {
+        let chunk = [];
+        for (const word of words) {
+          chunk.push(word);
+          if (chunk.length >= 5) {
+            controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: `${chunk.join(" ")} ` })}\n\n`));
+            chunk = [];
+          }
+        }
+        if (chunk.length) {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk: chunk.join(" ") })}\n\n`));
+        }
+        controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: text, ok: true, mode })}\n\n`));
+        controller.close();
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        ...corsH,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  }
+  return new Response(JSON.stringify({ ok: true, reply: text, mode }), {
+    status: 200,
+    headers: { ...corsH, "Content-Type": "application/json" },
+  });
+}
+
+async function buildAetherWorkerReply(query, history = []) {
+  const raw = normalizeUserQuery(query);
+  const q = raw.toLowerCase();
+  const intent = classifyAetherIntent(raw, history);
+  if (!raw) return "메시지가 비어 있어요. 한 문장만 적어주시면 바로 이어서 볼게요.";
+  if (intent.kind === "greeting") {
+    return pickVariant([
+      "안녕하세요. 지금 궁금한 걸 편하게 말해 주세요. 짧게 던져도 의도부터 잡아서 이어가볼게요.",
+      "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
+      "반가워요. 대화든 작업이든 지금 필요한 쪽으로 바로 맞춰볼게요.",
+      "안녕하세요. 가볍게 시작해도 좋고, 바로 본론으로 들어가도 좋아요.",
+    ]);
+  }
+  if (intent.kind === "casual") {
+    return buildCasualReply(raw);
+  }
+  if (intent.kind === "health_safety") {
+    return buildHealthSafetyReply(raw);
+  }
+  if (/(aether|nexus|넥서스|에테르|구조|아키텍처|프로젝트|요약)/i.test(raw)) {
+    return [
+      "Aether-Nexus는 Purple Bee를 고정 답변 생성기가 아니라 구조형 지능 커널로 바꾸기 위한 실행 방향입니다.",
+      "",
+      "- 자연어를 의도, 조건, 상태, 사건, 원인 관계로 분해합니다.",
+      "- 사용자 자료와 대화는 그대로 쌓지 않고 가치 있는 조각만 기억 후보로 승격합니다.",
+      "- 관리자는 학습 후보를 검토해 버전을 만들고 배포하며, 새 버전은 다시 다음 학습의 출발점이 됩니다.",
+      "- 답변은 먼저 직접적으로 하고, 필요한 경우에만 근거와 다음 행동을 붙입니다.",
+    ].join("\n");
+  }
+  if (intent.kind === "explore") {
+    return buildExplorationReply(intent.topic || raw, raw);
+  }
+  const definitionTopic = normalizeKnowledgeTopic(extractDefinitionTopic(raw));
+  if (definitionTopic) {
+    const summary = await fetchWikipediaSummary(definitionTopic);
+    if (summary) {
+      return formatKnowledgeReply(definitionTopic, summary, raw);
+    }
+  }
+  if (/(날씨|weather)/i.test(raw)) {
+    const weather = await tryBuildWeatherReply(raw);
+    if (weather) return weather;
+  }
+  if (/(코드|코딩|python|파이썬|오류|error|bug|버그)/i.test(raw)) {
+    return "코드나 에러 로그를 보내주시면 증상, 가능한 원인, 바로 확인할 순서로 나눠서 정리하겠습니다.";
+  }
+  if (/(뭐 할 수 있어|무엇을 할 수|할 수 있어|can you do)/i.test(raw)) {
+    return "질문 답변, 문서 요약, 코드와 오류 분석, 아이디어 정리, 대화 맥락 기반 정리를 도와드릴 수 있습니다. 지금 하고 싶은 일을 한 줄로 말해 주세요.";
+  }
+  if (/(아니야|그게 아니|다시|아닌데)/i.test(raw)) {
+    const recent = Array.isArray(history) ? history.slice(-4).map((item) => String(item?.content || "")).filter(Boolean) : [];
+    const previous = recent.length ? ` 방금 흐름은 "${recent[recent.length - 1].slice(0, 80)}" 쪽으로 보고 다시 잡겠습니다.` : "";
+    return `알겠습니다.${previous} 원하는 기준을 한 줄만 더 주시면 그 방향으로 바로 정리하겠습니다.`;
+  }
+  return [
+    buildDirectLead(raw),
+    "",
+    buildGeneralNaturalAnswer(raw, intent),
+  ].join("\n");
+}
+
+function pickVariant(items) {
+  const list = (items || []).map((item) => String(item || "").trim()).filter(Boolean);
+  if (!list.length) return "";
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function normalizeUserQuery(query) {
+  return String(query || "")
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .replace(/뭐ㅑ|머야|뭐임|모야/g, "뭐야")
+    .replace(/알려조|알려저|알려쥬/g, "알려줘")
+    .replace(/됌/g, "됨")
+    .replace(/안되/g, "안 돼")
+    .replace(/([가-힣])\\1{3,}/g, "$1$1")
+    .trim();
+}
+
+function classifyAetherIntent(query, history = []) {
+  const raw = String(query || "").trim();
+  const lowered = raw.toLowerCase();
+  if (!raw) return { kind: "empty", confidence: 1 };
+  if (/^(안녕+|하이+|hello|hi|hey)[!?.…\s]*$/i.test(raw)) return { kind: "greeting", confidence: 0.98 };
+  if (/(심장|가슴|흉통|숨\s*쉬|호흡|어지럽|식은땀|피\s*나|자살|죽고\s*싶|응급|통증|아퍼|아파|아픔|병원)/i.test(raw)) {
+    return { kind: "health_safety", confidence: 0.86 };
+  }
+  if (/(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분)/i.test(raw)) return { kind: "casual", confidence: 0.8 };
+  if (/(탐구|분석|토론|고찰|윤리|철학|사회문제|문제에\s*대해|쟁점|관점)/i.test(raw)) {
+    return { kind: "explore", topic: extractDefinitionTopic(raw) || raw, confidence: 0.82 };
+  }
+  if (/(요약|정리|핵심)/i.test(raw)) return { kind: "summarize", confidence: 0.75 };
+  if (/(만들|작성|써줘|초안|문장|글|코드|수정|고쳐)/i.test(raw)) return { kind: "create_or_fix", confidence: 0.75 };
+  if (extractDefinitionTopic(raw)) return { kind: "knowledge", topic: extractDefinitionTopic(raw), confidence: 0.72 };
+  return { kind: "general", confidence: 0.5 };
+}
+
+function cleanKoreanTopic(topic) {
+  return String(topic || "").trim().replace(/(이|가|은|는|을|를|란|이라는|라는)$/u, "");
+}
+
+function inferAnswerStyle(query) {
+  const raw = String(query || "");
+  if (/(짧게|간단|요약|핵심만|한줄|한 줄)/i.test(raw)) return "concise";
+  if (/(쉽게|초등|어린|친근|비유|예시|일상적으로)/i.test(raw)) return "easy";
+  if (/(자세히|깊게|탐구|분석|원리|배경|전문)/i.test(raw)) return "detailed";
+  if (/(코드|기술|개발|수식|논문|공식|엔진|아키텍처)/i.test(raw)) return "technical";
+  return "default";
+}
+
+function firstSentence(text) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  const match = normalized.match(/^(.+?[.!?。！？])\s/);
+  return (match ? match[1] : normalized).slice(0, 260).trim();
+}
+
+function formatKnowledgeReply(topic, summary, query) {
+  const subject = cleanKoreanTopic(topic);
+  const body = String(summary || "").replace(/\s+/g, " ").trim();
+  const short = stripSubjectPrefix(firstSentence(body), subject);
+  const style = inferAnswerStyle(query);
+
+  if (style === "concise") {
+    return pickVariant([
+      `${subject}은 ${short}`,
+      `짧게 보면 ${subject}은 ${short}`,
+      `핵심만 말하면, ${subject}은 ${short}`,
+    ]);
+  }
+  if (style === "easy") {
+    const lead = pickVariant([
+      `쉽게 말하면, ${subject}은 ${short}`,
+      `${subject}을 아주 편하게 풀면, ${short}`,
+      `일상적인 말로 바꾸면 ${subject}은 ${short}`,
+    ]);
+    const tail = pickVariant([
+      "처음에는 정의보다 “어디에 쓰이고 왜 중요한지”를 같이 보면 훨씬 빨리 잡혀요.",
+      "비유로 더 풀어달라고 하면 더 쉬운 예시로 이어서 설명할게요.",
+      "지금은 큰 그림만 잡고, 원하면 예시나 원리 쪽으로 더 내려갈 수 있어요.",
+    ]);
+    return `${lead}\n\n${tail}`;
+  }
+  if (style === "detailed" || style === "technical") {
+    const lead = pickVariant([
+      `${subject}에 대해 조금 체계적으로 정리해볼게요.`,
+      `${subject}은 개념, 배경, 실제 쓰임을 나눠서 보면 선명해집니다.`,
+      `${subject}을 깊게 보려면 먼저 정의와 맥락을 분리하는 게 좋아요.`,
+    ]);
+    const tail = pickVariant([
+      "더 깊게 들어가면 역사, 구조, 실제 사례 순서로 확장하면 됩니다.",
+      "다음 단계로는 원리, 장단점, 실제 사례를 비교해보면 이해가 단단해져요.",
+      "필요하면 이 내용을 시험용 요약, 발표용 설명, 개발자 관점 설명으로 다시 바꿔드릴 수 있어요.",
+    ]);
+    return [
+      lead,
+      "",
+      body,
+      "",
+      tail,
+    ].join("\n");
+  }
+  const lead = pickVariant([
+    `${subject}은 이렇게 이해하면 됩니다.`,
+    `${subject}을 한 번 자연스럽게 풀어보면 이렇습니다.`,
+    `${subject}에 대해 바로 말하면 이렇습니다.`,
+  ]);
+  const tail = pickVariant([
+    "짧게 말하면, 먼저 핵심 개념을 잡고 그다음 쓰임과 예시를 연결하면 이해하기 쉽습니다.",
+    "원하면 이어서 더 쉽게, 더 전문적으로, 또는 예시 중심으로 바꿔서 설명할 수 있어요.",
+    "지금 답은 큰 틀이고, 더 알고 싶은 방향을 말하면 그쪽으로 깊게 이어가겠습니다.",
+  ]);
+  return [
+    lead,
+    "",
+    body,
+    "",
+    tail,
+  ].join("\n");
+}
+
+function stripSubjectPrefix(text, subject) {
+  let value = String(text || "").trim();
+  const cleanSubject = String(subject || "").trim();
+  if (!value || !cleanSubject) return value;
+  const escaped = cleanSubject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  value = value.replace(new RegExp(`^${escaped}(?:\\([^)]*\\))?\\s*(?:은|는|이|가|란|이라는|이란)\\s*`, "i"), "");
+  return value.trim() || String(text || "").trim();
+}
+
+function buildDirectLead(query) {
+  const raw = String(query || "").trim();
+  const style = inferAnswerStyle(raw);
+  if (style === "easy") return pickVariant([`${raw}에 대해 쉽게 풀어서 말해볼게요.`, `${raw}을 편한 말로 바꿔서 설명해볼게요.`]);
+  if (style === "detailed") return pickVariant([`${raw}에 대해 조금 깊게 나눠서 보겠습니다.`, `${raw}은 기준을 나눠서 보면 더 선명해집니다.`]);
+  if (style === "technical") return pickVariant([`${raw}을 기술적인 기준으로 정리하겠습니다.`, `${raw}은 구조와 동작 기준으로 먼저 보겠습니다.`]);
+  if (style === "concise") return pickVariant([`${raw}의 핵심만 짧게 말하면 이렇습니다.`, `${raw}은 핵심만 잡으면 간단합니다.`]);
+  return pickVariant([`${raw}에 대해 바로 답하겠습니다.`, `${raw}을 지금 문맥 기준으로 먼저 정리해볼게요.`, `${raw}은 이렇게 접근하면 좋겠습니다.`]);
+}
+
+function buildCasualReply(query) {
+  if (/(우리\s*뭐|뭐\s*할까|뭐\s*할래)/i.test(query)) {
+    return pickVariant([
+      "좋아요. 지금은 가볍게 잡담을 이어가도 되고, 막힌 문제를 같이 풀어도 되고, 아이디어 하나 잡아서 바로 만들어봐도 좋아요. 오늘 컨디션이 어떤 쪽인지부터 맞춰볼게요.",
+      "우리라면 세 가지가 괜찮겠어요. 머리 식히는 대화, 지금 프로젝트 점검, 아니면 작은 기능 하나 바로 만들기. 저는 지금 흐름상 프로젝트 점검이 제일 실속 있어 보여요.",
+      "좋아요. 너무 거창하게 시작하지 말고, 지금 가장 신경 쓰이는 것 하나만 꺼내서 같이 정리해봐요. 대화든 코드든 거기서 자연스럽게 이어가면 됩니다.",
+    ]);
+  }
+  if (/(뭐해|하고\s*있어)/i.test(query)) {
+    return pickVariant([
+      "지금은 네가 보낸 말을 보고 의도부터 잡고 있어요. 짧은 말이면 맥락을 이어보고, 중요한 말이면 먼저 위험도나 목적을 분리해서 답하려고 해요.",
+      "나는 지금 대화 흐름을 정리하는 중이에요. 그냥 잡담이면 편하게 받고, 작업 얘기면 바로 다음 행동으로 바꿔볼게요.",
+      "지금은 대기하면서 네 다음 말을 받을 준비 중이에요. 한 줄만 던져도 맥락을 이어서 같이 잡아볼게요.",
+    ]);
+  }
+  if (/(심심|잡담|놀자|대화)/i.test(query)) {
+    return pickVariant([
+      "그럼 가볍게 가볼까요. 요즘 머릿속에 제일 많이 맴도는 게 프로젝트인지, 게임인지, 아니면 그냥 쉬고 싶은 건지부터 하나만 골라봐요.",
+      "좋아요. 잡담 모드로 가면 너무 딱딱하게 굴지 않고 편하게 이어갈게요. 오늘 기분을 색깔로 치면 어떤 쪽이에요?",
+      "그럼 잠깐 숨 돌리는 대화로 가죠. 요즘 제일 신경 쓰이는 일 하나만 말해줘도 거기서 자연스럽게 풀어볼게요.",
+    ]);
+  }
+  return pickVariant([
+    "좋아요. 편하게 이어가요. 지금 말한 흐름에서 제일 자연스러운 다음 질문을 같이 잡아볼게요.",
+    "알겠어요. 너무 틀에 맞추지 않고, 지금 말의 뉘앙스를 기준으로 이어가볼게요.",
+    "좋습니다. 방금 말은 그대로 받고, 필요한 만큼만 정리해서 이어갈게요.",
+  ]);
+}
+
+function buildHealthSafetyReply(query) {
+  const raw = String(query || "");
+  const chestLike = /(심장|가슴|흉통|왼쪽\s*가슴|명치|숨\s*쉬|호흡)/i.test(raw);
+  const repeated = /(3일|사흘|며칠|반복|비슷한\s*시간|20분|오래|계속)/i.test(raw);
+  const redFlags = /(식은땀|숨\s*참|호흡곤란|어지럼|실신|턱|팔|등으로|압박|쥐어짜|가만히\s*있어도)/i.test(raw);
+
+  if (chestLike && (repeated || redFlags)) {
+    return [
+      "이건 가볍게 넘기면 안 되는 패턴입니다.",
+      "",
+      "심장 쪽이나 가슴 통증이 반복되거나 20분 이상 지속된다면 단순 근육통일 수도 있지만, 협심증 같은 심혈관 문제도 배제하면 안 됩니다.",
+      "",
+      "바로 병원 또는 응급실을 고려해야 하는 신호는 다음과 같습니다.",
+      "",
+      "- 쥐어짜는 느낌이나 강한 압박감",
+      "- 왼쪽 팔, 턱, 등으로 퍼지는 통증",
+      "- 숨참, 식은땀, 어지럼, 실신 느낌",
+      "- 가만히 있어도 통증이 계속됨",
+      "- 비슷한 시간대에 반복되고 20분 이상 지속됨",
+      "",
+      "숨 쉬거나 움직일 때 더 아프면 근육, 갈비뼈, 흉막 쪽 가능성도 있지만, 반복되는 흉통은 한 번은 진료로 확인하는 게 안전합니다. 지금 통증이 있거나 위 신호가 하나라도 있으면 지체하지 말고 응급 진료를 받아 주세요.",
+    ].join("\n");
+  }
+
+  return [
+    "건강 관련 증상은 먼저 위험 신호부터 확인하는 게 안전합니다.",
+    "",
+    "통증이 심해지거나, 숨참/식은땀/어지럼/의식 저하/피가 남 같은 증상이 있으면 바로 진료를 받아야 합니다. 증상이 반복되거나 일상생활에 영향을 주는 정도라면 가까운 병원에서 확인하는 편이 좋습니다.",
+    "",
+    "가능하면 위치, 시작 시간, 지속 시간, 움직임이나 호흡과의 관계, 동반 증상을 같이 알려주면 더 안전하게 정리해드릴 수 있어요.",
+  ].join("\n");
+}
+
+function buildExplorationReply(topic, query) {
+  const subject = normalizeKnowledgeTopic(topic || query);
+  const style = inferAnswerStyle(query);
+  if (style === "concise") {
+    return `${subject}의 핵심은 “무엇이 옳은가”만이 아니라, 누구에게 어떤 영향이 생기고 어떤 기준으로 판단할지를 따지는 데 있습니다.`;
+  }
+  return [
+    `${subject}을 탐구하려면 먼저 기준을 나눠서 보는 게 좋습니다.`,
+    "",
+    "첫째, 가치 기준입니다. 무엇을 더 중요하게 볼지 정해야 합니다. 예를 들면 안전, 자유, 공정성, 책임, 효율 같은 기준이 서로 충돌할 수 있습니다.",
+    "",
+    "둘째, 영향 범위입니다. 어떤 선택이 개인, 주변 사람, 사회 전체에 어떤 결과를 만드는지 봐야 합니다.",
+    "",
+    "셋째, 책임의 위치입니다. 문제가 생겼을 때 누가 알고 있었고, 누가 선택했고, 누가 피해를 받는지 분리해야 판단이 흐려지지 않습니다.",
+    "",
+    "짧게 말하면, 좋은 탐구는 정답 하나를 빨리 고르는 게 아니라 기준과 결과를 분리해서 더 덜 위험하고 더 납득 가능한 결론으로 좁혀가는 과정입니다.",
+  ].join("\n");
+}
+
+function buildGeneralNaturalAnswer(query, intent) {
+  const raw = String(query || "").trim();
+  if (intent?.kind === "create_or_fix") {
+    return pickVariant([
+      "원하는 결과물의 형태를 먼저 잡고, 필요한 조건을 나눈 다음 바로 초안을 만들면 됩니다. 자료나 예시가 있으면 그 기준에 맞춰 더 정확하게 다듬을 수 있어요.",
+      "이건 먼저 목적, 형식, 제한 조건을 분리하면 바로 만들 수 있습니다. 예시가 있으면 그 톤에 맞춰서 더 자연스럽게 바꿀게요.",
+      "초안을 만들 때는 완벽한 첫 문장보다 구조가 먼저예요. 필요한 정보만 주면 뼈대부터 잡고 문장까지 다듬겠습니다.",
+    ]);
+  }
+  if (intent?.kind === "summarize") {
+    return pickVariant([
+      "핵심 주장, 근거, 다음 행동으로 나눠서 정리하면 이해하기 쉽습니다. 원문이나 자료를 붙여주면 중요한 내용만 추려서 다시 써드릴게요.",
+      "요약은 먼저 '무슨 말인지', '왜 중요한지', '다음에 뭘 해야 하는지'로 나누면 깔끔합니다. 자료를 보내주면 그 기준으로 줄여볼게요.",
+      "핵심만 남기려면 반복 표현과 배경 설명을 걷어내야 합니다. 원문을 주면 필요한 문장만 살려서 정리하겠습니다.",
+    ]);
+  }
+  return pickVariant([
+    "지금 문장은 정보 요청인지, 의견을 원하는지, 실행을 원하는지부터 나눠볼 수 있습니다. 먼저 핵심을 짧게 잡고, 필요하면 예시나 단계로 확장하는 방식이 자연스럽습니다.",
+    "이건 바로 결론부터 잡고, 부족한 부분만 질문으로 좁히는 게 좋아 보입니다. 원하면 제가 먼저 가능한 방향을 몇 가지로 나눠볼게요.",
+    "지금 말은 큰 틀에서 이해했습니다. 더 정확하게 가려면 목적, 조건, 원하는 답변 길이를 나누면 됩니다. 그래도 우선은 제가 가장 그럴듯한 방향으로 이어가볼게요.",
+  ]);
 }
 
 async function resolvePublicBackendConfig(request, env) {
@@ -438,19 +1313,43 @@ async function buildWebsiteRuntimeReplyV2(query, history) {
 function extractDefinitionTopic(query) {
   const raw = String(query || "").trim();
   if (!raw) return "";
-  if (!/(뭐|뭔|정의|설명|알아|who is|what is|tell me about|meaning)/i.test(raw)) {
+  const asksForInfo = /(뭐|뭔|정의|설명|알아|알려|해석|뜻|개념|탐구|분석|조사|who is|what is|tell me about|meaning|explain)/i.test(raw);
+  if (!asksForInfo && !isBareInformationPrompt(raw)) {
     return "";
   }
   const cleaned = raw
     .replace(/[?？!！]/g, " ")
-    .replace(/\b(이게|그게|저게|이건|그건|저건)\b/g, " ")
-    .replace(/\b(뭐야|뭔지|무엇인지|정의|설명|알아|알려줘|알려\s*줘)\b/g, " ")
-    .replace(/\b(what is|who is|tell me about|meaning of)\b/gi, " ")
+    .replace(/(이게|그게|저게|이건|그건|저건|이거|그거|저거|좀|간단히|자세히|쉽게|친근하게|전문적으로|핵심만)/g, " ")
+    .replace(/(뭐야|뭔가요|뭔지|무엇인지|정의|설명해줘|설명|알아|알려줘|알려\s*줘|해석해줘|해석|뜻|개념|탐구해줘|탐구해|탐구|분석해줘|분석해|조사해줘|조사해)/g, " ")
+    .replace(/(에\s*대해|에\s*대한|에\s*관해|에\s*관한)/g, " ")
+    .replace(/\b(what is|who is|tell me about|meaning of|explain|concise|briefly|simply|easy|detailed)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
   const parts = cleaned.split(" ").filter(Boolean);
   if (!parts.length) return "";
-  return parts[0];
+  return cleanKoreanTopic(parts.join(" ").slice(0, 80));
+}
+
+function normalizeKnowledgeTopic(topic) {
+  const raw = cleanKoreanTopic(topic).replace(/\s+/g, " ").trim();
+  if (/윤리|도덕|ethic/i.test(raw)) return "윤리";
+  if (/문학|literature/i.test(raw)) return "문학";
+  if (/역사|history/i.test(raw)) return "역사";
+  if (/철학|philosophy/i.test(raw)) return "철학";
+  if (/인공지능|AI|artificial intelligence/i.test(raw)) return "인공지능";
+  return raw;
+}
+
+function isBareInformationPrompt(query) {
+  const raw = String(query || "").trim();
+  if (!raw || raw.length > 48) return false;
+  if (/^(안녕+|하이+|hello|hi|hey|응|어|아니|ㅇㅇ|ㄴㄴ)[!?.…\s]*$/i.test(raw)) return false;
+  if (/(우리|너|나|뭐\s*할|왜|어떻게|해줘|하자|하래|하지|말해|써줘|만들|고쳐|보여|찾아|검색|날씨|시간|오늘|내일)/i.test(raw)) {
+    return false;
+  }
+  if (!/^[A-Za-z0-9가-힣\s._:+#-]+$/.test(raw)) return false;
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  return tokens.length <= 5 && tokens.some((token) => /[A-Za-z가-힣]{2,}/.test(token));
 }
 
 async function fetchWikipediaSummary(topic) {
@@ -530,6 +1429,23 @@ function isMarketingProxyPath(pathname) {
   return false;
 }
 
+function normalizeMarketingAssetPath(pathname) {
+  let path = String(pathname || "/").replace(/\/+$/, "");
+  if (!path) path = "/";
+  if (path === "/index/purple-bee") return "/ko-KR/index/purple-bee/index.html";
+  if (path.startsWith("/index/purple-bee/")) {
+    const suffix = path.replace(/^\/index\/purple-bee\/?/, "");
+    return suffix ? `/ko-KR/index/purple-bee/${suffix}/index.html` : "/ko-KR/index/purple-bee/index.html";
+  }
+  if (/^\/(ko-KR|en-US|ja-JP)\/index\/purple-bee$/.test(path)) {
+    return `${path}/index.html`;
+  }
+  if (/^\/(ko-KR|en-US|ja-JP)\/index\/purple-bee\//.test(path)) {
+    return `${path}/index.html`;
+  }
+  return `${path}/index.html`;
+}
+
 function jsonResponse(payload, status, request) {
   return new Response(JSON.stringify(payload, null, 2), {
     status,
@@ -581,44 +1497,64 @@ async function loadRuntimeConfigFromAssets(request, env) {
 
   const payload = await resolvedResponse.json();
   const runtime = payload?.runtime || {};
+  if (String(runtime.engine || "").trim().toLowerCase() === "aether-nexus") {
+    return {
+      mode: "aether-nexus",
+      familyName: String(payload.family_name || "Purple Bee"),
+      modelId: String(payload.model_id || "purple-bee-1-0"),
+      displayName: String(payload.display_name || "Purple Bee 1.0"),
+      baseModel: String(payload.base_model || "Aether-Nexus structural runtime"),
+      onnxUrl: "",
+      tokenizerUrl: "",
+      onnxDataUrl: "",
+      assetVersion: String(payload.asset_version || payload.version || "1.0").trim(),
+      metadataAssets: {},
+      providerPreference: [],
+      maxContext: Number(runtime.max_context || 4096),
+      storage: "server-aether-adapter",
+      publicBaseUrl: "",
+      runtimeOptions: {
+        ...runtime,
+        engine: "aether-nexus",
+        preparation_required: false,
+        download_required: false,
+        max_context: Number(runtime.max_context || 4096),
+      },
+      assetMap: {},
+    };
+  }
   if (String(runtime.engine || "").trim().toLowerCase() === "transformers-js") {
+    const modelRepo = String(runtime.model_repo || "").trim();
+    const revision = String(runtime.revision || "main").trim() || "main";
+    const onnxName = basenameFromUrl(String(payload?.browser_assets?.onnx || "").trim()) || "model_q4.onnx";
+    const tokenizerName = basenameFromUrl(String(payload?.browser_assets?.tokenizer || "").trim()) || "tokenizer.json";
+    const onnxDataName = basenameFromUrl(String(payload?.browser_assets?.onnx_data || "").trim()) || "";
     return {
       mode: "transformers-js",
       familyName: String(payload.family_name || "Purple Bee"),
       modelId: String(payload.model_id || "purple-bee-1-3"),
       displayName: String(payload.display_name || "Purple Bee 1.3"),
       baseModel: String(payload.base_model || "Qwen2.5-0.5B-Instruct-ONNX"),
+      onnxUrl: String(payload?.browser_assets?.onnx || "").trim(),
+      tokenizerUrl: String(payload?.browser_assets?.tokenizer || "").trim(),
+      onnxDataUrl: String(payload?.browser_assets?.onnx_data || "").trim(),
       assetVersion: String(payload.asset_version || "").trim(),
       metadataAssets: payload?.metadata_assets || {},
       providerPreference: normalizeProviderPreference(runtime.provider_preference),
       maxContext: Number(runtime.max_context || 2048),
       storage: "remote-model-repo",
       publicBaseUrl: "",
-      assetMap: buildAssetMap(
-        String(payload?.browser_assets?.onnx || ""),
-        String(payload?.browser_assets?.tokenizer || ""),
-        String(payload?.browser_assets?.onnx_data || ""),
-        payload?.metadata_assets || {},
-      ),
-      manifest: {
-        family_name: String(payload.family_name || "Purple Bee"),
-        model_id: String(payload.model_id || "purple-bee-1-3"),
-        display_name: String(payload.display_name || "Purple Bee 1.3"),
-        base_model: String(payload.base_model || "Qwen2.5-0.5B-Instruct-ONNX"),
-        asset_version: String(payload.asset_version || "").trim(),
-        metadata_assets: payload?.metadata_assets || {},
-        browser_assets: payload?.browser_assets || {},
-        runtime: {
-          ...runtime,
-          provider_preference: normalizeProviderPreference(runtime.provider_preference),
-          max_context: Number(runtime.max_context || 2048),
-          engine: "transformers-js",
-        },
-        deployment: {
-          storage: "remote-model-repo",
-          proxied: true,
-        },
+      runtimeOptions: {
+        ...runtime,
+        provider_preference: normalizeProviderPreference(runtime.provider_preference),
+        max_context: Number(runtime.max_context || 2048),
+        engine: "transformers-js",
       },
+      assetMap: buildTransformersRepoAssetMap(modelRepo, revision, {
+        onnxName,
+        tokenizerName,
+        onnxDataName,
+      }),
     };
   }
 
@@ -643,8 +1579,55 @@ async function loadRuntimeConfigFromAssets(request, env) {
     providerPreference: normalizeProviderPreference(runtime.provider_preference),
     storage: "public-object-storage",
     publicBaseUrl: deriveBaseUrl(onnxUrl),
+    runtimeOptions: {
+      ...runtime,
+      provider_preference: normalizeProviderPreference(runtime.provider_preference),
+      max_context: Number(runtime.max_context || 2048),
+      engine: String(runtime.engine || "purple-bee-onnx").trim().toLowerCase() || "purple-bee-onnx",
+    },
     assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets),
   };
+}
+
+function buildTransformersRepoAssetMap(modelRepo, revision, filenames = {}) {
+  const repo = String(modelRepo || "").trim();
+  const rev = String(revision || "main").trim() || "main";
+  const onnxName = String(filenames.onnxName || "model_q4.onnx").trim() || "model_q4.onnx";
+  const tokenizerName = String(filenames.tokenizerName || "tokenizer.json").trim() || "tokenizer.json";
+  const onnxDataName = String(filenames.onnxDataName || "").trim();
+  const map = {};
+  if (!repo) return map;
+
+  const base = `https://huggingface.co/${repo}/resolve/${rev}`;
+  const register = (key, value) => {
+    if (!key || !value) return;
+    map[key] = value;
+  };
+
+  register(onnxName, `${base}/onnx/${onnxName}`);
+  register(`onnx/${onnxName}`, `${base}/onnx/${onnxName}`);
+  register(tokenizerName, `${base}/${tokenizerName}`);
+  register("tokenizer.json", `${base}/tokenizer.json`);
+
+  if (onnxDataName) {
+    register(onnxDataName, `${base}/onnx/${onnxDataName}`);
+    register(`onnx/${onnxDataName}`, `${base}/onnx/${onnxDataName}`);
+  }
+
+  for (const metadataName of [
+    "config.json",
+    "generation_config.json",
+    "special_tokens_map.json",
+    "tokenizer_config.json",
+    "quantize_config.json",
+    "merges.txt",
+    "vocab.json",
+    "added_tokens.json",
+  ]) {
+    register(metadataName, `${base}/${metadataName}`);
+  }
+
+  return map;
 }
 
 function buildRuntimeConfigFromEnv(env) {
@@ -680,6 +1663,10 @@ function buildRuntimeConfigFromEnv(env) {
     providerPreference: normalizeProviderPreference(env.PURPLE_BEE_PROVIDER_PREFERENCE),
     storage: "public-object-storage",
     publicBaseUrl,
+    runtimeOptions: {
+      provider_preference: normalizeProviderPreference(env.PURPLE_BEE_PROVIDER_PREFERENCE),
+      max_context: 2048,
+    },
     assetMap: buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets),
   };
 }
@@ -692,14 +1679,71 @@ function buildAssetMap(onnxUrl, tokenizerUrl, onnxDataUrl, metadataAssets = {}) 
   if (onnxName) assetMap[onnxName] = onnxUrl;
   if (tokenizerName) assetMap[tokenizerName] = tokenizerUrl;
   if (onnxDataName) assetMap[onnxDataName] = onnxDataUrl;
+  if (onnxName) assetMap[`onnx/${onnxName}`] = onnxUrl;
+  if (onnxDataName) assetMap[`onnx/${onnxDataName}`] = onnxDataUrl;
+  const onnxRelativePath = relativeResolvePathFromUrl(onnxUrl);
+  const tokenizerRelativePath = relativeResolvePathFromUrl(tokenizerUrl);
+  const onnxDataRelativePath = relativeResolvePathFromUrl(onnxDataUrl);
+  if (onnxRelativePath) assetMap[onnxRelativePath] = onnxUrl;
+  if (tokenizerRelativePath) assetMap[tokenizerRelativePath] = tokenizerUrl;
+  if (onnxDataRelativePath) assetMap[onnxDataRelativePath] = onnxDataUrl;
+  if (onnxRelativePath && !assetMap[`onnx/${onnxName}`] && onnxName) {
+    assetMap[`onnx/${onnxName}`] = onnxUrl;
+  }
+  if (onnxDataRelativePath && !assetMap[`onnx/${onnxDataName}`] && onnxDataName) {
+    assetMap[`onnx/${onnxDataName}`] = onnxDataUrl;
+  }
   for (const value of Object.values(metadataAssets || {})) {
     const filename = basenameFromUrl(value);
     if (filename && value) assetMap[filename] = value;
+    const relativePath = relativeResolvePathFromUrl(value);
+    if (relativePath && value) assetMap[relativePath] = value;
   }
   return assetMap;
 }
 
+function relativeResolvePathFromUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    const marker = "/resolve/main/";
+    const pathname = String(parsed.pathname || "");
+    const index = pathname.indexOf(marker);
+    if (index >= 0) {
+      return decodeURIComponent(pathname.slice(index + marker.length));
+    }
+    return decodeURIComponent(pathname.split("/").filter(Boolean).slice(-2).join("/"));
+  } catch {
+    return "";
+  }
+}
+
 function buildBrowserManifest(request, runtimeConfig) {
+  if (String(runtimeConfig?.runtimeOptions?.engine || "").trim().toLowerCase() === "aether-nexus") {
+    return {
+      family_name: runtimeConfig.familyName || "Purple Bee",
+      model_id: runtimeConfig.modelId || "purple-bee-1-0",
+      display_name: runtimeConfig.displayName || "Purple Bee 1.0",
+      version: runtimeConfig.assetVersion || "1.0",
+      architecture_name: "Aether-Nexus Structural Intelligence Kernel",
+      base_model: runtimeConfig.baseModel || "Aether-Nexus structural runtime",
+      browser_assets: {},
+      metadata_assets: {},
+      runtime: {
+        ...(runtimeConfig.runtimeOptions || {}),
+        engine: "aether-nexus",
+        preparation_required: false,
+        download_required: false,
+        max_context: runtimeConfig.maxContext || 4096,
+      },
+      deployment: {
+        storage: runtimeConfig.storage || "server-aether-adapter",
+        public_base_url: "",
+        proxied: false,
+      },
+    };
+  }
   const origin = new URL(request.url).origin;
   const onnxName = basenameFromUrl(runtimeConfig.onnxUrl);
   const tokenizerName = basenameFromUrl(runtimeConfig.tokenizerUrl);
@@ -735,6 +1779,7 @@ function buildBrowserManifest(request, runtimeConfig) {
     },
     metadata_assets: proxiedMetadataAssets,
     runtime: {
+      ...(runtimeConfig.runtimeOptions || {}),
       provider_preference: runtimeConfig.providerPreference,
       max_context: runtimeConfig.maxContext,
     },
@@ -1051,9 +2096,25 @@ function buildPackagePlan(request, env, runtimeConfig, publicBackend = null) {
       url: `${origin}/api/runtime/assets/${encodeURIComponent(filename)}${query.toString() ? `?${query.toString()}` : ""}`,
     }));
 
+  const extraMetadataDescriptors = [
+    ["added_tokens", "added_tokens.json", "Added tokens"],
+    ["vocab", "vocab.json", "Vocabulary"],
+    ["merges", "merges.txt", "Merge rules"],
+    ["quantize_config", "quantize_config.json", "Quantization config"],
+  ]
+    .filter(([key]) => String(metadataAssets[key] || "").trim())
+    .map(([key, filename, description]) => ({
+      filename,
+      kind: "download-text",
+      required: false,
+      description,
+      url: `${origin}/api/runtime/assets/${encodeURIComponent(filename)}${query.toString() ? `?${query.toString()}` : ""}`,
+    }));
+
   return {
     ok: true,
-    install_mode: "browser-worker-runtime",
+    install_mode: "browser-runtime",
+    runtime_engine: String(runtimeConfig?.runtimeOptions?.engine || "purple-bee-onnx").trim().toLowerCase(),
     family_name: "Purple Bee",
     model_id: modelId,
     display_name: displayName,
@@ -1111,6 +2172,7 @@ function buildPackagePlan(request, env, runtimeConfig, publicBackend = null) {
         url: registryUrl,
       },
       ...metadataDescriptors,
+      ...extraMetadataDescriptors,
     ],
     generated_assets: {
       "purple-bee-endpoints.json": {
@@ -1142,6 +2204,162 @@ function buildPackagePlan(request, env, runtimeConfig, publicBackend = null) {
       ].join("\n"),
     },
   };
+}
+
+function pbBuildPbxReplyResponseStable(reply, streaming, corsH, mode = "aether-nexus") {
+  const text = String(reply || "").trim() || "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+  if (!streaming) {
+    return new Response(JSON.stringify({ ok: true, reply: text, mode }), {
+      status: 200,
+      headers: { ...corsH, "Content-Type": "application/json; charset=UTF-8" },
+    });
+  }
+  const enc = new TextEncoder();
+  const parts = text.match(/\S+\s*|\n/g) || [text];
+  const stream = new ReadableStream({
+    start(controller) {
+      let chunk = "";
+      for (const part of parts) {
+        chunk += part;
+        if (chunk.length >= 24 || part === "\n") {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+          chunk = "";
+        }
+      }
+      if (chunk) controller.enqueue(enc.encode(`data: ${JSON.stringify({ chunk })}\n\n`));
+      controller.enqueue(enc.encode(`data: ${JSON.stringify({ done: true, full: text, ok: true, mode })}\n\n`));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      ...corsH,
+      "Content-Type": "text/event-stream; charset=UTF-8",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+function pbLooksLikeFixedWebsiteReplyStable(reply) {
+  const text = String(reply || "").trim();
+  if (!text || /[�]/.test(text)) return true;
+  if (text.length < 6 && !/^(응|네|예|아니|좋아)[.!?。！？…]*$/i.test(text)) return true;
+  const brokenHangulMarkers = ["吏", "湲", "諛", "援", "蹂", "媛", "먯", "댁", "섏", "쒕"];
+  const markerCount = brokenHangulMarkers.reduce((count, marker) => count + (text.includes(marker) ? 1 : 0), 0);
+  if (markerCount >= 3) return true;
+  return [
+    "조금 더 구체적으로",
+    "한 줄만 더",
+    "답변 생성에 실패",
+    "질문은 이해했어요",
+    "원하는 기준",
+  ].some((marker) => text.includes(marker));
+}
+
+function pbWantsRewrite(raw) {
+  return /(자연스럽|친근|편하게|쉽게\s*말|다시\s*말|말투|풀어서|그거\s*말고|그게\s*아니|아니야|아닌데|틀렸|이상|제대로)/i.test(String(raw || ""));
+}
+
+function pbLanguageAbilityReply(raw) {
+  if (!/(영어|일본어|중국어|한국어|언어|번역|translate|english|japanese|chinese)/i.test(raw)) return "";
+  if (!/(할\s*줄|할줄|가능|알아|번역|말해|대화|can|speak)/i.test(raw)) return "";
+  return pbPick([
+    "네. 영어로도 대화할 수 있고, 한국어 문장을 영어로 자연스럽게 바꾸거나 영어 문장을 한국어로 풀어서 설명할 수 있어요. 원하면 같은 내용을 격식 있는 말투, 편한 말투, 발표용 문장으로도 바꿔드릴게요.",
+    "가능해요. 영어 대화, 번역, 문장 다듬기, 의미 해석까지 할 수 있습니다. 짧은 문장 하나만 보내도 자연스러운 표현으로 다시 만들어볼게요.",
+    "네, 영어도 다룰 수 있어요. 단순 번역뿐 아니라 문맥에 맞게 더 자연스러운 표현을 골라 설명하는 쪽으로 답하겠습니다.",
+  ], `${raw}:${Date.now()}`);
+}
+
+function pbBareTopicGuidance(raw) {
+  if (!/(뒤에|붙이지|뭐야|알려줘|설명해줘|꼭\s*안|없이도)/i.test(raw)) return "";
+  return [
+    "알겠습니다. 앞으로는 단어만 던져도 먼저 주제로 보고 답하겠습니다.",
+    "",
+    "예를 들어 “사과”라고만 말하면 과일인지, 사과하는 행동인지, 이전 대화에서 이어진 말인지 먼저 문맥을 보고 판단한 뒤 답할게요. 꼭 “뭐야”나 “알려줘”를 붙이지 않아도 됩니다.",
+  ].join("\n");
+}
+
+async function pbBuildAetherWorkerReplyStable(query, history = []) {
+  const raw = pbNormalize(query);
+  if (!raw) return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요.";
+  if (/^(안녕+|하이+|hello|hi|hey)[!?.…\s]*$/i.test(raw)) {
+    return pbPick([
+      "안녕하세요. 지금 떠오른 걸 그대로 말해 주세요. 짧게 던져도 문맥을 잡아서 이어가볼게요.",
+      "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
+      "반가워요. 그냥 대화해도 좋고, 바로 궁금한 걸 물어봐도 좋아요.",
+    ], raw);
+  }
+  if (/(심장|가슴|흉통|호흡|숨\s*쉬|식은땀|어지럼|통증|아파|아퍼|병원|응급)/i.test(raw)) return pbHealthReply(raw);
+  if (/(날씨|weather)/i.test(raw)) {
+    const weather = await pbWeatherReply(raw);
+    return weather || "날씨는 지역명이 있어야 정확히 볼 수 있어요. 예를 들면 “군산 날씨”처럼 지역과 함께 물어봐 주세요.";
+  }
+
+  const rewrite = pbWantsRewrite(raw) ? pbRepairReply(raw, history) : "";
+  if (rewrite) return rewrite;
+
+  const languageAbility = pbLanguageAbilityReply(raw);
+  if (languageAbility) return languageAbility;
+
+  const bareGuidance = pbBareTopicGuidance(raw);
+  if (bareGuidance) return bareGuidance;
+
+  if (/(탐구|쟁점|윤리적\s*문제|사회문제|고찰|토론|관점\s*분석)/i.test(raw)) {
+    return pbExplorationReply(raw);
+  }
+
+  // Dynamic knowledge first. Fixed seed facts and broad planning templates
+  // must not decide the answer before retrieval has a chance to work.
+  const topic = /(강아지|반려견|dog|puppy)/i.test(raw) ? "강아지" : pbExtractTopic(raw);
+  if (topic) {
+    const summary = await pbWikiSummary(topic);
+    if (summary) return pbKnowledgeReply(topic, summary, raw);
+  }
+
+  if (/(검색|찾아|웹사이트|사이트에서|링크)/i.test(raw)) {
+    const searchTopic = pbExtractAetherTopic(raw);
+    const encoded = encodeURIComponent(searchTopic || raw);
+    return [
+      `${searchTopic || raw} 관련해서 바로 확인할 수 있는 경로예요.`,
+      "",
+      `- Google: https://www.google.com/search?q=${encoded}`,
+      `- DuckDuckGo: https://duckduckgo.com/?q=${encoded}`,
+      "",
+      "공식 사이트, 사용법, 비교, 오류 해결 중 원하는 방향을 말하면 그쪽으로 더 좁혀서 정리할게요.",
+    ].join("\n");
+  }
+
+  if (/(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)/i.test(raw)) {
+    return [
+      "저는 질문의 의도와 맥락을 먼저 잡고, 필요한 경우 자료나 웹 정보를 연결해서 답하는 Purple Bee입니다.",
+      "",
+      "지금 할 수 있는 일은 일상 대화, 개념 설명, 코드/오류 분석, 문서 요약, 자료 기반 정리, 최신 정보 확인입니다. 짧게 던져도 먼저 해석해서 답해볼게요.",
+    ].join("\n");
+  }
+  if (/(우리\s*뭐|뭐\s*할까|심심|잡담|대화하자|놀자|뭐해)/i.test(raw)) {
+    return pbPick([
+      "좋아요. 지금은 가볍게 대화해도 되고, 머릿속에 걸린 문제 하나를 같이 풀어도 좋아요. 저는 네가 던지는 쪽으로 자연스럽게 따라갈게요.",
+      "우리라면 일단 부담 없는 것부터 시작하면 좋겠어요. 잡담, 아이디어 정리, 프로젝트 점검 중 아무 방향이나 던져도 됩니다.",
+      "좋아요. 굳이 거창하게 시작하지 말고, 지금 제일 신경 쓰이는 것 하나만 꺼내봅시다.",
+    ], `${raw}:${Array.isArray(history) ? history.length : 0}`);
+  }
+  const meta = pbMetaQualityReply(raw);
+  if (meta) return meta;
+  if (/(탐구|분석|깊게|논의|쟁점|윤리|철학|문제)/i.test(raw)) {
+    return pbExplorationReply(raw);
+  }
+
+  const adaptive = pbAdaptiveAetherReply(raw, history);
+  if (adaptive) return adaptive;
+  if (/(코드|코딩|python|파이썬|error|오류|버그|함수|html|css|js)/i.test(raw)) {
+    return "코딩 쪽으로 보면 먼저 증상과 원인을 분리하는 게 좋아요. 코드나 오류 화면을 보내주면 입력값, 실행 흐름, 실패 지점을 나눠서 바로 좁혀볼게요.";
+  }
+  if (/(요약|정리|핵심)/i.test(raw)) {
+    return "좋아요. 자료를 보내주면 핵심 주장, 근거, 놓치면 안 되는 내용, 다음 행동 순서로 짧고 읽기 쉽게 정리해드릴게요.";
+  }
+  return pbGeneralReply(raw, history);
 }
 
 async function buildWebsiteRuntimeReply(query, history) {

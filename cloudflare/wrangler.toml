@@ -11,12 +11,13 @@ html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"
 
 [vars]
-PURPLE_BEE_MODEL_PUBLIC_BASE_URL = "https://huggingface.co/ae13341/purple-bee-1-3/resolve/main"
-PURPLE_BEE_MODEL_ID = "purple-bee-1-3"
-PURPLE_BEE_MODEL_DISPLAY_NAME = "Purple Bee 1.3"
-PURPLE_BEE_MODEL_ONNX = "purple-bee-1-3.onnx"
-PURPLE_BEE_MODEL_ONNX_DATA = "purple-bee-1-3.onnx.data"
-PURPLE_BEE_MODEL_TOKENIZER = "tokenizer.json"
+PURPLE_BEE_MODEL_PUBLIC_BASE_URL = ""
+PURPLE_BEE_MODEL_ID = "purple-bee-1-0"
+PURPLE_BEE_MODEL_DISPLAY_NAME = "Purple Bee 1.0"
+PURPLE_BEE_MODEL_ONNX = ""
+PURPLE_BEE_MODEL_ONNX_DATA = ""
+PURPLE_BEE_MODEL_TOKENIZER = ""
+PURPLE_BEE_ENABLE_PUBLIC_BACKEND = "1"
 
 # ANTHROPIC_API_KEY 는 wrangler secret put ANTHROPIC_API_KEY 로 등록하세요.
 # 아래는 secret 사용 선언 (실제 값은 .dev.vars 또는 wrangler secret 으로 관리)
