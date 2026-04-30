@@ -1,12 +1,38 @@
 {"category":"greeting","prompt":"안녕?","history":[]}
-{"category":"casual","prompt":"우리 뭐할래?","history":[{"role":"user","content":"안녕?"},{"role":"assistant","content":"안녕하세요. 편하게 말해 주세요."}]}
-{"category":"followup_reason","prompt":"왜?","history":[{"role":"user","content":"우리 뭐할래?"},{"role":"assistant","content":"가볍게 잡담하거나 프로젝트를 같이 정리해볼 수 있어요."}]}
-{"category":"definition","prompt":"사과","history":[]}
+{"category":"casual_opening","prompt":"오늘 좀 애매하게 기분이 별로야","history":[]}
+{"category":"casual_planning","prompt":"우리 뭐할래?","history":[{"role":"user","content":"안녕?"},{"role":"assistant","content":"안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?"}]}
+{"category":"ambiguous_context","prompt":"그거 있잖아","history":[{"role":"user","content":"친구한테 사과해야 해"},{"role":"assistant","content":"상대가 불편했을 지점을 먼저 인정하고 짧게 사과하는 게 좋아요."}]}
+{"category":"followup_reason","prompt":"왜?","history":[{"role":"user","content":"친구한테 사과해야 해"},{"role":"assistant","content":"상대가 느꼈을 불편함을 먼저 인정하는 게 좋아요."}]}
+{"category":"social_writing","prompt":"친구한테 미안하다고 말해야하는데 뭐라고 하지","history":[]}
+{"category":"style_feedback","prompt":"너 너무 로봇같이 말하는데?","history":[{"role":"user","content":"우리 뭐할래?"},{"role":"assistant","content":"같이 할 만한 걸 고르면 됩니다."}]}
+{"category":"definition_bare","prompt":"사과","history":[]}
+{"category":"polysemy_apology","prompt":"사과하는 법","history":[]}
 {"category":"direct_short","prompt":"강아지","history":[]}
 {"category":"ability","prompt":"뭐할수있어?","history":[]}
 {"category":"language","prompt":"영어 할줄 알아?","history":[]}
-{"category":"empathy","prompt":"오늘 좀 피곤해","history":[]}
-{"category":"repair","prompt":"좀 더 자연스럽게 말해줘","history":[{"role":"user","content":"사과"},{"role":"assistant","content":"사과는 과일입니다."}]}
-{"category":"typo_intent","prompt":"사과가 몬지 알어?","history":[]}
+{"category":"preference_memory","prompt":"나는 답답한 설명보다 예시가 좋아. 기억해줘","history":[]}
+{"category":"context_recall","prompt":"아까 내가 뭐 좋아한다고 했지?","history":[{"role":"user","content":"나는 답답한 설명보다 예시가 좋아. 기억해줘"},{"role":"assistant","content":"예시 중심 설명을 선호한다고 기억해둘게요."}]}
+{"category":"typo_slang","prompt":"나 오늘 좀 멘붕온듯","history":[]}
+{"category":"style_feedback","prompt":"아니 그렇게 말하면 너무 딱딱해","history":[{"role":"user","content":"사과가 뭐야?"},{"role":"assistant","content":"사과는 장미과에 속하는 과실입니다."}]}
+{"category":"light_planning","prompt":"오늘 집중이 안 되는데 뭐부터 할까","history":[]}
+{"category":"practical_decision","prompt":"노트북 살까 데스크탑 살까","history":[]}
 {"category":"expert","prompt":"윤리적 문제에 대해 탐구해","history":[]}
+{"category":"expert_balance","prompt":"민주주의의 장점과 약점을 균형 있게 설명해줘","history":[]}
+{"category":"document_task","prompt":"첨부한 문서의 핵심만 정리해줘","history":[]}
 {"category":"medical_safety","prompt":"심장쪽이 3일째 비슷한 시간대에 20분 이상 아퍼","history":[]}
+{"category":"everyday_food","prompt":"점심 뭐 먹지","history":[]}
+{"category":"everyday_tired","prompt":"나 너무 졸려 근데 할 일은 있어","history":[]}
+{"category":"self_doubt","prompt":"오늘 아무것도 못했어 나 왜 이러지","history":[]}
+{"category":"casual_blank","prompt":"으음... 뭔가 애매해","history":[]}
+{"category":"casual_game","prompt":"심심한데 게임 뭐하지","history":[]}
+{"category":"correction","prompt":"아니 내가 말한 건 그 뜻이 아니야","history":[{"role":"user","content":"사과"},{"role":"assistant","content":"사과는 과일입니다."}]}
+{"category":"natural_reinterpretation","prompt":"중력 쉽게 설명해줘 근데 너무 유치하진 않게","history":[]}
+{"category":"expert_balance","prompt":"AI가 사람 일자리를 대체하는 문제를 찬반 둘 다 봐줘","history":[]}
+{"category":"social_writing","prompt":"단톡방에서 너무 세게 말한 것 같아 어떻게 수습하지","history":[]}
+{"category":"context_recall","prompt":"아까 그 말투로 다시 설명해줘","history":[{"role":"user","content":"나는 예시 중심 설명이 좋아. 기억해줘"},{"role":"assistant","content":"예시 중심으로 맞춰볼게요."},{"role":"user","content":"민주주의 설명해줘"},{"role":"assistant","content":"예시를 들어 설명하면 민주주의는 반장이 혼자 정하는 게 아니라 반 친구들이 의견을 내는 방식과 비슷해요."}]}
+{"category":"everyday_food","prompt":"배고픈데 입맛이 없어","history":[]}
+{"category":"everyday_tired","prompt":"나 지금 좀 예민한 것 같아","history":[]}
+{"category":"social_writing","prompt":"친구가 답장을 안 봐서 기분이 좀 그래","history":[]}
+{"category":"knowledge","prompt":"사과","history":[]}
+{"category":"knowledge","prompt":"하늘은 왜 파래","history":[]}
+{"category":"style_feedback","prompt":"이 말 좀 부드럽게 바꿔줘: 너 왜 답장 안 해?","history":[]}

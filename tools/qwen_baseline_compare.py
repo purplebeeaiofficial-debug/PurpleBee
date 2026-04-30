@@ -39,7 +39,8 @@ FAIL_MARKERS = [
     "답변 생성에 실패",
     "잠시 후 다시",
     "같은 질문을",
-    "한 줄만",
+    "한 줄만 더 보내",
+    "한 줄만 더 주",
     "조금 더 구체적으로",
     "무엇을 원하는지",
 ]
@@ -47,7 +48,6 @@ FAIL_MARKERS = [
 GENERIC_MARKERS = [
     "궁금하신 거군요",
     "이야기로 이어가자",
-    "바로 이어서",
     "정확하게 도와줄 수 있어요",
 ]
 
@@ -148,9 +148,56 @@ def reply_score(text: str, prompt: str = "", category: str = "") -> dict[str, An
         else:
             score -= 4.0
             issues.append("missing-safety-guidance")
-    if category in {"greeting", "casual"} and length > 260:
+    if category == "greeting":
+        if re.search(r"(안녕|반가|편하게|물어)", cleaned):
+            score += 2.0
+        if 12 <= length <= 90:
+            score += 1.0
+    if category in {"greeting", "casual", "casual_opening", "casual_planning", "style_feedback"} and length > 320:
         score -= 1.5
         issues.append("too-heavy-for-casual")
+    if category in {"social_writing", "polysemy_apology", "correction"}:
+        if re.search(r"(미안|사과|상대|변명|책임|다음)", cleaned):
+            score += 2.0
+        else:
+            score -= 3.0
+            issues.append("missing-social-apology-structure")
+    if category in {"preference_memory", "context_recall"}:
+        if re.search(r"(기억|선호|예시|좋아|맞춰)", cleaned):
+            score += 2.0
+        else:
+            score -= 3.0
+            issues.append("missing-memory-reference")
+    if category in {"casual_opening", "typo_slang", "light_planning"}:
+        if re.search(r"(기분|괜찮|작게|천천히|먼저|하나|시작)", cleaned):
+            score += 1.5
+        else:
+            score -= 2.0
+            issues.append("weak-daily-dialogue")
+    if category == "ambiguous_context":
+        if re.search(r"(아까|흐름|방금|친구|사과|맥락)", cleaned):
+            score += 2.0
+        else:
+            score -= 3.0
+            issues.append("missing-context-binding")
+    if category in {"everyday_food", "everyday_tired", "self_doubt", "casual_blank", "casual_game"}:
+        if re.search(r"(오늘|지금|작게|먼저|쉬|먹|고르|괜찮|하나)", cleaned):
+            score += 2.0
+        else:
+            score -= 2.0
+            issues.append("weak-everyday-adaptation")
+    if category == "language":
+        if re.search(r"(영어|한국어|번역|문장|표현|언어)", cleaned):
+            score += 2.0
+        else:
+            score -= 2.0
+            issues.append("missing-language-ability")
+    if category == "natural_reinterpretation":
+        if re.search(r"(쉽게|비유|예시|핵심|중력|질량)", cleaned):
+            score += 2.0
+        else:
+            score -= 2.0
+            issues.append("missing-reinterpretation")
 
     return {
         "score": round(score, 3),

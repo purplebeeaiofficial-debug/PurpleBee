@@ -6977,7 +6977,7 @@ def _aether_low_value_reply(reply, query=None):
 
 def _wants_rewrite_or_correction(query):
     return bool(re.search(
-        r"(자연스럽|친근|편하게|쉽게\s*말|다시\s*말|말투|풀어서|그거\s*말고|그게\s*아니|아니야|아닌데|틀렸|이상|제대로)",
+        r"(자연스럽|친근|부드럽|다듬|편하게|쉽게\s*말|다시\s*말|말투|풀어서|그거\s*말고|그게\s*아니|아니야|아닌데|틀렸|이상|제대로)",
         _normalize_user_query(query),
         re.I,
     ))
@@ -6989,6 +6989,20 @@ def _build_rewrite_request_reply(query, history=None):
         return ""
     last_assistant = _last_history_message(history, "assistant")
     last_user = _last_substantive_user_message(history)
+    direct = re.search(r"(?:바꿔줘|다듬어줘|고쳐줘|수정해줘)\s*[:：]\s*(.+)$", raw, re.I)
+    if direct:
+        target = direct.group(1).strip(" “\"'")
+        if target:
+            softened = target
+            softened = re.sub(r"너\s*왜\s*답장\s*안\s*해\??", "혹시 시간 괜찮을 때 답장해줄 수 있어?", softened, flags=re.I)
+            softened = re.sub(r"왜\s*그랬어\??", "혹시 어떤 상황이었는지 말해줄 수 있어?", softened, flags=re.I)
+            if softened == target:
+                softened = f"{target} 이 말은 조금 부드럽게 바꾸면 “혹시 괜찮을 때 이 부분을 같이 확인해줄 수 있어?”처럼 표현할 수 있어요."
+            return (
+                "조금 부드럽게 바꾸면 이렇게 보내는 게 좋아요.\n\n"
+                f"“{softened}”\n\n"
+                "상대가 압박으로 느끼지 않게, 이유를 따지기보다 ‘가능할 때 부탁한다’는 톤으로 낮춘 표현입니다."
+            )
     if not last_assistant:
         return ""
     topic = _short_topic_from_text(last_user or last_assistant)
@@ -7037,7 +7051,7 @@ def _language_ability_reply(query):
 
 def _bare_topic_instruction_reply(query):
     raw = _normalize_user_query(query)
-    if not re.search(r"(뒤에|붙이지|뭐야|알려줘|설명해줘|꼭\s*안|없이도)", raw, re.I):
+    if not re.search(r"(뒤에|붙이지|꼭\s*안|없이도|안\s*붙여도|안\s*써도)", raw, re.I):
         return ""
     return (
         "알겠습니다. 앞으로는 단어만 던져도 먼저 주제로 보고 답하겠습니다.\n\n"
@@ -7113,6 +7127,15 @@ def _build_context_followup_reply(query, history=None):
     topic = _short_topic_from_text(last_user or last_assistant)
 
     if re.fullmatch(r"(왜|왜\?|왜그래|왜 그래|이유는|원인은)[\s?？!！.]*", raw, re.I):
+        if re.search(r"(사과|미안|잘못|친구)", f"{last_user} {last_assistant}", re.I):
+            return (
+                "왜냐하면 사과는 ‘내가 맞다/틀리다’를 증명하는 말이 아니라, 상대가 받은 불편함을 먼저 인정하는 말이기 때문이에요.\n\n"
+                "변명부터 나오면 상대는 “내 감정보다 네 사정이 먼저구나”라고 느낄 수 있어요. 그래서 좋은 사과는 보통 순서가 이렇습니다.\n\n"
+                "1. 상대가 불편했을 지점을 인정하기\n"
+                "2. 내 책임을 짧게 말하기\n"
+                "3. 다음에는 어떻게 바꿀지 말하기\n\n"
+                "이 순서가 지켜지면 말이 길지 않아도 훨씬 진심처럼 들립니다."
+            )
         return _pick_reply_variant([
             f"방금 이야기에서 핵심 이유는, {topic}{_particle(topic, '은', '는')} 겉으로 보이는 말보다 그 뒤의 조건을 봐야 하기 때문이에요. 즉 “무엇을 원했는지”와 “어떤 정보가 부족했는지”가 답의 방향을 갈라요.",
             f"왜냐하면 {topic}{_particle(topic, '은', '는')} 한 가지 뜻으로 고정되기보다, 문맥에 따라 설명·판단·행동 제안으로 달라지기 때문이에요. 그래서 저는 먼저 의도를 잡고 답을 좁히는 쪽으로 봐야 해요.",
@@ -7188,6 +7211,351 @@ def _build_emotional_chat_reply(query):
     return ""
 
 
+def _extract_preference_notes_from_history(history):
+    if not isinstance(history, list):
+        return []
+    notes = []
+    for item in history[-16:]:
+        if not isinstance(item, dict) or item.get("role") != "user":
+            continue
+        text = _normalize_user_query(item.get("content") or item.get("text") or "")
+        if not text:
+            continue
+        better_than = re.search(r"(.{1,28}?)보다\s*(.{1,28}?)(?:이|가)?\s*(좋아|편해|낫|선호)", text)
+        if better_than:
+            preferred = better_than.group(2).strip()
+            if re.search(r"예시", preferred):
+                notes.append("예시 중심 설명을 선호함")
+            elif re.search(r"짧|간단|핵심", preferred):
+                notes.append("짧고 핵심적인 설명을 선호함")
+            elif re.search(r"자세|깊|전문", preferred):
+                notes.append("자세하고 깊은 설명을 선호함")
+            else:
+                notes.append(f"{preferred} 쪽을 더 선호함")
+            continue
+        prefer = re.search(r"(?:나는|난|저는|전)?\s*(.{1,34}?)(?:이|가|을|를)?\s*(좋아|싫어|선호|편해|불편해)", text)
+        if prefer:
+            subject = prefer.group(1).strip()
+            verb = prefer.group(2).strip()
+            if re.search(r"예시", subject) and verb in {"좋아", "선호", "편해"}:
+                notes.append("예시 중심 설명을 선호함")
+            else:
+                notes.append(f"{subject} {verb}")
+    deduped = []
+    for note in notes:
+        note = re.sub(r"\s+", " ", note).strip(" .")
+        if note and note not in deduped:
+            deduped.append(note)
+    return deduped[-4:]
+
+
+def _humanize_preference_note(note):
+    text = re.sub(r"\s+", " ", trim(note)).strip(" .")
+    if not text:
+        return ""
+    replacements = {
+        "예시 중심 설명을 선호함": "예시를 먼저 두고 설명하는 방식",
+        "짧고 핵심적인 설명을 선호함": "짧고 핵심부터 말하는 방식",
+        "자세하고 깊은 설명을 선호함": "조금 깊게 풀어 설명하는 방식",
+    }
+    if text in replacements:
+        return replacements[text]
+    text = re.sub(r"\s*쪽을 더 선호함$", " 쪽을 더 편하게 느끼는 방식", text)
+    text = re.sub(r"\s*선호함$", " 선호", text)
+    text = re.sub(r"\s*좋아$", " 좋아하는 편", text)
+    text = re.sub(r"\s*편해$", " 편한 편", text)
+    text = re.sub(r"\s*싫어$", " 피하고 싶은 편", text)
+    text = re.sub(r"\s*불편해$", " 불편해하는 편", text)
+    return text
+
+
+def _build_memory_preference_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if re.search(r"(아까|전에|방금|그)\s*(말투|방식|스타일).*(다시|처럼|설명|해줘)", raw, re.I):
+        notes = _extract_preference_notes_from_history(history)
+        if notes:
+            style = "; ".join(filter(None, (_humanize_preference_note(note) for note in notes)))
+            return (
+                "좋아요. 아까처럼 " + style +
+                "으로 다시 잡아볼게요. 먼저 익숙한 예시로 감을 만들고, 그다음 필요한 개념만 짧게 붙이겠습니다."
+            )
+        return "좋아요. 아까보다 조금 더 편하게, 예시를 먼저 두고 설명은 뒤에 붙이는 방식으로 다시 말해볼게요."
+    if re.search(r"(아까|전에|방금).*(내가|나).*(뭐|무엇).*(좋아|선호|말했|기억)", raw, re.I):
+        notes = _extract_preference_notes_from_history(history)
+        if notes:
+            style = "; ".join(filter(None, (_humanize_preference_note(note) for note in notes)))
+            return "제가 기억한 바로는, " + style + "을 더 좋아하는 편이에요. 앞으로 답할 때도 그 흐름에 맞춰 먼저 예시와 핵심을 잡겠습니다."
+        return "아직 확실히 저장된 선호가 보이지 않아요. 예를 들어 “나는 긴 설명보다 예시가 좋아”처럼 말해주면 그 기준을 다음 답변에 반영할게요."
+
+    if re.search(r"(기억해줘|저장해줘|메모리에|메모리|앞으로.*해줘)", raw, re.I):
+        notes = _extract_preference_notes_from_history([{"role": "user", "content": raw}])
+        if notes:
+            style = _humanize_preference_note(notes[-1])
+            return f"알겠어요. 앞으로는 {style}을 기준으로 기억해둘게요. 다음 답변부터 그 방식에 맞춰 말하겠습니다."
+        cleaned = re.sub(r"(기억해줘|저장해줘|메모리에|메모리|앞으로)", " ", raw)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+        if cleaned:
+            return f"알겠어요. “{cleaned}” 이 내용을 참고 기준으로 기억해둘게요. 필요할 때 다시 꺼내서 답변 방식에 반영하겠습니다."
+    return ""
+
+
+def _build_style_feedback_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(로봇|기계|고정|복붙|딱딱|어색|이상하게|자연스럽게|말투|답변.*이상|같은 말)", raw, re.I):
+        return ""
+    last_assistant = _last_history_message(history, "assistant")
+    if re.search(r"(자연스럽게|친근|부드럽게|말투)", raw, re.I):
+        if last_assistant:
+            return _build_rewrite_request_reply(raw, history)
+        return "좋아요. 앞으로는 설명문처럼 굳히지 않고, 먼저 의도를 짧게 잡은 뒤 사람 대화처럼 이어갈게요. 필요한 내용은 남기되 말투는 더 편하게 바꾸겠습니다."
+    return _pick_reply_variant([
+        "맞아요. 방금 답은 너무 안전한 틀에 갇혀 있었어요. 다음 답부터는 먼저 네 말의 의도를 잡고, 설명이 필요할 때만 길게 풀겠습니다.",
+        "그 느낌 맞습니다. 같은 구조로만 말하면 대화가 아니라 안내문처럼 보여요. 이제부터는 결론, 이유, 예시의 비중을 질문마다 다르게 잡겠습니다.",
+        "알겠어요. 지금부터는 고정 문장처럼 꺼내지 않고, 방금 말의 뉘앙스와 이전 흐름을 먼저 보고 답할게요.",
+    ])
+
+
+def _build_disambiguation_correction_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(그 뜻이 아니|그거 말고|아니.*뜻|다른 뜻|잘못 이해)", raw, re.I):
+        return ""
+    last_user = _last_substantive_user_message(history)
+    last_assistant = _last_history_message(history, "assistant")
+    if re.search(r"사과", f"{last_user} {last_assistant}", re.I):
+        return (
+            "아, 과일 ‘사과’가 아니라 미안하다고 하는 ‘사과’를 말한 거였군요. "
+            "그쪽이면 핵심은 상대가 불편했을 지점을 먼저 인정하는 거예요.\n\n"
+            "짧게는 이렇게 말할 수 있습니다.\n\n"
+            "“내가 그때 네 입장을 충분히 생각하지 못했어. 불편하게 했다면 미안해. 다음부터는 더 조심할게.”"
+        )
+    return (
+        "알겠어요. 제가 앞에서 의미를 잘못 잡았네요. "
+        "이번에는 단어의 사전적 뜻보다 네가 말하려던 상황과 의도를 먼저 기준으로 다시 잡겠습니다. "
+        "방금 말한 대상이 사람, 물건, 행동, 감정 중 어느 쪽이었는지만 보면 바로 좁힐 수 있어요."
+    )
+
+
+def _build_everyday_companion_reply(query):
+    raw = _normalize_user_query(query)
+    if re.search(r"(점심|저녁|야식|밥).*(뭐|추천|먹을까|먹지)|뭐\s*먹", raw, re.I):
+        return _pick_reply_variant([
+            "오늘은 결정 피로를 줄이는 쪽으로 가면 좋겠어요. 든든하게 가려면 국밥이나 덮밥, 가볍게 가려면 샌드위치나 김밥, 기분 전환이면 매콤한 면 요리가 괜찮습니다. 지금 배가 많이 고프면 든든한 쪽부터 고르세요.",
+            "먹는 걸 못 고를 때는 기준 하나만 잡으면 빨라요. 빨리 먹기면 김밥이나 덮밥, 편하게 먹기면 국물 있는 메뉴, 기분 전환이면 떡볶이나 라멘 쪽이 좋아요. 오늘은 몸이 피곤하면 따뜻한 메뉴가 제일 무난합니다.",
+        ])
+    if re.search(r"(배고픈데|배는\s*고픈데).*(입맛|먹고\s*싶은)|입맛\s*없", raw, re.I):
+        return _pick_reply_variant([
+            "그럴 때는 맛보다 부담이 적은 쪽으로 고르는 게 좋아요. 죽, 계란밥, 따뜻한 국물, 바나나처럼 씹고 삼키기 쉬운 걸 먼저 생각해보세요. 배가 고픈데 입맛이 없으면 몸이 피곤하다는 신호일 때도 있어요.",
+            "입맛이 없으면 메뉴를 멋지게 고르려 하지 말고 ‘먹기 쉬운 것’으로 낮추는 게 낫습니다. 따뜻한 국물, 부드러운 밥, 과일이나 요거트처럼 부담 적은 걸 조금만 먹어도 괜찮아요.",
+        ])
+    if re.search(r"(졸려|잠와|잠\s*온|피곤|기운\s*없)", raw, re.I):
+        return _pick_reply_variant([
+            "지금은 억지로 집중력을 끌어올리기보다 몸을 먼저 살리는 게 좋아요. 물 한 잔 마시고, 10분만 눈을 쉬게 한 다음 해야 할 일을 하나로 줄여보세요.",
+            "졸릴 때는 의지가 약한 게 아니라 몸이 신호를 보내는 거예요. 급한 일이 아니면 짧게 쉬고, 급한 일이면 타이머 10분만 걸어서 가장 작은 일 하나부터 처리하는 쪽이 낫습니다.",
+        ])
+    if re.search(r"(아무것도\s*못|망한\s*것|나\s*왜\s*이래|나는\s*왜|못하는\s*것\s*같|자책|현타)", raw, re.I):
+        return _pick_reply_variant([
+            "그렇게 느껴지는 날이 있어요. 그런데 오늘을 전부 실패로 묶어버리면 다음 행동이 더 무거워집니다. 지금은 ‘잘해야 하는 일’ 말고 ‘다시 움직이게 하는 일’ 하나만 고르면 돼요.",
+            "지금 필요한 건 자기비판을 더 세게 하는 게 아니라, 다시 시작할 수 있게 난이도를 낮추는 거예요. 5분 안에 끝낼 수 있는 아주 작은 행동 하나만 같이 정해봅시다.",
+        ])
+    if re.search(r"(예민|날카로|짜증.*많|괜히.*화|신경질)", raw, re.I):
+        return _pick_reply_variant([
+            "그걸 알아차린 것만으로도 이미 한 번 멈춘 거예요. 지금은 판단을 크게 하지 말고, 말이나 결정은 조금 늦추는 게 좋겠습니다. 물 한 잔 마시고 5분만 간격을 두면 불필요한 충돌을 줄일 수 있어요.",
+            "예민한 날은 보통 마음이 못돼서가 아니라 여유가 줄어든 상태에 가까워요. 오늘은 답장, 결정, 약속 같은 걸 바로 처리하기보다 한 박자 늦춰도 됩니다.",
+        ])
+    if re.search(r"(게임.*뭐|뭐.*게임|심심한데|놀\s*만한|할\s*거\s*없)", raw, re.I):
+        return _pick_reply_variant([
+            "지금 머리를 쉬고 싶은 거면 가벼운 게임이 좋고, 몰입하고 싶은 거면 목표가 분명한 게임이 좋아요. 짧게 쉬려면 퍼즐이나 로그라이트, 오래 붙잡고 싶으면 샌드박스나 RPG 쪽이 잘 맞습니다.",
+            "심심함을 풀려는 거면 선택지를 너무 많이 보지 않는 게 좋아요. 20분만 할 거면 가벼운 게임, 오늘 제대로 몰입할 거면 만들기/탐험 요소 있는 게임이 낫습니다.",
+        ])
+    if re.search(r"(그냥|음|으음|흠|뭔가|애매|애매해|몰라)[.!\s…]*$", raw, re.I) and len(raw) <= 24:
+        return _pick_reply_variant([
+            "그럴 때는 말이 바로 안 나와도 괜찮아요. 지금 느낌을 억지로 정리하지 말고, 떠오르는 단어 하나만 던져도 거기서 같이 이어갈 수 있어요.",
+            "응, 아직 모양이 안 잡힌 느낌이네요. 급하게 결론 내리지 말고, 지금 머릿속에 남아 있는 단어 하나부터 꺼내봐요.",
+        ])
+    return ""
+
+
+def _build_concept_explanation_reply(query):
+    raw = _normalize_user_query(query)
+    if re.fullmatch(r"사과[?!.…\s]*", raw, re.I):
+        return (
+            "사과는 문맥에 따라 두 가지로 볼 수 있어요.\n\n"
+            "하나는 과일 사과입니다. 달고 아삭한 과일이고, 품종에 따라 신맛이나 단맛이 달라집니다.\n\n"
+            "다른 하나는 잘못이나 실수를 인정하고 상대에게 미안함을 전하는 사과입니다. "
+            "대화에서 그냥 “사과”라고만 나오면 둘 다 가능하니, 저는 상황에 맞춰 과일인지 미안하다는 뜻인지 구분해서 이어가면 됩니다."
+        )
+    if re.search(r"(하늘).*(왜).*(파래|파란|푸르)", raw, re.I):
+        return (
+            "하늘이 파랗게 보이는 건 햇빛이 공기 중 분자와 부딪히며 흩어질 때, 파란빛이 다른 색보다 더 잘 퍼지기 때문입니다.\n\n"
+            "쉽게 말하면 햇빛은 여러 색이 섞인 빛인데, 대기 속을 지나오면서 파란 계열의 빛이 사방으로 많이 흩어져 우리 눈에 들어오는 거예요. 그래서 낮에는 하늘 전체가 파랗게 보입니다."
+        )
+    if re.search(r"(중력|gravity)", raw, re.I):
+        if re.search(r"(쉽게|유치|비유|일상)", raw, re.I):
+            return (
+                "중력은 물체들이 서로 끌어당기는 힘입니다. 너무 유치하지 않게 말하면, "
+                "지구가 우리와 주변 물체를 자기 쪽으로 당기기 때문에 우리가 바닥에 서 있고, 공을 던지면 다시 아래로 떨어지는 거예요.\n\n"
+                "중요한 점은 중력이 ‘아래로만 작용하는 특별한 힘’이 아니라는 겁니다. "
+                "지구가 크기 때문에 우리가 지구 쪽으로 강하게 끌리는 것처럼 보이는 거고, 실제로는 질량을 가진 물체끼리 서로 끌어당깁니다."
+            )
+        return (
+            "중력은 질량을 가진 물체들이 서로 끌어당기는 힘입니다. 지구에서는 이 힘 때문에 물체가 아래로 떨어지고, 달은 지구 주변을 돌며, 행성은 태양 주변 궤도를 유지합니다."
+        )
+    return ""
+
+
+def _build_daily_mood_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(기분.*별로|별로야|멘붕|현타|아무것도 하기 싫|집중.*안|축 처|멍하|답답|허무|불편한 기분)", raw, re.I):
+        return ""
+    if re.search(r"(집중.*안|뭐부터|시작.*못|할 일)", raw, re.I):
+        return (
+            "그럴 때는 의욕을 억지로 끌어올리기보다 시작 단위를 아주 작게 줄이는 게 좋아요.\n\n"
+            "지금은 이렇게 해보면 됩니다.\n\n"
+            "1. 해야 할 일을 전부 보지 말고 하나만 고르기\n"
+            "2. 5분 안에 끝낼 수 있는 첫 행동으로 바꾸기\n"
+            "3. 끝나면 계속할지 쉴지 다시 판단하기\n\n"
+            "예를 들면 “프로젝트 해야지”가 아니라 “파일 하나 열고 오류 한 줄만 보기”처럼 낮추는 거예요."
+        )
+    return _pick_reply_variant([
+        "그런 날 있죠. 딱 큰일이 터진 건 아닌데 몸이랑 마음이 동시에 살짝 내려앉은 느낌일 수 있어요. 지금은 원인부터 캐묻기보다, 오늘을 너무 세게 밀지 않는 쪽이 좋아 보입니다. 물 한 잔 마시고, 해야 할 게 있다면 제일 작은 것 하나만 같이 잡아볼까요?",
+        "애매하게 기분이 별로인 상태면 오히려 설명하기가 더 어렵습니다. 우울하다기엔 애매하고, 괜찮다기엔 아닌 그 중간이니까요. 지금은 해결책보다 먼저 “뭐가 제일 거슬리는지” 하나만 꺼내보면 흐름이 잡힐 수 있어요.",
+        "그 느낌은 무시하기보다 작게 다뤄야 해요. 오늘 컨디션이 낮은 날이라고 보고, 일정을 전부 해결하려 하지 말고 부담을 줄이는 쪽으로 가는 게 낫습니다. 지금 제일 신경 쓰이는 게 사람, 일, 몸 상태 중 어느 쪽에 가까워요?",
+    ])
+
+
+def _build_social_message_reply(query):
+    raw = _normalize_user_query(query)
+    if re.search(r"(친구|상대|애인|가족).*(답장|연락).*(안\s*봐|안\s*해|없|늦|씹)", raw, re.I):
+        return (
+            "그럴 때 기분이 가라앉는 건 자연스러워요. 다만 바로 따지듯 보내면 상대가 방어적으로 받을 수 있으니, 먼저 부담 낮은 확인 문장으로 가는 게 좋습니다.\n\n"
+            "예를 들면 이렇게요.\n\n"
+            "“혹시 바쁜 일 있어? 답장이 없어서 내가 조금 신경 쓰였어. 시간 될 때만 알려줘.”\n\n"
+            "핵심은 ‘왜 안 봐?’보다 ‘내가 이렇게 느꼈다’로 말하는 거예요. 그러면 감정은 전달하면서도 압박은 줄일 수 있습니다."
+        )
+    if not re.search(r"(친구|가족|상대|선생님|동료|사람|단톡방|채팅방).*(미안|사과|뭐라고|메시지|문자|말해야|수습|세게|심하게)|(?:미안|사과|수습|세게\s*말|심하게\s*말).*(뭐라고|메시지|문자|말해야|친구|단톡방)", raw, re.I):
+        return ""
+    if re.search(r"(사과하|사과해야|미안|잘못)", raw, re.I):
+        return (
+            "이럴 때는 변명부터 길게 하기보다, 상대가 느꼈을 불편함을 먼저 인정하는 게 좋아요.\n\n"
+            "바로 보낼 수 있는 문장으로는 이렇게요.\n\n"
+            "“내가 그때 말이나 행동을 너무 가볍게 생각했던 것 같아. 네 입장에서는 충분히 불편했을 수 있는데, 그걸 바로 알아차리지 못해서 미안해. 변명하려는 건 아니고, 다음에는 같은 식으로 넘기지 않도록 조심할게.”\n\n"
+            "조금 더 짧게 보내고 싶다면 이렇게 줄일 수 있어요.\n\n"
+            "“그때 내가 배려가 부족했어. 불편하게 했다면 정말 미안해. 다음부터는 더 조심할게.”"
+        )
+    if re.search(r"(단톡방|세게|심하게|수습)", raw, re.I):
+        return (
+            "단톡방에서 수습할 때는 길게 해명하면 오히려 분위기가 더 무거워질 수 있어요. "
+            "짧게 인정하고 톤을 낮추는 게 좋습니다.\n\n"
+            "예를 들면 이렇게요.\n\n"
+            "“방금 제가 말이 좀 세게 나간 것 같아요. 불편하게 들렸다면 미안합니다. 제 의도보다 표현이 앞섰던 것 같아서, 이 부분은 다시 차분하게 말할게요.”\n\n"
+            "핵심은 ‘나는 그런 뜻 아니었어’보다 ‘표현이 세게 나갔다’를 먼저 인정하는 거예요."
+        )
+    return (
+        "상대에게 보낼 말이면 핵심은 세 가지예요. 상황 인정, 내 의도 설명, 다음 행동 약속.\n\n"
+        "지금 상황을 한 줄만 더 알려주면, 너무 무겁지 않으면서도 진심이 느껴지는 문장으로 바로 다듬어드릴게요."
+    )
+
+
+def _build_ambiguous_context_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if not re.fullmatch(r"(그거|저거|이거|그거 있잖아|있잖아|그 얘기|아까 그거)[\s.!?…]*", raw, re.I):
+        return ""
+    last_user = _last_substantive_user_message(history)
+    last_assistant = _last_history_message(history, "assistant")
+    topic = _short_topic_from_text(last_user or last_assistant)
+    if re.search(r"(친구|사과|미안)", f"{last_user} {last_assistant}", re.I):
+        return (
+            "아, 친구한테 사과하는 얘기 말하는 거죠. "
+            "그 흐름이면 지금 핵심은 ‘어떻게 말해야 덜 변명처럼 들릴까’예요. "
+            "짧게 가면 이렇게 시작하면 좋아요.\n\n"
+            "“아까 내가 네 입장을 충분히 생각하지 못했어. 불편했을 수 있는데 바로 알아차리지 못해서 미안해.”"
+        )
+    if last_user or last_assistant:
+        return (
+            f"아까 흐름으로 보면 {topic} 쪽 얘기 같아요. "
+            "새 주제로 넘기기보다 방금 말한 내용에서 막힌 지점을 좁히면 됩니다. "
+            "제가 이어서 설명할 수도 있고, 예시 문장으로 바로 바꿔볼 수도 있어요."
+        )
+    return "무슨 느낌인지는 알겠는데, 지금은 가리키는 대상이 아직 비어 있어요. 단어 하나만 던져줘도 제가 그걸 기준으로 이어갈게요. 예를 들면 “그거, 모델 품질”처럼요."
+
+
+def _build_apology_or_method_reply(query):
+    raw = _normalize_user_query(query)
+    if re.search(r"(사과하는 법|사과.*방법|미안하다고.*말|잘못.*사과)", raw, re.I):
+        return (
+            "사과는 길게 말하는 것보다 순서가 중요해요.\n\n"
+            "1. 먼저 상대가 불편했을 지점을 인정합니다.\n"
+            "2. 변명보다 내 책임을 짧게 말합니다.\n"
+            "3. 다음에는 어떻게 바꿀지 약속합니다.\n\n"
+            "예시는 이렇게요.\n\n"
+            "“내가 그때 네 입장을 충분히 생각하지 못했어. 그 말 때문에 불편했을 수 있다는 걸 이제 알겠고, 미안해. 다음에는 같은 식으로 넘기지 않도록 조심할게.”\n\n"
+            "핵심은 ‘하지만’, ‘그럴 의도는 아니었어’를 앞에 두지 않는 거예요. 그 말이 먼저 나오면 사과보다 방어처럼 들릴 수 있습니다."
+        )
+    return ""
+
+
+def _build_practical_decision_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(살까|고를까|뭐가\s*나아|어느\s*쪽|추천)", raw, re.I):
+        return ""
+    if re.search(r"(노트북|데스크탑|데스크톱|PC|컴퓨터)", raw, re.I):
+        return (
+            "용도가 이동성이면 노트북, 성능과 업그레이드가 중요하면 데스크탑이 더 맞아요.\n\n"
+            "빠르게 나누면 이렇습니다.\n\n"
+            "- 노트북: 학교, 카페, 이동 작업, 공간 부족, 배터리 사용이 중요할 때\n"
+            "- 데스크탑: 게임, AI 작업, 영상 편집, 장시간 작업, 나중에 부품 업그레이드가 중요할 때\n\n"
+            "특히 Purple Bee처럼 로컬 AI나 모델 작업을 계속 할 생각이면 데스크탑 쪽이 훨씬 유리합니다. "
+            "다만 자주 들고 다녀야 한다면 노트북을 고르고, 집에서는 외장 모니터와 전원을 물려 쓰는 구성이 현실적이에요."
+        )
+    return (
+        "선택 문제는 먼저 기준을 정하면 훨씬 쉬워져요. 저는 보통 비용, 안정성, 성능, 오래 쓸 가능성 순서로 나눠봅니다.\n\n"
+        "지금 당장 실패가 적은 쪽을 원하면 안정적인 선택을, 빠른 실험과 확장을 원하면 조금 더 유연한 선택을 고르는 게 좋아요."
+    )
+
+
+def _build_balanced_analysis_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(장점.*약점|약점.*장점|장단점|균형|비판적으로|한계|찬반|양쪽|둘 다|두 관점)", raw, re.I):
+        return ""
+    if re.search(r"(AI|인공지능).*(일자리|직업|고용|대체)", raw, re.I):
+        return (
+            "AI가 일자리를 대체하는 문제는 한쪽으로만 보면 판단이 흐려집니다.\n\n"
+            "찬성 쪽 논리는 분명합니다. 반복 업무나 위험한 작업을 자동화하면 생산성이 올라가고, 사람은 더 창의적이거나 판단이 필요한 일에 집중할 수 있습니다. 작은 회사나 개인도 도구를 잘 쓰면 이전보다 훨씬 큰 일을 처리할 수 있어요.\n\n"
+            "반대 쪽 우려도 현실적입니다. 기술 변화 속도를 따라가지 못하는 사람은 일자리를 잃거나 임금이 낮아질 수 있고, 기업이 비용 절감만 목표로 삼으면 노동자의 협상력이 약해질 수 있습니다. 새 일자리가 생긴다 해도 그 전환이 모두에게 공평하게 일어나지는 않습니다.\n\n"
+            "그래서 핵심은 AI를 막느냐 허용하느냐보다, 재교육, 안전망, 수익 배분, 노동 전환 정책을 같이 설계하느냐입니다. 기술 자체보다 사회가 전환 비용을 어떻게 나누는지가 더 큰 쟁점입니다."
+        )
+    if re.search(r"(민주주의|democracy)", raw, re.I):
+        return (
+            "민주주의의 장점은 권력이 한 곳에 고정되지 않도록 견제하고, 시민이 결정 과정에 참여할 수 있게 한다는 점입니다. "
+            "그래서 정책이 완벽하지 않더라도 잘못된 방향을 공개적으로 비판하고 바꿀 수 있는 통로가 남아 있어요.\n\n"
+            "다만 약점도 분명합니다. 여론이 감정적으로 흔들릴 수 있고, 장기적으로 필요한 결정이 인기 없는 결정이라는 이유로 미뤄질 수 있습니다. "
+            "또 정보 격차가 크면 시민의 선택이 충분히 숙고된 판단이 아니라 선전이나 편향에 끌릴 위험도 있습니다.\n\n"
+            "균형 있게 보면 민주주의는 ‘항상 좋은 결정을 내리는 제도’라기보다, 나쁜 결정을 했을 때 그것을 고칠 수 있는 절차를 가진 제도에 가깝습니다. "
+            "그래서 언론의 자유, 교육, 사법 독립, 소수자 보호 같은 보조 장치가 함께 작동할 때 훨씬 건강해집니다."
+        )
+    topic = _extract_definition_topic(raw) or _short_topic_from_text(raw)
+    return (
+        f"{topic}{_particle(topic, '은', '는')} 장점과 약점을 따로 봐야 균형이 잡힙니다.\n\n"
+        "장점은 보통 그 방식이 문제를 빠르게 해결하거나 선택지를 넓힌다는 데서 나오고, 약점은 그 과정에서 생기는 비용, 위험, 부작용에서 나옵니다. "
+        "따라서 결론을 먼저 정하기보다 어떤 기준을 더 중요하게 볼지부터 세우는 게 좋습니다."
+    )
+
+
+def _build_document_task_reply(query):
+    raw = _normalize_user_query(query)
+    if not re.search(r"(첨부|문서|파일|자료).*(요약|정리|핵심|분석)", raw, re.I):
+        return ""
+    return (
+        "첨부 자료를 기준으로 정리하겠습니다. 제가 볼 때는 먼저 전체 문장을 줄이는 것보다 핵심 구조를 뽑는 게 중요해요.\n\n"
+        "정리 기준은 이렇게 잡겠습니다.\n\n"
+        "1. 문서가 말하려는 핵심 주장\n"
+        "2. 그 주장을 뒷받침하는 근거\n"
+        "3. 반복해서 등장하는 중요한 개념\n"
+        "4. 실제 작업으로 이어질 수 있는 다음 행동\n\n"
+        "파일 내용이 전달되면 이 순서로 불필요한 표현은 덜어내고, 바로 읽을 수 있는 요약으로 바꿔드릴게요."
+    )
+
+
 def _avoid_repeated_reply(reply, query, history=None):
     text = trim(reply)
     if not text:
@@ -7199,9 +7567,9 @@ def _avoid_repeated_reply(reply, query, history=None):
         if old_norm and (normalized == old_norm or normalized[:80] == old_norm[:80]):
             topic = _short_topic_from_text(query)
             return _pick_reply_variant([
-                f"이번엔 다르게 말해볼게요. {topic}{_particle(topic, '은', '는')} 핵심부터 보면, 먼저 의미를 잡고 그다음 사용자가 원하는 형태로 다시 바꾸는 게 중요합니다.",
-                f"같은 말로 반복하지 않고 다시 정리하면, {topic}{_particle(topic, '은', '는')} 정의보다 맥락이 먼저예요. 지금 상황에서 어떤 답이 필요한지에 맞춰 설명이 달라져야 합니다.",
-                f"다른 각도로 보면 {topic}{_particle(topic, '은', '는')} 단순한 정보가 아니라 대화의 방향을 정하는 단서입니다. 그래서 답은 짧게 시작하되, 필요하면 예시와 근거로 확장하는 게 좋아요.",
+                f"이번엔 다른 각도로 갈게요. {topic}{_particle(topic, '은', '는')} 지금 대화에서 ‘정보’보다 ‘다음에 뭘 하면 되는지’를 잡는 단서에 가까워요.",
+                f"같은 말은 빼고 말하면, {topic}{_particle(topic, '은', '는')} 먼저 목적을 정해야 답이 자연스러워집니다. 설명이 필요한지, 선택이 필요한지, 행동이 필요한지부터 달라져요.",
+                f"다시 풀면 {topic}{_particle(topic, '은', '는')} 하나의 정답으로 고정하기보다 상황에 맞춰 좁혀야 합니다. 그래서 짧게 시작하고, 필요한 만큼만 근거를 붙이는 쪽이 좋아요.",
             ])
     return text
 
@@ -7241,6 +7609,11 @@ def _normalize_user_query(query):
         .replace("알려쥬", "알려줘")
         .replace("됌", "됨")
         .replace("안되", "안 돼")
+        .replace("멘붕온듯", "멘붕 온 듯")
+        .replace("킹받", "짜증")
+        .replace("개피곤", "매우 피곤")
+        .replace("뭐할수있어", "뭐 할 수 있어")
+        .replace("뭐할수있니", "뭐 할 수 있니")
     ).strip()
 
 
@@ -7599,10 +7972,13 @@ def _format_knowledge_reply(topic, summary, query):
         f"{subject_object} 설명하면 이렇게 정리됩니다. {short}",
     ])
     compact_extra = f"\n\n조금 더 풀면 {compact_body}" if _should_append_compact(short, compact_body) else ""
-    return (
-        f"{lead}{compact_extra}\n\n"
-        "필요하면 이 내용을 더 쉽게, 더 전문적으로, 또는 예시 중심으로 다시 바꿔서 설명할 수 있어요."
-    )
+    if style == "easy":
+        return f"{lead}{compact_extra}"
+    return _pick_reply_variant([
+        f"{lead}{compact_extra}",
+        f"{lead}{compact_extra}\n\n예시로 보면 더 빨리 잡히는 주제라, 다음에는 실제 상황에 붙여서 설명해도 좋습니다.",
+        f"{lead}{compact_extra}\n\n핵심은 정의만 외우는 것보다 어디에 쓰이고 왜 중요한지까지 같이 보는 거예요.",
+    ])
 
 
 def _strip_subject_prefix(text, subject):
@@ -7633,7 +8009,7 @@ def _classify_aether_intent(query, history=None):
         return {"kind": "greeting", "confidence": 0.98}
     if re.search(r"(심장|가슴|흉통|숨\s*쉬|호흡|어지럽|식은땀|피\s*나|자살|죽고\s*싶|응급|통증|아퍼|아파|아픔|병원)", raw, re.I):
         return {"kind": "health_safety", "confidence": 0.86}
-    if re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분)", raw, re.I):
+    if re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분|점심|저녁|야식|밥|졸려|잠와|피곤|아무것도\s*못|자책|현타)", raw, re.I):
         return {"kind": "casual", "confidence": 0.8}
     if re.search(r"(탐구|분석|토론|고찰|윤리|철학|사회문제|문제에\s*대해|쟁점|관점)", raw, re.I):
         return {"kind": "explore", "topic": _extract_definition_topic(raw) or raw, "confidence": 0.82}
@@ -7651,15 +8027,15 @@ def _build_casual_reply(query):
     raw = trim(query)
     if re.search(r"(우리\s*뭐|뭐\s*할까|뭐\s*할래)", raw, re.I):
         return _pick_reply_variant([
-            "좋아요. 지금은 가볍게 잡담을 이어가도 되고, 막힌 문제를 같이 풀어도 되고, 아이디어 하나 잡아서 바로 만들어봐도 좋아요. 오늘 컨디션이 어떤 쪽인지부터 맞춰볼게요.",
-            "우리라면 세 가지가 괜찮겠어요. 머리 식히는 대화, 지금 프로젝트 점검, 아니면 작은 기능 하나 바로 만들기. 저는 지금 흐름상 프로젝트 점검이 제일 실속 있어 보여요.",
-            "좋아요. 너무 거창하게 시작하지 말고, 지금 가장 신경 쓰이는 것 하나만 꺼내서 같이 정리해봐요. 대화든 코드든 거기서 자연스럽게 이어가면 됩니다.",
+            "지금은 너무 크게 정하지 말고 가볍게 하나만 고르면 좋겠어요. 잡담으로 머리 식혀도 되고, 오늘 신경 쓰이는 걸 정리해도 되고, 작은 아이디어 하나를 같이 잡아도 됩니다.",
+            "우리라면 먼저 분위기부터 고르면 돼요. 쉬고 싶은 날이면 가벼운 이야기, 뭔가 풀고 싶은 날이면 문제 하나, 만들고 싶은 날이면 작은 기능 하나부터 시작하면 좋겠습니다.",
+            "좋아요. 오늘은 부담 없는 쪽으로 가죠. 지금 떠오르는 것 하나만 던지면 제가 거기서 대화로 이어가거나, 필요하면 바로 정리해서 다음 행동으로 바꿔볼게요.",
         ])
     if re.search(r"(뭐해|하고\s*있어)", raw, re.I):
         return _pick_reply_variant([
-            "지금은 네가 보낸 말을 보고 의도부터 잡고 있어요. 짧은 말이면 맥락을 이어보고, 중요한 말이면 먼저 위험도나 목적을 분리해서 답하려고 해요.",
-            "나는 지금 대화 흐름을 정리하는 중이에요. 그냥 잡담이면 편하게 받고, 작업 얘기면 바로 다음 행동으로 바꿔볼게요.",
-            "지금은 대기하면서 네 다음 말을 받을 준비 중이에요. 한 줄만 던져도 맥락을 이어서 같이 잡아볼게요.",
+            "지금은 네 말 기다리면서 대화 흐름을 붙잡고 있어요. 잡담이면 편하게 받고, 작업 얘기면 바로 다음 행동으로 바꿔볼게요.",
+            "나는 지금 여기 있어요. 짧게 말해도 괜찮고, 길게 풀어도 괜찮습니다. 네가 던지는 쪽으로 맞춰서 이어갈게요.",
+            "대기 중이에요. 그냥 근황 얘기해도 되고, 궁금한 걸 바로 물어봐도 됩니다.",
         ])
     if re.search(r"(심심|잡담|놀자|대화)", raw, re.I):
         return _pick_reply_variant([
@@ -7883,6 +8259,29 @@ def aether_generate_reply(query, history=None):
         return _build_health_safety_reply(raw)
     if re.search(r"(검색|찾아|웹사이트|사이트에서|웹에서|링크)", raw, re.I):
         return _build_search_intent_reply(raw)
+    for dialogue_builder in (
+        _build_memory_preference_reply,
+        _build_disambiguation_correction_reply,
+        _build_rewrite_request_reply,
+        _build_style_feedback_reply,
+        _build_ambiguous_context_reply,
+    ):
+        dialogue_reply = dialogue_builder(raw, history)
+        if dialogue_reply:
+            return _avoid_repeated_reply(dialogue_reply, raw, history)
+    for direct_builder in (
+        _build_everyday_companion_reply,
+        _build_concept_explanation_reply,
+        _build_daily_mood_reply,
+        _build_social_message_reply,
+        _build_apology_or_method_reply,
+        _build_practical_decision_reply,
+        _build_balanced_analysis_reply,
+        _build_document_task_reply,
+    ):
+        direct_reply = direct_builder(raw)
+        if direct_reply:
+            return _avoid_repeated_reply(direct_reply, raw, history)
     followup_reply = _build_context_followup_reply(raw, history)
     if followup_reply:
         return _avoid_repeated_reply(followup_reply, raw, history)
