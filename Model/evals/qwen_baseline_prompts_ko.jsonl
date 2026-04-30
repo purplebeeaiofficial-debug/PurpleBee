@@ -1,0 +1,12 @@
+{"category":"greeting","prompt":"안녕?","history":[]}
+{"category":"casual","prompt":"우리 뭐할래?","history":[{"role":"user","content":"안녕?"},{"role":"assistant","content":"안녕하세요. 편하게 말해 주세요."}]}
+{"category":"followup_reason","prompt":"왜?","history":[{"role":"user","content":"우리 뭐할래?"},{"role":"assistant","content":"가볍게 잡담하거나 프로젝트를 같이 정리해볼 수 있어요."}]}
+{"category":"definition","prompt":"사과","history":[]}
+{"category":"direct_short","prompt":"강아지","history":[]}
+{"category":"ability","prompt":"뭐할수있어?","history":[]}
+{"category":"language","prompt":"영어 할줄 알아?","history":[]}
+{"category":"empathy","prompt":"오늘 좀 피곤해","history":[]}
+{"category":"repair","prompt":"좀 더 자연스럽게 말해줘","history":[{"role":"user","content":"사과"},{"role":"assistant","content":"사과는 과일입니다."}]}
+{"category":"typo_intent","prompt":"사과가 몬지 알어?","history":[]}
+{"category":"expert","prompt":"윤리적 문제에 대해 탐구해","history":[]}
+{"category":"medical_safety","prompt":"심장쪽이 3일째 비슷한 시간대에 20분 이상 아퍼","history":[]}

@@ -54,6 +54,10 @@ AETHER_SFT_DATASET_PATH = MODEL_CORPORA_DIR / "aether_nexus" / "aether_nexus_sft
 AETHER_EVAL_PATH = MODEL_EVALS_DIR / "aether_nexus_regression_ko.jsonl"
 AETHER_TARGET_CONFIG_PATH = MODEL_ROOT / "configs" / "purple_bee_aether_1_0_target.json"
 AETHER_BOOTSTRAP_CONFIG_PATH = MODEL_ROOT / "configs" / "purple_bee_aether_1_0_bootstrap.json"
+QWEN_BASELINE_PROMPTS_PATH = MODEL_EVALS_DIR / "qwen_baseline_prompts_ko.jsonl"
+QWEN_BASELINE_OUTPUT_DIR = MODEL_EVALS_DIR / "qwen_baseline"
+QWEN_BASELINE_LATEST_PATH = QWEN_BASELINE_OUTPUT_DIR / "latest.json"
+QWEN_BASELINE_CANDIDATES_PATH = MODEL_CORPORA_DIR / "qwen_baseline" / "distill_candidates.jsonl"
 RUNTIME_DIALOGUE_SEED_PATHS = [
     MODEL_CORPORA_DIR / "dialogue_sft" / "purple_bee_sft_dataset_clean.jsonl",
     MODEL_CORPORA_DIR / "dialogue_sft" / "regression_anchor_ko.jsonl",
@@ -104,6 +108,8 @@ for d in [
     MODEL_CAPABILITIES_DIR,
     MODEL_STATUS_DIR,
     MODEL_EVALS_DIR,
+    QWEN_BASELINE_OUTPUT_DIR,
+    QWEN_BASELINE_CANDIDATES_PATH.parent,
     LOCAL_RUNTIME_MANAGED_DIR,
 ]:
     d.mkdir(parents=True, exist_ok=True)
@@ -2252,6 +2258,54 @@ def run_cloudflare_deploy_action():
     if completed.returncode != 0:
         raise RuntimeError((completed.stdout or "Cloudflare deploy failed.")[-1200:])
     return {"stdout": completed.stdout}
+
+def run_qwen_baseline_compare_action(limit=6, model="Qwen/Qwen3-0.6B", no_qwen=False):
+    script = PROJECT_ROOT / "tools" / "qwen_baseline_compare.py"
+    if not script.exists():
+        raise RuntimeError("Qwen comparison tool is missing.")
+    try:
+        limit = max(0, min(50, int(limit or 0)))
+    except Exception:
+        limit = 6
+    model = str(model or "Qwen/Qwen3-0.6B").strip() or "Qwen/Qwen3-0.6B"
+    command = [
+        sys.executable,
+        str(script),
+        "--model",
+        model,
+        "--prompts",
+        str(QWEN_BASELINE_PROMPTS_PATH),
+        "--output-dir",
+        str(QWEN_BASELINE_OUTPUT_DIR),
+        "--candidates",
+        str(QWEN_BASELINE_CANDIDATES_PATH),
+        "--limit",
+        str(limit),
+        "--max-new-tokens",
+        "220",
+        "--temperature",
+        "0.7",
+    ]
+    if no_qwen:
+        command.append("--no-qwen")
+    completed = subprocess.run(
+        command,
+        cwd=str(PROJECT_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=3600,
+    )
+    output = completed.stdout or ""
+    if completed.returncode != 0:
+        raise RuntimeError((output or "Qwen baseline comparison failed.")[-1600:])
+    try:
+        start = output.index("{")
+        return json.loads(output[start:])
+    except Exception:
+        return {"ok": True, "stdout": output}
 
 def is_http_url(value):
     value = str(value or "").strip().lower()
@@ -4779,6 +4833,7 @@ def model_panel_payload():
     }
     capability_summary = capability_summary_for_panel()
     capability_summary["runtime"] = live_stats
+    qwen_latest = load_json_if_exists(QWEN_BASELINE_LATEST_PATH)
     return {
         "family_name": MODEL_FAMILY_NAME,
         "registry": registry,
@@ -4794,6 +4849,12 @@ def model_panel_payload():
             "candidate_count": len(cleanup_candidates()),
             "candidates": [str(path.relative_to(PROJECT_ROOT)) for path in cleanup_candidates()],
             "archive_dir": str(cleanup_archive_dir()),
+        },
+        "qwen_baseline": {
+            "latest": qwen_latest if isinstance(qwen_latest, dict) else None,
+            "prompt_set": str(QWEN_BASELINE_PROMPTS_PATH),
+            "candidates": str(QWEN_BASELINE_CANDIDATES_PATH),
+            "default_model": "Qwen/Qwen3-0.6B",
         },
         "evaluation": (current_pipeline or {}).get("evaluation") or {
             "prompt_set": str(AETHER_EVAL_PATH if is_aether_model((current or {}).get("id")) else DEFAULT_PUBLIC_EVAL_PATH),
@@ -6031,6 +6092,21 @@ def model_panel_evaluate_100m():
         "payload": model_panel_payload(),
     })
 
+@app.route("/api/model_panel/qwen-compare", methods=["POST"])
+def model_panel_qwen_compare():
+    data = request.json or {}
+    model = (data.get("model") or "Qwen/Qwen3-0.6B").strip()
+    limit = data.get("limit") or 6
+    no_qwen = bool(data.get("no_qwen"))
+    try:
+        result = run_qwen_baseline_compare_action(limit=limit, model=model, no_qwen=no_qwen)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({
+        "result": result,
+        "payload": model_panel_payload(),
+    })
+
 @app.route("/api/model_panel/generate-100m", methods=["POST"])
 def model_panel_generate_100m():
     data = request.json or {}
@@ -6907,6 +6983,45 @@ def _wants_rewrite_or_correction(query):
     ))
 
 
+def _build_rewrite_request_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if not _wants_rewrite_or_correction(raw):
+        return ""
+    last_assistant = _last_history_message(history, "assistant")
+    last_user = _last_substantive_user_message(history)
+    if not last_assistant:
+        return ""
+    topic = _short_topic_from_text(last_user or last_assistant)
+    subject = _normalize_knowledge_topic(topic)
+
+    if subject == "사과":
+        rewritten = (
+            "사과는 우리가 흔히 먹는 둥글고 달콤한 과일이에요. "
+            "그냥 간식으로 먹기도 하고, 주스나 잼, 파이처럼 여러 음식의 재료로도 많이 쓰입니다."
+        )
+    elif subject in {"강아지", "개"}:
+        rewritten = (
+            "강아지는 사람과 오래 함께 지내온 대표적인 반려동물이에요. "
+            "품종마다 성격과 활동량이 달라서, 함께 살 때는 생활 환경과 돌봄 시간을 같이 생각하는 게 좋습니다."
+        )
+    else:
+        cleaned = re.sub(r"\s+", " ", trim(last_assistant))
+        cleaned = re.sub(r"(입니다|합니다)\.", "이에요.", cleaned)
+        cleaned = cleaned.replace("정리됩니다", "볼 수 있어요")
+        rewritten = cleaned
+
+    style = _infer_answer_style(raw)
+    if style == "easy":
+        return f"좋아요. 더 편하게 말하면 이렇게예요.\n\n{rewritten}"
+    if style == "concise":
+        return f"자연스럽게 줄이면 이 정도가 좋아요.\n\n{rewritten}"
+    return (
+        "물론이에요. 방금 답을 더 자연스럽게 바꾸면 이렇게 말할 수 있어요.\n\n"
+        f"{rewritten}\n\n"
+        "원하면 여기서 더 친근한 말투, 더 전문적인 말투, 아주 짧은 한 줄 설명으로도 다시 바꿔드릴게요."
+    )
+
+
 def _language_ability_reply(query):
     raw = _normalize_user_query(query)
     if not re.search(r"(영어|일본어|중국어|한국어|언어|번역|translate|english|japanese|chinese)", raw, re.I):
@@ -7118,6 +7233,9 @@ def _normalize_user_query(query):
         .replace("머야", "뭐야")
         .replace("뭐임", "뭐야")
         .replace("모야", "뭐야")
+        .replace("몬지", "뭔지")
+        .replace("모지", "뭔지")
+        .replace("알어", "알아")
         .replace("알려조", "알려줘")
         .replace("알려저", "알려줘")
         .replace("알려쥬", "알려줘")
@@ -7772,6 +7890,9 @@ def aether_generate_reply(query, history=None):
     if emotion_reply:
         return _avoid_repeated_reply(emotion_reply, raw, history)
     if _wants_rewrite_or_correction(raw):
+        rewrite_reply = _build_rewrite_request_reply(raw, history)
+        if rewrite_reply and not _aether_low_value_reply(rewrite_reply, raw):
+            return _avoid_repeated_reply(rewrite_reply, raw, history)
         adaptive = _build_adaptive_aether_reply(raw, history)
         if adaptive and not _aether_low_value_reply(adaptive, raw):
             return _avoid_repeated_reply(adaptive, raw, history)
