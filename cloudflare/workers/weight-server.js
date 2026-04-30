@@ -689,9 +689,32 @@ function pbAdaptiveAetherReply(query, history = []) {
   ], raw);
 }
 
+function pbCleanKnowledgeText(subject, summary) {
+  const body = String(summary || "").replace(/\s+/g, " ").trim();
+  if (!body) return "";
+  const sentences = body.match(/[^.!?。！？]+[.!?。！？]?/g) || [body];
+  const kept = [];
+  for (const sentence of sentences) {
+    const s = String(sentence || "").trim();
+    if (!s) continue;
+    if (/[\u4e00-\u9fff]/.test(s) && /(라고도|또는|혹은|別|称|苹果|頻婆)/.test(s)) continue;
+    if (/(동음이의|분류:|목차|문서)/.test(s)) continue;
+    kept.push(s);
+    if (kept.length >= 4) break;
+  }
+  const cleaned = kept.join(" ").trim() || body;
+  if (subject === "사과" && /(과일|열매)/.test(cleaned)) {
+    return "사과는 둥글고 달콤한 맛이 나는 대표적인 과일입니다. 생으로 먹거나 주스, 잼, 파이 같은 재료로 많이 쓰이고, 품종에 따라 단맛과 산미가 달라요.";
+  }
+  if (["강아지", "개"].includes(subject)) {
+    return "강아지는 사람과 오래 함께 살아온 대표적인 반려동물입니다. 품종마다 성격, 활동량, 털 관리 방식이 달라서 생활 환경과 돌봄 시간을 함께 고려하는 게 중요해요.";
+  }
+  return cleaned.slice(0, 700).replace(/\s{2,}/g, " ").trim();
+}
+
 function pbKnowledgeReply(topic, summary, query) {
   const subject = String(topic || "").trim();
-  const body = String(summary || "").replace(/\s+/g, " ").trim();
+  const body = pbCleanKnowledgeText(subject, summary);
   const topicParticle = `${subject}${pbParticle(subject, "은", "는")}`;
   const objectParticle = `${subject}${pbParticle(subject, "을", "를")}`;
   const stripped = pbStripSubject(pbFirstSentences(body, 2), subject);
@@ -2281,33 +2304,194 @@ function pbBareTopicGuidance(raw) {
   ].join("\n");
 }
 
+function pbHistoryMessages(history = [], role = "", limit = 6) {
+  if (!Array.isArray(history)) return [];
+  const items = [];
+  for (const item of history) {
+    if (!item || typeof item !== "object") continue;
+    if (role && item.role !== role) continue;
+    const content = String(item.content || item.text || "").trim();
+    if (content) items.push(content);
+  }
+  return items.slice(-limit);
+}
+
+function pbIsContextThinMessage(text) {
+  const raw = pbNormalize(text);
+  if (!raw) return true;
+  return /^(응|ㅇㅇ|그래|맞아|좋아|오케이|ok|okay|아니|ㄴㄴ|아닌데|그건\s*아니야|그게\s*아니야|왜|왜\?|왜그래|왜 그래|이유는|원인은|그게\s*뭐야|그게\s*뭔데|뭔데|뭐가|무슨\s*뜻|뜻은|자세히|더\s*자세히|계속|이어줘|더|그래서|그다음|다음|음+|흠+|으음+|글쎄|모르겠어|애매해)[\s?？!！.。…]*$/i.test(raw);
+}
+
+function pbLastSubstantiveUserText(history = []) {
+  if (!Array.isArray(history)) return "";
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const item = history[i];
+    if (!item || item.role !== "user") continue;
+    const content = String(item.content || item.text || "").trim();
+    if (content && !pbIsContextThinMessage(content)) return content;
+  }
+  return pbLastUserText(history);
+}
+
+function pbShortTopicFromText(text) {
+  const raw = pbNormalize(text);
+  let topic = pbExtractTopic(raw) || pbExtractAetherTopic(raw);
+  topic = String(topic || "").replace(/(대해|대한|관련|쪽|기준|흐름|내용)$/g, "").trim();
+  if (!topic || topic === "그 주제") {
+    const words = raw.match(/[A-Za-z0-9가-힣+#._-]{2,}/g) || [];
+    topic = words.length ? words.slice(0, 3).join(" ") : "방금 이야기";
+  }
+  if (/(우리\s*뭐|뭐\s*할|뭐할래|뭐할까|대화|잡담)/i.test(raw)) topic = "같이 할 일";
+  return topic.slice(0, 40);
+}
+
+function pbContextFollowupReply(raw, history = []) {
+  const query = pbNormalize(raw);
+  if (!Array.isArray(history) || !history.length) return "";
+  const lastUser = pbLastSubstantiveUserText(history);
+  const lastAssistant = pbLastAssistantText(history);
+  const topic = pbShortTopicFromText(lastUser || lastAssistant);
+
+  if (/^(왜|왜\?|왜그래|왜 그래|이유는|원인은)[\s?？!！.]*$/i.test(query)) {
+    return pbPick([
+      `방금 이야기에서 핵심 이유는, ${topic}${pbParticle(topic, "은", "는")} 겉으로 보이는 말보다 그 뒤의 조건을 봐야 하기 때문이에요. 즉 “무엇을 원했는지”와 “어떤 정보가 부족했는지”가 답의 방향을 갈라요.`,
+      `왜냐하면 ${topic}${pbParticle(topic, "은", "는")} 한 가지 뜻으로 고정되기보다, 문맥에 따라 설명·판단·행동 제안으로 달라지기 때문이에요. 그래서 저는 먼저 의도를 잡고 답을 좁히는 쪽으로 봐야 해요.`,
+      `이유를 짧게 말하면, 방금 흐름에서 부족한 건 정보량보다 방향성이에요. ${topic}${pbParticle(topic, "을", "를")} 어떤 관점으로 볼지 정하면 답이 훨씬 자연스러워집니다.`,
+    ], `${query}:${history.length}`);
+  }
+
+  if (/^(그게\s*뭐야|그게\s*뭔데|뭔데|뭐가|무슨\s*뜻|뜻은)[\s?？!！.]*$/i.test(query)) {
+    return [
+      `방금 말한 ${topic}${pbParticle(topic, "은", "는")} 쉽게 말하면 “지금 대화에서 가장 중요한 중심점”이에요.`,
+      "",
+      "예를 들어 설명을 원하면 정의와 예시를 붙이고, 해결을 원하면 원인과 다음 행동으로 바꿔야 해요. 그래서 같은 단어라도 사용자가 원하는 결과에 맞춰 말투와 구조가 달라져야 합니다.",
+    ].join("\n");
+  }
+
+  if (/^(자세히|더\s*자세히|계속|이어줘|더|그래서|그다음|다음)[\s?？!！.]*$/i.test(query)) {
+    if (["사과", "강아지", "개", "윤리", "인공지능"].includes(topic)) {
+      return [
+        `좋아요. ${topic}${pbParticle(topic, "을", "를")} 조금 더 풀어보면, 단순한 정의보다 “특징, 쓰임, 주의할 점”으로 나눠 보는 게 이해하기 쉽습니다.`,
+        "",
+        `- 특징: ${topic}${pbParticle(topic, "은", "는")} 사람들이 자주 접하는 주제라서 기본 의미와 실제 사용 맥락이 함께 중요합니다.`,
+        "- 쓰임: 일상 설명에서는 쉬운 예시를 붙이고, 전문 분석에서는 원인과 기준을 분리해 설명하는 편이 좋습니다.",
+        "- 다음으로 볼 점: 왜 중요한지, 어디에 쓰이는지, 비슷한 개념과 뭐가 다른지를 보면 더 선명해집니다.",
+        "",
+        "원하면 여기서 더 쉽게, 더 전문적으로, 또는 예시 중심으로 다시 바꿔서 이어갈 수 있어요.",
+      ].join("\n");
+    }
+    return [
+      `좋아요. ${topic}${pbParticle(topic, "을", "를")} 조금 더 이어서 풀어볼게요.`,
+      "",
+      `먼저 ${topic}${pbParticle(topic, "은", "는")} 한 문장으로 끝내기보다, 왜 중요한지와 실제로 어디에 쓰이는지를 같이 봐야 자연스럽습니다. 필요하면 정의, 예시, 비교, 다음 행동 순서로 확장해서 설명할 수 있어요.`,
+    ].join("\n");
+  }
+
+  if (/^(응|ㅇㅇ|그래|맞아|좋아|오케이|ok|okay)[\s.!?。！？…]*$/i.test(query)) {
+    return pbPick([
+      `좋아요. 그럼 ${topic} 쪽으로 계속 이어가볼게요. 지금은 너무 넓게 벌리기보다, 가장 중요한 한 지점부터 잡는 게 좋아요.`,
+      `알겠습니다. 그러면 방금 흐름을 유지해서 ${topic}${pbParticle(topic, "을", "를")} 더 자연스럽게 이어가겠습니다.`,
+      `좋아요. 지금 흐름이면 ${topic}${pbParticle(topic, "을", "를")} 예시나 다음 행동으로 바꾸는 게 가장 실용적이에요.`,
+    ], `${query}:${history.length}`);
+  }
+
+  if (/^(아니|ㄴㄴ|아닌데|그건\s*아니야|그게\s*아니야)[\s.!?。！？…]*$/i.test(query)) {
+    return pbPick([
+      "알겠어요. 방금 제가 잡은 방향이 빗나갔네요. 이번에는 이전 답을 고집하지 않고, 네가 말하려던 의도를 다시 우선으로 두겠습니다.",
+      "맞아요, 그 흐름은 접을게요. 지금 필요한 건 다시 묻는 게 아니라 답변 기준을 바꾸는 거예요. 다음 말에 맞춰 바로 다시 잡겠습니다.",
+      "오케이. 그 답은 폐기하고 다시 볼게요. 짧게라도 원하는 쪽을 던지면 그 방향으로 맞춰서 이어가겠습니다.",
+    ], `${query}:${history.length}`);
+  }
+
+  if (/^(음+|흠+|으음+|글쎄|모르겠어|애매해)[\s.!?。！？…]*$/i.test(query)) {
+    return pbPick([
+      "천천히 생각해도 괜찮아요. 아직 말로 딱 안 잡힌 상태면, 제가 먼저 가능한 방향을 작게 나눠볼게요. 설명을 원하는지, 선택을 원하는지, 그냥 같이 생각하고 싶은지부터 보면 됩니다.",
+      "그 애매한 느낌도 정보예요. 지금은 바로 결론을 내기보다, 머릿속에 걸리는 부분을 하나씩 꺼내는 게 좋아요. 제가 흐름을 놓치지 않고 받아볼게요.",
+      "괜찮아요. 아직 정리 안 된 생각이면 제가 같이 정리해볼게요. 단어 하나만 던져도 거기서 출발할 수 있습니다.",
+    ], `${query}:${history.length}`);
+  }
+
+  return "";
+}
+
+function pbEmotionalChatReply(raw) {
+  const query = pbNormalize(raw);
+  if (/(힘들|지쳤|피곤|우울|불안|짜증|화나|외롭|무서|걱정|스트레스)/i.test(query)) {
+    return pbPick([
+      "그건 그냥 넘길 감정은 아니에요. 지금 당장 해결책부터 밀어붙이기보다, 뭐가 제일 무겁게 느껴지는지부터 작게 나눠보면 좋겠습니다. 제가 옆에서 같이 정리해볼게요.",
+      "많이 버거운 쪽으로 들려요. 지금은 완벽하게 설명하지 않아도 괜찮고, 제일 크게 걸리는 것 하나만 말해줘도 됩니다. 거기서부터 천천히 풀어볼게요.",
+      "그 상태면 머리로는 정리하려 해도 몸이 먼저 지칠 수 있어요. 지금 필요한 건 큰 결론보다 부담을 조금 줄이는 첫 단계일 가능성이 큽니다.",
+    ], query);
+  }
+  if (/(기쁘|좋았|좋아졌|신나|행복|다행|성공|해냈)/i.test(query)) {
+    return pbPick([
+      "좋네요. 그런 흐름은 그냥 지나치지 말고 뭐가 잘됐는지 잡아두면 다음에도 재현하기 쉬워요. 어떤 부분이 제일 만족스러웠어요?",
+      "오, 그건 꽤 좋은 신호예요. 결과도 중요하지만, 거기까지 간 방식도 기억해두면 다음 작업이 훨씬 편해집니다.",
+      "좋아요. 지금은 그 좋은 흐름을 살려서 다음에 뭘 이어갈지 작게 정하면 딱 좋겠습니다.",
+    ], query);
+  }
+  if (/(고마워|ㄳ|감사|땡큐|thanks)/i.test(query)) {
+    return pbPick([
+      "언제든요. 다음 것도 편하게 던져주세요.",
+      "좋아요. 이어서 더 다듬거나 다음 단계로 넘어가도 됩니다.",
+      "천천히 같이 가면 됩니다. 필요한 거 있으면 바로 말해줘요.",
+    ], query);
+  }
+  return "";
+}
+
+function pbAvoidRepeatedReply(reply, query, history = []) {
+  const text = String(reply || "").trim();
+  if (!text) return text;
+  const previous = pbHistoryMessages(history, "assistant", 4);
+  const normalized = text.replace(/\s+/g, " ");
+  for (const old of previous) {
+    const oldNorm = String(old || "").replace(/\s+/g, " ");
+    if (oldNorm && (normalized === oldNorm || normalized.slice(0, 80) === oldNorm.slice(0, 80))) {
+      const topic = pbShortTopicFromText(query);
+      return pbPick([
+        `이번엔 다르게 말해볼게요. ${topic}${pbParticle(topic, "은", "는")} 핵심부터 보면, 먼저 의미를 잡고 그다음 사용자가 원하는 형태로 다시 바꾸는 게 중요합니다.`,
+        `같은 말로 반복하지 않고 다시 정리하면, ${topic}${pbParticle(topic, "은", "는")} 정의보다 맥락이 먼저예요. 지금 상황에서 어떤 답이 필요한지에 맞춰 설명이 달라져야 합니다.`,
+        `다른 각도로 보면 ${topic}${pbParticle(topic, "은", "는")} 단순한 정보가 아니라 대화의 방향을 정하는 단서입니다. 그래서 답은 짧게 시작하되, 필요하면 예시와 근거로 확장하는 게 좋아요.`,
+      ], `${query}:${history.length}:${Date.now()}`);
+    }
+  }
+  return text;
+}
+
 async function pbBuildAetherWorkerReplyStable(query, history = []) {
   const raw = pbNormalize(query);
   if (!raw) return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요.";
   if (/^(안녕+|하이+|hello|hi|hey)[!?.…\s]*$/i.test(raw)) {
-    return pbPick([
+    return pbAvoidRepeatedReply(pbPick([
       "안녕하세요. 지금 떠오른 걸 그대로 말해 주세요. 짧게 던져도 문맥을 잡아서 이어가볼게요.",
       "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
       "반가워요. 그냥 대화해도 좋고, 바로 궁금한 걸 물어봐도 좋아요.",
-    ], raw);
+    ], `${raw}:${Array.isArray(history) ? history.length : 0}:${Date.now()}`), raw, history);
   }
-  if (/(심장|가슴|흉통|호흡|숨\s*쉬|식은땀|어지럼|통증|아파|아퍼|병원|응급)/i.test(raw)) return pbHealthReply(raw);
+  if (/(심장|가슴|흉통|호흡|숨\s*쉬|식은땀|어지럼|통증|아파|아퍼|병원|응급)/i.test(raw)) return pbAvoidRepeatedReply(pbHealthReply(raw), raw, history);
   if (/(날씨|weather)/i.test(raw)) {
     const weather = await pbWeatherReply(raw);
-    return weather || "날씨는 지역명이 있어야 정확히 볼 수 있어요. 예를 들면 “군산 날씨”처럼 지역과 함께 물어봐 주세요.";
+    return pbAvoidRepeatedReply(weather || "날씨는 지역명이 있어야 정확히 볼 수 있어요. 예를 들면 “군산 날씨”처럼 지역과 함께 물어봐 주세요.", raw, history);
   }
 
+  const followup = pbContextFollowupReply(raw, history);
+  if (followup) return pbAvoidRepeatedReply(followup, raw, history);
+
+  const emotional = pbEmotionalChatReply(raw);
+  if (emotional) return pbAvoidRepeatedReply(emotional, raw, history);
+
   const rewrite = pbWantsRewrite(raw) ? pbRepairReply(raw, history) : "";
-  if (rewrite) return rewrite;
+  if (rewrite) return pbAvoidRepeatedReply(rewrite, raw, history);
 
   const languageAbility = pbLanguageAbilityReply(raw);
-  if (languageAbility) return languageAbility;
+  if (languageAbility) return pbAvoidRepeatedReply(languageAbility, raw, history);
 
   const bareGuidance = pbBareTopicGuidance(raw);
-  if (bareGuidance) return bareGuidance;
+  if (bareGuidance) return pbAvoidRepeatedReply(bareGuidance, raw, history);
 
   if (/(탐구|쟁점|윤리적\s*문제|사회문제|고찰|토론|관점\s*분석)/i.test(raw)) {
-    return pbExplorationReply(raw);
+    return pbAvoidRepeatedReply(pbExplorationReply(raw), raw, history);
   }
 
   // Dynamic knowledge first. Fixed seed facts and broad planning templates
@@ -2315,51 +2499,51 @@ async function pbBuildAetherWorkerReplyStable(query, history = []) {
   const topic = /(강아지|반려견|dog|puppy)/i.test(raw) ? "강아지" : pbExtractTopic(raw);
   if (topic) {
     const summary = await pbWikiSummary(topic);
-    if (summary) return pbKnowledgeReply(topic, summary, raw);
+    if (summary) return pbAvoidRepeatedReply(pbKnowledgeReply(topic, summary, raw), raw, history);
   }
 
   if (/(검색|찾아|웹사이트|사이트에서|링크)/i.test(raw)) {
     const searchTopic = pbExtractAetherTopic(raw);
     const encoded = encodeURIComponent(searchTopic || raw);
-    return [
+    return pbAvoidRepeatedReply([
       `${searchTopic || raw} 관련해서 바로 확인할 수 있는 경로예요.`,
       "",
       `- Google: https://www.google.com/search?q=${encoded}`,
       `- DuckDuckGo: https://duckduckgo.com/?q=${encoded}`,
       "",
       "공식 사이트, 사용법, 비교, 오류 해결 중 원하는 방향을 말하면 그쪽으로 더 좁혀서 정리할게요.",
-    ].join("\n");
+    ].join("\n"), raw, history);
   }
 
   if (/(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)/i.test(raw)) {
-    return [
+    return pbAvoidRepeatedReply([
       "저는 질문의 의도와 맥락을 먼저 잡고, 필요한 경우 자료나 웹 정보를 연결해서 답하는 Purple Bee입니다.",
       "",
       "지금 할 수 있는 일은 일상 대화, 개념 설명, 코드/오류 분석, 문서 요약, 자료 기반 정리, 최신 정보 확인입니다. 짧게 던져도 먼저 해석해서 답해볼게요.",
-    ].join("\n");
+    ].join("\n"), raw, history);
   }
   if (/(우리\s*뭐|뭐\s*할까|심심|잡담|대화하자|놀자|뭐해)/i.test(raw)) {
-    return pbPick([
+    return pbAvoidRepeatedReply(pbPick([
       "좋아요. 지금은 가볍게 대화해도 되고, 머릿속에 걸린 문제 하나를 같이 풀어도 좋아요. 저는 네가 던지는 쪽으로 자연스럽게 따라갈게요.",
       "우리라면 일단 부담 없는 것부터 시작하면 좋겠어요. 잡담, 아이디어 정리, 프로젝트 점검 중 아무 방향이나 던져도 됩니다.",
       "좋아요. 굳이 거창하게 시작하지 말고, 지금 제일 신경 쓰이는 것 하나만 꺼내봅시다.",
-    ], `${raw}:${Array.isArray(history) ? history.length : 0}`);
+    ], `${raw}:${Array.isArray(history) ? history.length : 0}:${Date.now()}`), raw, history);
   }
   const meta = pbMetaQualityReply(raw);
-  if (meta) return meta;
+  if (meta) return pbAvoidRepeatedReply(meta, raw, history);
   if (/(탐구|분석|깊게|논의|쟁점|윤리|철학|문제)/i.test(raw)) {
-    return pbExplorationReply(raw);
+    return pbAvoidRepeatedReply(pbExplorationReply(raw), raw, history);
   }
 
   const adaptive = pbAdaptiveAetherReply(raw, history);
-  if (adaptive) return adaptive;
+  if (adaptive) return pbAvoidRepeatedReply(adaptive, raw, history);
   if (/(코드|코딩|python|파이썬|error|오류|버그|함수|html|css|js)/i.test(raw)) {
-    return "코딩 쪽으로 보면 먼저 증상과 원인을 분리하는 게 좋아요. 코드나 오류 화면을 보내주면 입력값, 실행 흐름, 실패 지점을 나눠서 바로 좁혀볼게요.";
+    return pbAvoidRepeatedReply("코딩 쪽으로 보면 먼저 증상과 원인을 분리하는 게 좋아요. 코드나 오류 화면을 보내주면 입력값, 실행 흐름, 실패 지점을 나눠서 바로 좁혀볼게요.", raw, history);
   }
   if (/(요약|정리|핵심)/i.test(raw)) {
-    return "좋아요. 자료를 보내주면 핵심 주장, 근거, 놓치면 안 되는 내용, 다음 행동 순서로 짧고 읽기 쉽게 정리해드릴게요.";
+    return pbAvoidRepeatedReply("좋아요. 자료를 보내주면 핵심 주장, 근거, 놓치면 안 되는 내용, 다음 행동 순서로 짧고 읽기 쉽게 정리해드릴게요.", raw, history);
   }
-  return pbGeneralReply(raw, history);
+  return pbAvoidRepeatedReply(pbGeneralReply(raw, history), raw, history);
 }
 
 async function buildWebsiteRuntimeReply(query, history) {

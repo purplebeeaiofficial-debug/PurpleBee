@@ -6931,6 +6931,166 @@ def _bare_topic_instruction_reply(query):
     )
 
 
+def _history_messages(history, role=None, limit=6):
+    if not isinstance(history, list):
+        return []
+    items = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        item_role = item.get("role") or ""
+        if role and item_role != role:
+            continue
+        content = trim(item.get("content") or item.get("text") or "")
+        if content:
+            items.append(content)
+    return items[-limit:]
+
+
+def _last_history_message(history, role=None):
+    items = _history_messages(history, role=role, limit=1)
+    return items[-1] if items else ""
+
+
+def _is_context_thin_message(text):
+    raw = _normalize_user_query(text)
+    if not raw:
+        return True
+    return bool(re.fullmatch(
+        r"(응|ㅇㅇ|그래|맞아|좋아|오케이|ok|okay|아니|ㄴㄴ|아닌데|그건\s*아니야|그게\s*아니야|"
+        r"왜|왜\?|왜그래|왜 그래|이유는|원인은|그게\s*뭐야|그게\s*뭔데|뭔데|뭐가|무슨\s*뜻|뜻은|"
+        r"자세히|더\s*자세히|계속|이어줘|더|그래서|그다음|다음|음+|흠+|으음+|글쎄|모르겠어|애매해)[\s?？!！.。…]*",
+        raw,
+        re.I,
+    ))
+
+
+def _last_substantive_user_message(history):
+    if not isinstance(history, list):
+        return ""
+    for item in reversed(history):
+        if not isinstance(item, dict) or item.get("role") != "user":
+            continue
+        content = trim(item.get("content") or item.get("text") or "")
+        if content and not _is_context_thin_message(content):
+            return content
+    return _last_history_message(history, "user")
+
+
+def _short_topic_from_text(text):
+    raw = _normalize_user_query(text)
+    topic = _extract_definition_topic(raw) or _extract_aether_topic(raw)
+    topic = re.sub(r"(대해|대한|관련|쪽|기준|흐름|내용)$", "", topic).strip()
+    if not topic or topic == "그 주제":
+        words = re.findall(r"[A-Za-z0-9가-힣+#._-]{2,}", raw)
+        topic = " ".join(words[:3]) if words else "방금 이야기"
+    if re.search(r"(우리\s*뭐|뭐\s*할|뭐할래|뭐할까|대화|잡담)", raw, re.I):
+        topic = "같이 할 일"
+    return topic[:40]
+
+
+def _build_context_followup_reply(query, history=None):
+    raw = _normalize_user_query(query)
+    if not history:
+        return ""
+    last_user = _last_substantive_user_message(history)
+    last_assistant = _last_history_message(history, "assistant")
+    topic = _short_topic_from_text(last_user or last_assistant)
+
+    if re.fullmatch(r"(왜|왜\?|왜그래|왜 그래|이유는|원인은)[\s?？!！.]*", raw, re.I):
+        return _pick_reply_variant([
+            f"방금 이야기에서 핵심 이유는, {topic}{_particle(topic, '은', '는')} 겉으로 보이는 말보다 그 뒤의 조건을 봐야 하기 때문이에요. 즉 “무엇을 원했는지”와 “어떤 정보가 부족했는지”가 답의 방향을 갈라요.",
+            f"왜냐하면 {topic}{_particle(topic, '은', '는')} 한 가지 뜻으로 고정되기보다, 문맥에 따라 설명·판단·행동 제안으로 달라지기 때문이에요. 그래서 저는 먼저 의도를 잡고 답을 좁히는 쪽으로 봐야 해요.",
+            f"이유를 짧게 말하면, 방금 흐름에서 부족한 건 정보량보다 방향성이에요. {topic}{_particle(topic, '을', '를')} 어떤 관점으로 볼지 정하면 답이 훨씬 자연스러워집니다.",
+        ])
+
+    if re.fullmatch(r"(그게\s*뭐야|그게\s*뭔데|뭔데|뭐가|무슨\s*뜻|뜻은)[\s?？!！.]*", raw, re.I):
+        return (
+            f"방금 말한 {topic}{_particle(topic, '은', '는')} 쉽게 말하면 “지금 대화에서 가장 중요한 중심점”이에요.\n\n"
+            "예를 들어 설명을 원하면 정의와 예시를 붙이고, 해결을 원하면 원인과 다음 행동으로 바꿔야 해요. "
+            "그래서 같은 단어라도 사용자가 원하는 결과에 맞춰 말투와 구조가 달라져야 합니다."
+        )
+
+    if re.fullmatch(r"(자세히|더\s*자세히|계속|이어줘|더|그래서|그다음|다음)[\s?？!！.]*", raw, re.I):
+        if topic in {"사과", "강아지", "개", "윤리", "인공지능"}:
+            return (
+                f"좋아요. {topic}{_particle(topic, '을', '를')} 조금 더 풀어보면, 단순한 정의보다 “특징, 쓰임, 주의할 점”으로 나눠 보는 게 이해하기 쉽습니다.\n\n"
+                f"- 특징: {topic}{_particle(topic, '은', '는')} 사람들이 자주 접하는 주제라서 기본 의미와 실제 사용 맥락이 함께 중요합니다.\n"
+                "- 쓰임: 일상 설명에서는 쉬운 예시를 붙이고, 전문 분석에서는 원인과 기준을 분리해 설명하는 편이 좋습니다.\n"
+                "- 다음으로 볼 점: 왜 중요한지, 어디에 쓰이는지, 비슷한 개념과 뭐가 다른지를 보면 더 선명해집니다.\n\n"
+                "원하면 여기서 더 쉽게, 더 전문적으로, 또는 예시 중심으로 다시 바꿔서 이어갈 수 있어요."
+            )
+        return (
+            f"좋아요. {topic}{_particle(topic, '을', '를')} 조금 더 이어서 풀어볼게요.\n\n"
+            f"먼저 {topic}{_particle(topic, '은', '는')} 한 문장으로 끝내기보다, 왜 중요한지와 실제로 어디에 쓰이는지를 같이 봐야 자연스럽습니다. "
+            "필요하면 정의, 예시, 비교, 다음 행동 순서로 확장해서 설명할 수 있어요."
+        )
+
+    if re.fullmatch(r"(응|ㅇㅇ|그래|맞아|좋아|오케이|ok|okay)[\s.!?。！？…]*", raw, re.I):
+        return _pick_reply_variant([
+            f"좋아요. 그럼 {topic} 쪽으로 계속 이어가볼게요. 지금은 너무 넓게 벌리기보다, 가장 중요한 한 지점부터 잡는 게 좋아요.",
+            f"알겠습니다. 그러면 방금 흐름을 유지해서 {topic}{_particle(topic, '을', '를')} 더 자연스럽게 이어가겠습니다.",
+            f"좋아요. 지금 흐름이면 {topic}{_particle(topic, '을', '를')} 예시나 다음 행동으로 바꾸는 게 가장 실용적이에요.",
+        ])
+
+    if re.fullmatch(r"(아니|ㄴㄴ|아닌데|그건\s*아니야|그게\s*아니야)[\s.!?。！？…]*", raw, re.I):
+        return _pick_reply_variant([
+            "알겠어요. 방금 제가 잡은 방향이 빗나갔네요. 이번에는 이전 답을 고집하지 않고, 네가 말하려던 의도를 다시 우선으로 두겠습니다.",
+            "맞아요, 그 흐름은 접을게요. 지금 필요한 건 다시 묻는 게 아니라 답변 기준을 바꾸는 거예요. 다음 말에 맞춰 바로 다시 잡겠습니다.",
+            "오케이. 그 답은 폐기하고 다시 볼게요. 짧게라도 원하는 쪽을 던지면 그 방향으로 맞춰서 이어가겠습니다.",
+        ])
+
+    if re.fullmatch(r"(음+|흠+|으음+|글쎄|모르겠어|애매해)[\s.!?。！？…]*", raw, re.I):
+        return _pick_reply_variant([
+            "천천히 생각해도 괜찮아요. 아직 말로 딱 안 잡힌 상태면, 제가 먼저 가능한 방향을 작게 나눠볼게요. 설명을 원하는지, 선택을 원하는지, 그냥 같이 생각하고 싶은지부터 보면 됩니다.",
+            "그 애매한 느낌도 정보예요. 지금은 바로 결론을 내기보다, 머릿속에 걸리는 부분을 하나씩 꺼내는 게 좋아요. 제가 흐름을 놓치지 않고 받아볼게요.",
+            "괜찮아요. 아직 정리 안 된 생각이면 제가 같이 정리해볼게요. 단어 하나만 던져도 거기서 출발할 수 있습니다.",
+        ])
+
+    return ""
+
+
+def _build_emotional_chat_reply(query):
+    raw = _normalize_user_query(query)
+    if re.search(r"(힘들|지쳤|피곤|우울|불안|짜증|화나|외롭|무서|걱정|스트레스)", raw, re.I):
+        return _pick_reply_variant([
+            "그건 그냥 넘길 감정은 아니에요. 지금 당장 해결책부터 밀어붙이기보다, 뭐가 제일 무겁게 느껴지는지부터 작게 나눠보면 좋겠습니다. 제가 옆에서 같이 정리해볼게요.",
+            "많이 버거운 쪽으로 들려요. 지금은 완벽하게 설명하지 않아도 괜찮고, 제일 크게 걸리는 것 하나만 말해줘도 됩니다. 거기서부터 천천히 풀어볼게요.",
+            "그 상태면 머리로는 정리하려 해도 몸이 먼저 지칠 수 있어요. 지금 필요한 건 큰 결론보다 부담을 조금 줄이는 첫 단계일 가능성이 큽니다.",
+        ])
+    if re.search(r"(기쁘|좋았|좋아졌|신나|행복|다행|성공|해냈)", raw, re.I):
+        return _pick_reply_variant([
+            "좋네요. 그런 흐름은 그냥 지나치지 말고 뭐가 잘됐는지 잡아두면 다음에도 재현하기 쉬워요. 어떤 부분이 제일 만족스러웠어요?",
+            "오, 그건 꽤 좋은 신호예요. 결과도 중요하지만, 거기까지 간 방식도 기억해두면 다음 작업이 훨씬 편해집니다.",
+            "좋아요. 지금은 그 좋은 흐름을 살려서 다음에 뭘 이어갈지 작게 정하면 딱 좋겠습니다.",
+        ])
+    if re.search(r"(고마워|ㄳ|감사|땡큐|thanks)", raw, re.I):
+        return _pick_reply_variant([
+            "언제든요. 다음 것도 편하게 던져주세요.",
+            "좋아요. 이어서 더 다듬거나 다음 단계로 넘어가도 됩니다.",
+            "천천히 같이 가면 됩니다. 필요한 거 있으면 바로 말해줘요.",
+        ])
+    return ""
+
+
+def _avoid_repeated_reply(reply, query, history=None):
+    text = trim(reply)
+    if not text:
+        return text
+    previous = _history_messages(history, role="assistant", limit=4)
+    normalized = re.sub(r"\s+", " ", text)
+    for old in previous:
+        old_norm = re.sub(r"\s+", " ", old)
+        if old_norm and (normalized == old_norm or normalized[:80] == old_norm[:80]):
+            topic = _short_topic_from_text(query)
+            return _pick_reply_variant([
+                f"이번엔 다르게 말해볼게요. {topic}{_particle(topic, '은', '는')} 핵심부터 보면, 먼저 의미를 잡고 그다음 사용자가 원하는 형태로 다시 바꾸는 게 중요합니다.",
+                f"같은 말로 반복하지 않고 다시 정리하면, {topic}{_particle(topic, '은', '는')} 정의보다 맥락이 먼저예요. 지금 상황에서 어떤 답이 필요한지에 맞춰 설명이 달라져야 합니다.",
+                f"다른 각도로 보면 {topic}{_particle(topic, '은', '는')} 단순한 정보가 아니라 대화의 방향을 정하는 단서입니다. 그래서 답은 짧게 시작하되, 필요하면 예시와 근거로 확장하는 게 좋아요.",
+            ])
+    return text
+
+
 def _extract_definition_topic(query):
     raw = _normalize_user_query(query)
     if not raw:
@@ -7245,9 +7405,39 @@ def _pick_reply_variant(options):
     return random.choice(choices)
 
 
+def _clean_knowledge_text(subject, summary):
+    body = re.sub(r"\s+", " ", trim(summary))
+    if not body:
+        return ""
+
+    # Wikipedia summaries can contain alias-heavy encyclopedia wording.
+    # Keep usable facts, but drop romanization/Chinese-character alias lines
+    # that make chat replies feel copied rather than spoken.
+    sentences = re.findall(r"[^.!?。！？]+[.!?。！？]?", body) or [body]
+    kept = []
+    for sentence in sentences:
+        s = trim(sentence)
+        if not s:
+            continue
+        if re.search(r"[\u4e00-\u9fff]", s) and re.search(r"(라고도|또는|혹은|別|称|苹果|頻婆)", s):
+            continue
+        if re.search(r"(동음이의|분류:|목차|문서)", s):
+            continue
+        kept.append(s)
+        if len(kept) >= 4:
+            break
+
+    cleaned = " ".join(kept).strip() or body
+    if subject == "사과" and re.search(r"(과일|열매)", cleaned):
+        return "사과는 둥글고 달콤한 맛이 나는 대표적인 과일입니다. 생으로 먹거나 주스, 잼, 파이 같은 재료로 많이 쓰이고, 품종에 따라 단맛과 산미가 달라요."
+    if subject in {"강아지", "개"}:
+        return "강아지는 사람과 오래 함께 살아온 대표적인 반려동물입니다. 품종마다 성격, 활동량, 털 관리 방식이 달라서 생활 환경과 돌봄 시간을 함께 고려하는 게 중요해요."
+    return re.sub(r"\s{2,}", " ", cleaned[:700]).rstrip()
+
+
 def _format_knowledge_reply(topic, summary, query):
     subject = _normalize_knowledge_topic(topic)
-    body = re.sub(r"\s+", " ", trim(summary))
+    body = _clean_knowledge_text(subject, summary)
     short = _strip_subject_prefix(_first_sentences(body, 2), subject)
     compact_body = _first_sentences(body, 4)
     style = _infer_answer_style(query)
@@ -7561,53 +7751,60 @@ def aether_generate_reply(query, history=None):
     raw = _normalize_user_query(query)
     lowered = raw.lower()
     intent = _classify_aether_intent(raw, history)
+    history = history if isinstance(history, list) else []
     if not raw:
         return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요."
     if re.fullmatch(r"(안녕+|하이+|hello|hi|hey)[!?.\s]*", lowered):
-        return _pick_reply_variant([
+        return _avoid_repeated_reply(_pick_reply_variant([
             "안녕하세요. 지금 떠오른 걸 그대로 말해 주세요. 짧게 던져도 문맥을 잡아서 이어가볼게요.",
             "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
             "반가워요. 그냥 대화해도 좋고, 바로 궁금한 걸 물어봐도 좋아요.",
             "안녕하세요. 가볍게 시작해도 좋고, 바로 본론으로 들어가도 좋아요.",
-        ])
+        ]), raw, history)
     if intent["kind"] == "health_safety":
         return _build_health_safety_reply(raw)
     if re.search(r"(검색|찾아|웹사이트|사이트에서|웹에서|링크)", raw, re.I):
         return _build_search_intent_reply(raw)
+    followup_reply = _build_context_followup_reply(raw, history)
+    if followup_reply:
+        return _avoid_repeated_reply(followup_reply, raw, history)
+    emotion_reply = _build_emotional_chat_reply(raw)
+    if emotion_reply:
+        return _avoid_repeated_reply(emotion_reply, raw, history)
     if _wants_rewrite_or_correction(raw):
         adaptive = _build_adaptive_aether_reply(raw, history)
         if adaptive and not _aether_low_value_reply(adaptive, raw):
-            return adaptive
+            return _avoid_repeated_reply(adaptive, raw, history)
     language_reply = _language_ability_reply(raw)
     if language_reply:
-        return language_reply
+        return _avoid_repeated_reply(language_reply, raw, history)
     bare_instruction = _bare_topic_instruction_reply(raw)
     if bare_instruction:
-        return bare_instruction
+        return _avoid_repeated_reply(bare_instruction, raw, history)
     if intent["kind"] == "explore":
-        return _build_exploration_reply(intent.get("topic") or raw, raw)
+        return _avoid_repeated_reply(_build_exploration_reply(intent.get("topic") or raw, raw), raw, history)
 
     # From here on, prefer actual runtime / dynamic knowledge over canned
     # branches. This prevents the UI from feeling like a fixed-answer bot.
     reply = _query_aether_runtime(query, history)
     if reply and not _aether_low_value_reply(reply, raw):
-        return reply
+        return _avoid_repeated_reply(reply, raw, history)
 
     reply = _tool_augmented_aether_reply(raw)
     if reply:
-        return reply
+        return _avoid_repeated_reply(reply, raw, history)
 
     if re.search(r"(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)", raw, re.I):
-        return _build_ability_reply(raw)
+        return _avoid_repeated_reply(_build_ability_reply(raw), raw, history)
     if intent["kind"] == "casual":
-        return _build_casual_reply(raw)
+        return _avoid_repeated_reply(_build_casual_reply(raw), raw, history)
     if re.search(r"(aether|nexus|넥서스|에테르|구조|아키텍처|프로젝트|요약)", lowered):
-        return _aether_structural_reply(raw, history)
+        return _avoid_repeated_reply(_aether_structural_reply(raw, history), raw, history)
 
     adaptive = _build_adaptive_aether_reply(raw, history)
     if adaptive and not _aether_low_value_reply(adaptive, raw):
-        return adaptive
-    return _build_direct_general_reply(query, history)
+        return _avoid_repeated_reply(adaptive, raw, history)
+    return _avoid_repeated_reply(_build_direct_general_reply(query, history), raw, history)
 
 
 def aether_stream_text(text, chunk_size=18):
