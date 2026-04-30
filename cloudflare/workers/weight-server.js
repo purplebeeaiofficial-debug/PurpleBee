@@ -717,8 +717,8 @@ function pbKnowledgeReply(topic, summary, query) {
   const body = pbCleanKnowledgeText(subject, summary);
   const topicParticle = `${subject}${pbParticle(subject, "은", "는")}`;
   const objectParticle = `${subject}${pbParticle(subject, "을", "를")}`;
-  const stripped = pbStripSubject(pbFirstSentences(body, 2), subject);
-  const compactBody = pbFirstSentences(body, 4);
+  const stripped = pbStripSubject(pbFirstSentences(body, 2), subject).replace(/\s{2,}/g, " ");
+  const compactBody = pbFirstSentences(body, 4).replace(/\s{2,}/g, " ");
   if (/(짧게|간단|핵심만|한 줄|한줄)/i.test(query)) {
     return pbPick([
       `${topicParticle} ${stripped}`,

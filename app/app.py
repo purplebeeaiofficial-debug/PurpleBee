@@ -7438,8 +7438,8 @@ def _clean_knowledge_text(subject, summary):
 def _format_knowledge_reply(topic, summary, query):
     subject = _normalize_knowledge_topic(topic)
     body = _clean_knowledge_text(subject, summary)
-    short = _strip_subject_prefix(_first_sentences(body, 2), subject)
-    compact_body = _first_sentences(body, 4)
+    short = re.sub(r"\s{2,}", " ", _strip_subject_prefix(_first_sentences(body, 2), subject))
+    compact_body = re.sub(r"\s{2,}", " ", _first_sentences(body, 4))
     style = _infer_answer_style(query)
     subject_topic = f"{subject}{_particle(subject, '은', '는')}"
     subject_object = f"{subject}{_particle(subject, '을', '를')}"
