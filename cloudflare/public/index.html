@@ -128,7 +128,12 @@
   .contributor-status-title{font-size:28px;font-weight:900;letter-spacing:-.05em}
   .contributor-status-copy{margin-top:10px;font-size:14px;line-height:1.7;color:var(--text-2)}
   .contributor-status-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}
-  .contributor-status-step{padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
+  .contributor-status-step{
+    padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--border);
+    cursor:pointer;transition:border-color var(--transition),transform var(--transition),box-shadow var(--transition),background var(--transition)
+  }
+  .contributor-status-step:hover{border-color:rgba(139,92,246,.28);transform:translateY(-1px);background:var(--card-hover)}
+  .contributor-status-step:focus-visible{outline:none;border-color:rgba(139,92,246,.52);box-shadow:0 0 0 3px rgba(139,92,246,.14)}
   .contributor-status-step-chip{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:rgba(139,92,246,.1);color:var(--accent-light);font-size:12px;font-weight:900}
   .contributor-status-step strong{display:block;margin-top:10px;font-size:14px}
   .contributor-status-step p{margin-top:6px;font-size:12px;line-height:1.55;color:var(--text-2)}
@@ -518,7 +523,7 @@
     </svg>
     <div>
       <div class="logo-text">Purple Bee</div>
-      <div class="logo-sub" id="logo-subtitle">온디바이스 준비 및 기여 구독</div>
+      <div class="logo-sub" id="logo-subtitle">Aether-Nexus 기반 Purple Bee 1.0</div>
     </div>
   </div>
 
@@ -586,7 +591,7 @@
     </button>
     <div class="model-selector" id="top-model-selector" onclick="toggleModelMenu(event)" title="모델 목록">
       <span class="model-dot" id="engine-dot"></span>
-      <span id="engine-label">Purple Bee 1.3</span>
+      <span id="engine-label">Purple Bee 1.0</span>
     </div>
     <div class="topbar-right">
       <button class="topbar-btn" type="button" onclick="linkAiAssetsFolder()" title="AI 준비물 폴더 연결" id="ai-assets-btn">
@@ -741,7 +746,7 @@
                 <i class="ph ph-cpu" style="color:var(--accent-light)"></i>
               </span>
               <span>
-                <div id="current-model-name">Purple Bee 1.3</div>
+                <div id="current-model-name">Purple Bee 1.0</div>
                 <div style="font-size:10px;color:var(--text-3)" id="model-menu-subtitle">현재 접속한 기기에서 직접 계산하는 엔진</div>
               </span>
             </button>
@@ -986,10 +991,11 @@
 
 <div id="toast-container"></div>
 
-  <script src="/static/purple-bee-engine.js?v=20260405s"></script>
-  <script src="/static/purple-bee-browser-runtime.js?v=20260405s"></script>
-  <script src="/static/purple-bee-local.js?v=20260408c"></script>
-  <script src="/static/purple-bee-contributor-ui.js?v=20260408i"></script></body>
+  <script src="/static/purple-bee-engine.js?v=20260429a"></script>
+<script src="/static/purple-bee-browser-runtime.js?v=20260429a"></script>
+<script src="/static/purple-bee-local.js?v=20260514a"></script>
+<script src="/static/purple-bee-contributor-ui.js?v=20260429a"></script>
+<script src="/static/purple-bee-aether-mode.js?v=20260514a"></script></body>
 </html>
 
 

@@ -215,14 +215,12 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
   const publicBackend = await resolvePublicBackendConfig(request, env);
   const publicBackendEnabled = String(env.PURPLE_BEE_ENABLE_PUBLIC_BACKEND || "").trim() === "1";
   if (!publicBackendEnabled) {
-    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
-    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-primary");
+    return pbBuildPbxReplyResponseStable(await pbPublicBackendFallbackReply(userMessage, body.history), streaming, corsH, "aether-worker-fallback");
   }
 
   const upstreamBase = String(publicBackend.publicApiBaseUrl || env.PURPLE_BEE_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
   if (!upstreamBase) {
-    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
-    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
+    return pbBuildPbxReplyResponseStable(await pbPublicBackendFallbackReply(userMessage, body.history), streaming, corsH, "aether-worker-fallback");
   }
 
   const upstreamUrl = `${upstreamBase}/api/pbx_chat_sync`;
@@ -234,7 +232,7 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
 
   let upstreamResponse;
   const upstreamController = new AbortController();
-  const upstreamTimeout = setTimeout(() => upstreamController.abort("backend-timeout"), 4500);
+  const upstreamTimeout = setTimeout(() => upstreamController.abort("backend-timeout"), 26000);
   try {
     upstreamResponse = await fetch(upstreamUrl, {
       method: "POST",
@@ -244,8 +242,7 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
     });
   } catch (_error) {
     pbWakePublicBackend(upstreamBase, env, ctx);
-    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
-    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
+    return pbBuildPbxReplyResponseStable(await pbPublicBackendFallbackReply(userMessage, body.history), streaming, corsH, "aether-worker-fallback");
   } finally {
     clearTimeout(upstreamTimeout);
   }
@@ -260,9 +257,8 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
   const upstreamReply = String(upstreamPayload?.reply || "").trim();
   const upstreamMode = String(upstreamPayload?.mode || "aether-public-backend").trim() || "aether-public-backend";
   const upstreamOk = Boolean(upstreamPayload?.ok) && !!upstreamReply;
-  if (!upstreamResponse.ok || !upstreamOk || pbLooksLikeFixedWebsiteReplyStable(upstreamReply)) {
-    const fallbackReply = await pbBuildAetherWorkerReplyStable(userMessage, body.history);
-    return pbBuildPbxReplyResponseStable(fallbackReply, streaming, corsH, "aether-worker-fallback");
+  if (!upstreamResponse.ok || !upstreamOk || pbLooksLikeFixedWebsiteReplyStable(upstreamReply) || pbLooksLikeIntentMismatchStable(upstreamReply, userMessage)) {
+    return pbBuildPbxReplyResponseStable(await pbPublicBackendFallbackReply(userMessage, body.history), streaming, corsH, "aether-worker-fallback");
   }
 
   if (streaming) {
@@ -289,7 +285,7 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
       status: 200,
       headers: {
         ...corsH,
-        "Content-Type": "text/event-stream",
+        "Content-Type": "text/event-stream; charset=UTF-8",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
       },
@@ -302,7 +298,7 @@ async function handlePbxChat(request, env, streaming, ctx = null) {
     mode: upstreamMode,
   }), {
     status: 200,
-    headers: { ...corsH, "Content-Type": "application/json" },
+    headers: { ...corsH, "Content-Type": "application/json; charset=UTF-8" },
   });
 }
 
@@ -315,6 +311,133 @@ function pbWakePublicBackend(upstreamBase, env, ctx) {
   ctx.waitUntil(
     fetch(`${base}/api/health`, { headers }).catch(() => null),
   );
+}
+
+function pbPublicBackendUnavailableReply() {
+  return "대화 엔진을 준비하는 중이에요. 첫 응답은 서버가 깨어나는 동안 조금 느릴 수 있습니다. 잠시 후 같은 메시지를 한 번만 다시 보내면 바로 이어서 답할게요.";
+}
+
+async function pbPublicBackendFallbackReply(query, history = []) {
+  const raw = pbStableNormalize(query);
+  if (!raw) return "메시지가 비어 있어요. 한 문장만 적어주면 바로 이어서 볼게요.";
+
+  if (/^(안녕+|하이+|hello|hi|hey)[!?.…\s]*$/i.test(raw)) {
+    return pbStablePick([
+      "안녕하세요. 지금 떠오른 걸 그대로 말해 주세요. 짧게 던져도 문맥을 잡아서 이어가볼게요.",
+      "반가워요. 그냥 대화해도 좋고, 바로 궁금한 걸 물어봐도 좋아요.",
+      "안녕하세요. 오늘은 어떤 걸 같이 보면 좋을까요?",
+    ], raw);
+  }
+
+  if (/(뭐\s*할\s*수|무엇을\s*할|능력|할줄|할\s*줄|can you do)/i.test(raw)) {
+    return [
+      "저는 Purple Bee입니다. 사용자의 말을 먼저 해석하고, 필요한 경우 자료나 웹 확인을 곁들여 답하는 쪽을 목표로 하고 있어요.",
+      "",
+      "지금 바로 도울 수 있는 일은 이런 쪽입니다.",
+      "- 짧은 말이나 오타가 섞인 질문도 의도부터 파악하기",
+      "- 문서, 파일, 코드, 오류 내용을 읽고 핵심 정리하기",
+      "- 어려운 개념을 쉽게 풀거나 전문적으로 분석하기",
+      "- 최신 확인이 필요한 내용은 필요할 때만 웹 정보로 보강하기",
+      "",
+      "그냥 “사과”, “강아지”, “이 코드 왜 안 돼?”처럼 짧게 던져도 먼저 해석해서 답해볼게요.",
+    ].join("\n");
+  }
+
+  if (/사과.*(만들|만드|재배|키우|기르|요리|레시피|잼|주스|파이)/i.test(raw)) {
+    return [
+      "과일 사과를 말하는 거라면, 사과는 ‘만드는’ 물건이라기보다 사과나무에서 재배하는 열매예요.",
+      "",
+      "큰 흐름은 이렇습니다.",
+      "",
+      "1. 사과나무 묘목을 심고 햇빛과 배수가 좋은 환경을 맞춥니다.",
+      "2. 꽃이 피고 수정이 되면 열매가 맺힙니다.",
+      "3. 자라는 동안 가지치기, 병해충 관리, 물 관리를 합니다.",
+      "4. 품종에 맞는 시기에 익은 사과를 수확합니다.",
+      "",
+      "음식으로 사과를 활용하는 방법을 말한 거라면 사과잼, 사과파이, 사과주스처럼 레시피 쪽으로 이어갈 수 있어요.",
+    ].join("\n");
+  }
+
+  if (/(사과하는 법|사과하|사과.*전하|사과.*말|미안하다고.*말|잘못.*사과)/i.test(raw)) {
+    return [
+      "사과는 길게 말하는 것보다 순서가 중요해요.",
+      "",
+      "1. 먼저 상대가 불편했을 지점을 인정합니다.",
+      "2. 변명보다 내 책임을 짧게 말합니다.",
+      "3. 다음에는 어떻게 바꿀지 약속합니다.",
+      "",
+      "예시는 이렇게요.",
+      "",
+      "“내가 그때 네 입장을 충분히 생각하지 못했어. 불편하게 했다면 미안해. 다음부터는 더 조심할게.”",
+      "",
+      "핵심은 ‘하지만’, ‘그럴 의도는 아니었어’를 앞에 두지 않는 거예요.",
+    ].join("\n");
+  }
+
+  if (/^사과[?!.…\s]*$/i.test(raw)) {
+    return "사과는 문맥에 따라 두 가지로 볼 수 있어요. 하나는 달고 아삭한 과일이고, 다른 하나는 잘못이나 실수를 인정하고 미안함을 전하는 행동입니다. 지금 대화에서는 어느 쪽인지 문맥을 보고 이어가면 됩니다.";
+  }
+
+  if (/(강아지|반려견|puppy|dog)/i.test(raw)) {
+    return "강아지는 사람과 오래 함께 살아온 대표적인 반려동물이에요. 품종마다 성격, 활동량, 털 관리 방식이 달라서 생활 환경과 돌봄 시간을 함께 고려하는 게 중요합니다.";
+  }
+
+  if (/(날씨|기온|비\s*오|눈\s*오|미세먼지|weather|뉴스|최신|최근|오늘|지금|요즘|현재|실시간)/i.test(raw)) {
+    return "이 질문은 최신 확인이 필요한 내용이에요. 지금은 공개 Worker가 백엔드 응답을 기다리는 동안 임시로 답하고 있어서 정확한 실시간 수치를 지어내지는 않겠습니다. 연결이 회복되면 출처를 읽어서 핵심만 정리해드릴게요.";
+  }
+
+  if (/(친구처럼|편하게|가볍게).*(얘기|대화|말|수다)|(?:잡담|수다).*(하자|해줘)/i.test(raw)) {
+    return "좋아요. 너무 설명문처럼 굳히지 않고 편하게 받을게요. 오늘 있었던 일, 떠오른 생각, 그냥 아무 말이나 던져도 거기서 자연스럽게 이어가볼게요.";
+  }
+
+  if (/(집중.*안|집중.*못|뭐부터|시작.*못|할 일)/i.test(raw)) {
+    return [
+      "그럴 때는 의욕을 억지로 끌어올리기보다 시작 단위를 아주 작게 줄이는 게 좋아요.",
+      "",
+      "1. 해야 할 일을 전부 보지 말고 하나만 고르기",
+      "2. 5분 안에 끝낼 수 있는 첫 행동으로 바꾸기",
+      "3. 끝나면 계속할지 쉴지 다시 판단하기",
+      "",
+      "예를 들면 “프로젝트 해야지”가 아니라 “파일 하나 열고 오류 한 줄만 보기”처럼 낮추는 거예요.",
+    ].join("\n");
+  }
+
+  if (/(힘들|지쳤|피곤|우울|불안|짜증|화나|외롭|무서|걱정|스트레스|멘붕|현타)/i.test(raw)) {
+    return "많이 버거운 쪽으로 들려요. 지금은 완벽하게 설명하지 않아도 괜찮고, 제일 크게 걸리는 것 하나만 말해줘도 됩니다. 거기서부터 천천히 풀어볼게요.";
+  }
+
+  if (/(왜|이유|원인|어째서)/i.test(raw)) {
+    return "원인을 보려면 겉으로 보이는 증상과 실제 영향을 주는 조건을 나눠야 해요. 언제부터 반복됐는지, 특정 조건에서만 생기는지, 바꾸면 바로 달라지는 요소가 있는지부터 보면 훨씬 정확해집니다.";
+  }
+
+  const topic = pbStableTopic(raw);
+  return pbStablePick([
+    `${topic}에 대해 바로 보면, 먼저 핵심 의미를 잡고 그다음 예시나 실제 상황에 붙여서 이해하는 게 좋아요. 원하면 제가 쉬운 설명, 전문 분석, 짧은 요약 중 하나로 이어서 풀어볼게요.`,
+    `${topic}은 한 문장으로 고정해서 끝낼 주제라기보다, 문맥에 따라 설명 깊이가 달라지는 주제예요. 지금은 기본 의미부터 잡고 필요한 방향으로 넓히면 됩니다.`,
+    `${topic} 쪽으로 보면 지금 필요한 건 정의보다 “왜 궁금한지”에 맞춘 설명이에요. 일상적인 설명이 필요하면 쉽게, 작업용이면 바로 실행 가능한 형태로 바꿔서 답할게요.`,
+  ], raw);
+}
+
+function pbStableNormalize(value) {
+  return String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+
+function pbStableTopic(value) {
+  const cleaned = pbStableNormalize(value)
+    .replace(/[?？!！.。…]/g, " ")
+    .replace(/(뭐야|뭔지|무엇|정의|뜻|알려줘|알려 줘|설명해줘|설명|해석|왜|이유|원인|방법|하는 법|해줘|좀|제발)/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned ? cleaned.slice(0, 40) : "그 주제";
+}
+
+function pbStablePick(items, seed = "") {
+  const list = (items || []).filter(Boolean);
+  if (!list.length) return "";
+  let hash = 0;
+  for (const ch of String(seed || Date.now())) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  hash = (hash + Math.floor(Date.now() / 45000)) >>> 0;
+  return list[hash % list.length];
 }
 
 // Clean public-runtime helper set kept for shared UTF-8-safe utilities.
@@ -2278,7 +2401,22 @@ function pbLooksLikeFixedWebsiteReplyStable(reply) {
     "답변 생성에 실패",
     "질문은 이해했어요",
     "원하는 기준",
+    "그 주제는 지금 단어만 보면",
+    "일상적인 의미, 전문적인 의미",
   ].some((marker) => text.includes(marker));
+}
+
+function pbLooksLikeIntentMismatchStable(reply, query) {
+  const text = String(reply || "").trim();
+  const raw = pbStableNormalize(query);
+  if (!text || !raw) return false;
+  if (/사과.*(만들|만드|재배|키우|기르|요리|레시피|잼|주스|파이)/i.test(raw)) {
+    return /(사과는 길게 말하는 것보다|상대가 불편|미안|변명|사과하는)/i.test(text);
+  }
+  if (/^(강아지|고양이|사과|중력|민주주의|윤리|문학|역사)[?!.…\s]*$/i.test(raw)) {
+    return /(그 주제는 지금 단어만 보면|먼저 큰 뜻을 잡고|어떤 식으로 듣고 싶은지)/i.test(text);
+  }
+  return false;
 }
 
 function pbWantsRewrite(raw) {

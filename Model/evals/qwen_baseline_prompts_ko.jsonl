@@ -36,3 +36,9 @@
 {"category":"knowledge","prompt":"사과","history":[]}
 {"category":"knowledge","prompt":"하늘은 왜 파래","history":[]}
 {"category":"style_feedback","prompt":"이 말 좀 부드럽게 바꿔줘: 너 왜 답장 안 해?","history":[]}
+{"category":"live_search","prompt":"요즘 AI 뉴스 뭐 있어?","history":[]}
+{"category":"live_search","prompt":"오늘 군산 날씨 어때","history":[]}
+{"category":"casual_friend","prompt":"그냥 친구처럼 편하게 얘기하자","history":[]}
+{"category":"serious_tone","prompt":"이건 진지하게 봐줘. 내가 요즘 집중을 너무 못 해","history":[]}
+{"category":"creative_tone","prompt":"비 오는 날 어울리는 게임 아이디어 하나만 던져줘","history":[]}
+{"category":"expert_tone","prompt":"윤리적 문제를 조금 전문적으로 분석해줘","history":[]}

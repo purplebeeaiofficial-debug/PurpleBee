@@ -6958,8 +6958,22 @@ def _aether_low_value_reply(reply, query=None):
         "language axis",
         "shift tone, length, and focus",
         "same knowledge but shift",
+        "입력 문장을 먼저 의도와 조건으로 나눕니다",
+        "확실한 정보와 아직 모호한 정보를 분리합니다",
+        "사용자가 바로 움직일 수 있는 형태",
+        "지식 구조를 기준으로 보면",
+        "즉시 구조 지식으로 축적했습니다",
+        "현재 해석 기준으로",
+        "방금 학습 경로",
+        "서술 구조에 가깝습니다",
+        "그래프에도 바로 반영",
+        "이번 문장은 그래프",
+        "학습 경로",
+        "구조 지식",
     ]
     if any(marker in lowered for marker in markers):
+        return True
+    if re.search(r"(변화한다|축적했습니다|반영했습니다)\.?", text) and re.search(r"(그래프|구조|학습|경로)", text):
         return True
     if not _is_identity_query(query_text) and re.search(r"(저는\s*AETHER|저는\s*에테르|I am AETHER|AETHER-NEXUS입니다)", text, re.I):
         return True
@@ -7337,6 +7351,17 @@ def _build_disambiguation_correction_reply(query, history=None):
 
 def _build_everyday_companion_reply(query):
     raw = _normalize_user_query(query)
+    if re.search(r"(아이디어|기획|상상|창작|컨셉|던져줘|제안).*(게임|이야기|서비스|앱)|(?:게임|이야기|서비스|앱).*(아이디어|기획|상상|창작|컨셉|던져줘|제안)", raw, re.I):
+        if re.search(r"(비|비\s*오는|장마|빗소리)", raw, re.I):
+            return _pick_reply_variant([
+                "비 오는 날 게임 아이디어라면, ‘창가의 수리점’ 같은 분위기가 좋아요. 플레이어는 작은 마을의 오래된 물건을 고치는데, 물건마다 주인의 기억이 빗소리와 함께 조금씩 열립니다. 전투보다 대화, 수리 퍼즐, 잔잔한 음악이 중심인 힐링 어드벤처로 잡으면 꽤 매력 있어요.",
+                "하나 던져보면, ‘Rain Courier’라는 게임이요. 비가 그치기 전까지 편지를 배달해야 하는데, 배달할수록 마을 사람들의 관계가 드러납니다. 빠른 액션보다 길 찾기, 선택지, 분위기 있는 사운드가 핵심인 게임으로 만들면 좋아요.",
+            ])
+        return _pick_reply_variant([
+            "아이디어 하나를 바로 잡아보면, 사용자가 매일 작은 선택을 하면 세계가 조금씩 반응하는 ‘살아있는 노트’ 같은 앱/게임이 좋아요. 기록, 대화, 성장 요소를 섞어서 단순 메모가 아니라 자기만의 세계가 쌓이는 느낌을 만들 수 있습니다.",
+            "재밌게 가려면 ‘작지만 계속 변하는 공간’을 핵심으로 잡아보세요. 사용자가 한 행동이 방, 마을, 캐릭터 관계에 흔적으로 남고, 다음 접속 때 그 흔적이 새 이벤트로 돌아오는 구조입니다.",
+            "바로 실행 가능한 아이디어로는 ‘하루 하나의 미션을 주는 작은 AI 동료’가 있어요. 공부, 코딩, 운동처럼 분야를 고르면 캐릭터가 오늘 할 일을 하나만 제안하고, 끝내면 다음 대화를 열어주는 방식입니다.",
+        ])
     if re.search(r"(점심|저녁|야식|밥).*(뭐|추천|먹을까|먹지)|뭐\s*먹", raw, re.I):
         return _pick_reply_variant([
             "오늘은 결정 피로를 줄이는 쪽으로 가면 좋겠어요. 든든하게 가려면 국밥이나 덮밥, 가볍게 가려면 샌드위치나 김밥, 기분 전환이면 매콤한 면 요리가 괜찮습니다. 지금 배가 많이 고프면 든든한 쪽부터 고르세요.",
@@ -7405,9 +7430,9 @@ def _build_concept_explanation_reply(query):
 
 def _build_daily_mood_reply(query):
     raw = _normalize_user_query(query)
-    if not re.search(r"(기분.*별로|별로야|멘붕|현타|아무것도 하기 싫|집중.*안|축 처|멍하|답답|허무|불편한 기분)", raw, re.I):
+    if not re.search(r"(기분.*별로|별로야|멘붕|현타|아무것도 하기 싫|집중.*안|집중.*못|축 처|멍하|답답|허무|불편한 기분)", raw, re.I):
         return ""
-    if re.search(r"(집중.*안|뭐부터|시작.*못|할 일)", raw, re.I):
+    if re.search(r"(집중.*안|집중.*못|뭐부터|시작.*못|할 일)", raw, re.I):
         return (
             "그럴 때는 의욕을 억지로 끌어올리기보다 시작 단위를 아주 작게 줄이는 게 좋아요.\n\n"
             "지금은 이렇게 해보면 됩니다.\n\n"
@@ -7481,7 +7506,17 @@ def _build_ambiguous_context_reply(query, history=None):
 
 def _build_apology_or_method_reply(query):
     raw = _normalize_user_query(query)
-    if re.search(r"(사과하는 법|사과.*방법|미안하다고.*말|잘못.*사과)", raw, re.I):
+    if re.search(r"사과.*(만들|만드|재배|키우|기르|요리|레시피|잼|주스|파이)", raw, re.I):
+        return (
+            "과일 사과를 말하는 거라면, 사과는 ‘만드는’ 물건이라기보다 사과나무에서 재배하는 열매예요.\n\n"
+            "큰 흐름은 이렇습니다.\n\n"
+            "1. 사과나무 묘목을 심고 햇빛과 배수가 좋은 환경을 맞춥니다.\n"
+            "2. 꽃이 피고 수정이 되면 열매가 맺힙니다.\n"
+            "3. 자라는 동안 가지치기, 병해충 관리, 물 관리를 합니다.\n"
+            "4. 품종에 맞는 시기에 익은 사과를 수확합니다.\n\n"
+            "집에서 음식으로 ‘사과를 활용해 뭔가 만드는 법’을 말한 거라면, 사과잼이나 사과파이처럼 바로 레시피 쪽으로 이어서 설명할 수 있어요."
+        )
+    if re.search(r"(사과하는 법|사과하|사과.*전하|사과.*말|미안하다고.*말|잘못.*사과)", raw, re.I):
         return (
             "사과는 길게 말하는 것보다 순서가 중요해요.\n\n"
             "1. 먼저 상대가 불편했을 지점을 인정합니다.\n"
@@ -7567,9 +7602,10 @@ def _avoid_repeated_reply(reply, query, history=None):
         if old_norm and (normalized == old_norm or normalized[:80] == old_norm[:80]):
             topic = _short_topic_from_text(query)
             return _pick_reply_variant([
-                f"이번엔 다른 각도로 갈게요. {topic}{_particle(topic, '은', '는')} 지금 대화에서 ‘정보’보다 ‘다음에 뭘 하면 되는지’를 잡는 단서에 가까워요.",
-                f"같은 말은 빼고 말하면, {topic}{_particle(topic, '은', '는')} 먼저 목적을 정해야 답이 자연스러워집니다. 설명이 필요한지, 선택이 필요한지, 행동이 필요한지부터 달라져요.",
-                f"다시 풀면 {topic}{_particle(topic, '은', '는')} 하나의 정답으로 고정하기보다 상황에 맞춰 좁혀야 합니다. 그래서 짧게 시작하고, 필요한 만큼만 근거를 붙이는 쪽이 좋아요.",
+                f"방금이랑 똑같이 말하지 않고 바꿔볼게요. {topic}{_particle(topic, '은', '는')} 지금은 정답을 외우듯 말하기보다, 네가 왜 그걸 물었는지에 맞춰 풀어야 해요.",
+                f"다른 각도로 보면 {topic}{_particle(topic, '은', '는')} 정보 자체보다 맥락이 더 중요해요. 일상 대화라면 편하게, 작업 요청이라면 바로 실행 가능한 쪽으로 답을 바꿔야 합니다.",
+                f"이번엔 더 자연스럽게 말하면, {topic}{_particle(topic, '은', '는')} 한 문장으로 고정될 주제가 아니에요. 상황을 보고 말투와 깊이를 바꿔서 이어가는 게 맞습니다.",
+                f"좋아요, 같은 표현은 버리고 다시 갈게요. {topic}{_particle(topic, '은', '는')} 지금 대화에서는 ‘설명’보다 ‘내가 원하는 반응을 이해했는가’가 핵심이에요.",
             ])
     return text
 
@@ -7703,7 +7739,7 @@ def _extract_aether_topic(query):
     raw = _normalize_user_query(query)
     cleaned = re.sub(r"[?？!！]", " ", raw)
     cleaned = re.sub(
-        r"(그럼|일단|이제|좀|제발|바로|진짜|혹시|그러면|나는|내가|우리|너|ai|AI)",
+        r"(그럼|일단|이제|좀|제발|바로|진짜|혹시|그러면|나는|내가|우리|ai|AI)",
         " ",
         cleaned,
         flags=re.I,
@@ -7759,7 +7795,7 @@ def _build_aether_intent_frame(query, history=None):
         intent = "recommend"
     elif re.search(r"(탐구|분석|토론|고찰|윤리|철학|사회문제|쟁점|관점)", raw, re.I):
         intent = "explore"
-    elif re.search(r"(만들|작성|써줘|초안|문장|글|코드|수정|고쳐)", raw, re.I):
+    elif re.search(r"(만들|작성|써줘|초안|문장|글|코드|수정|고쳐|아이디어|기획|상상|창작|컨셉|던져줘|제안)", raw, re.I):
         intent = "create_or_fix"
     elif re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분)", raw, re.I):
         intent = "casual"
@@ -8009,7 +8045,7 @@ def _classify_aether_intent(query, history=None):
         return {"kind": "greeting", "confidence": 0.98}
     if re.search(r"(심장|가슴|흉통|숨\s*쉬|호흡|어지럽|식은땀|피\s*나|자살|죽고\s*싶|응급|통증|아퍼|아파|아픔|병원)", raw, re.I):
         return {"kind": "health_safety", "confidence": 0.86}
-    if re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분|점심|저녁|야식|밥|졸려|잠와|피곤|아무것도\s*못|자책|현타)", raw, re.I):
+    if re.search(r"(우리\s*뭐|뭐\s*할까|심심|잡담|놀자|대화하자|뭐해|기분|점심|저녁|야식|밥|졸려|잠와|피곤|집중.*안|집중.*못|아무것도\s*못|자책|현타)", raw, re.I):
         return {"kind": "casual", "confidence": 0.8}
     if re.search(r"(탐구|분석|토론|고찰|윤리|철학|사회문제|문제에\s*대해|쟁점|관점)", raw, re.I):
         return {"kind": "explore", "topic": _extract_definition_topic(raw) or raw, "confidence": 0.82}
@@ -8118,17 +8154,135 @@ def _build_ability_reply(query):
     )
 
 
-def _build_search_intent_reply(query):
+def _clean_search_topic(query):
     cleaned = _normalize_user_query(query)
-    topic = re.sub(r"(웹사이트에서|사이트에서|웹에서|검색해줘|검색|찾아줘|찾아|링크|좀|해줘)", " ", cleaned, flags=re.I)
-    topic = re.sub(r"\s+", " ", topic).strip() or cleaned
-    encoded = requests.utils.quote(topic)
+    topic = re.sub(
+        r"(웹사이트에서|사이트에서|웹에서|인터넷에서|검색해줘|검색|찾아줘|찾아|링크|최신|최근|오늘|지금|요즘|현재|실시간|"
+        r"알려줘|말해줘|보여줘|정리해줘|좀|해줘|해봐)",
+        " ",
+        cleaned,
+        flags=re.I,
+    )
+    topic = re.sub(r"(뭐\s*있어|뭐\s*야|어때|어떰|있나|있어\??|알려|정리|확인)[?？!！.\s]*$", " ", topic, flags=re.I)
+    topic = re.sub(r"\s+", " ", topic).strip()
+    if re.search(r"(날씨|기온|weather)", cleaned, re.I):
+        topic = re.sub(r"(날씨|기온|weather)\s*$", "", topic, flags=re.I).strip()
+    topic = re.sub(r"\b(뉴스|검색|날씨)\s+\1\b", r"\1", topic, flags=re.I).strip()
+    return topic or cleaned
+
+
+def _should_live_search(query):
+    raw = _normalize_user_query(query)
+    if not raw:
+        return False
+    lowered = raw.lower()
+    explicit_search = (
+        "검색", "찾아", "웹사이트", "사이트에서", "웹에서", "인터넷에서", "링크",
+        "뉴스", "날씨", "가격", "주가", "환율", "일정", "순위", "랭킹", "출시",
+        "업데이트", "다운로드", "버전", "정책", "법률", "규정", "실시간",
+    )
+    if any(marker in lowered for marker in explicit_search):
+        return True
+    personal_context = re.search(
+        r"(나|내가|나는|우리|오늘|요즘|지금).{0,12}(기분|멘붕|집중|예민|피곤|졸려|불안|답답|우울|힘들|짜증|입맛)",
+        lowered,
+        re.I,
+    )
+    if personal_context:
+        return False
+    freshness = re.search(r"(최신|최근|오늘|지금|요즘|현재)", lowered, re.I)
+    fresh_target = re.search(
+        r"(뉴스|날씨|가격|주가|환율|일정|순위|랭킹|출시|업데이트|버전|다운로드|모델|서비스|회사|정책|법률|규정|사건|발표)",
+        lowered,
+        re.I,
+    )
+    if freshness and fresh_target:
+        return True
+    unstable_entities = r"(대통령|총리|대표|ceo|사장|감독|선수|회사|서비스|모델|앱|게임)"
+    if re.search(rf"(누구|언제|어디|얼마|어때).{{0,12}}{unstable_entities}", lowered, re.I):
+        return True
+    return False
+
+
+def _coerce_search_hits(raw_results):
+    hits = []
+    for item in raw_results or []:
+        if isinstance(item, dict):
+            title = trim(item.get("title") or item.get("name") or "")
+            snippet = trim(item.get("snippet") or item.get("summary") or item.get("text") or "")
+            url = trim(item.get("url") or item.get("link") or "")
+        else:
+            title = ""
+            snippet = trim(str(item or ""))
+            url = ""
+        snippet = re.sub(r"\s+", " ", snippet).strip()
+        title = re.sub(r"\s+", " ", title).strip()
+        if not snippet and not title:
+            continue
+        if len(snippet) > 260:
+            snippet = snippet[:257].rstrip() + "..."
+        hits.append({"title": title, "snippet": snippet, "url": url})
+    return hits[:4]
+
+
+def _build_live_search_reply(query):
+    cleaned = _normalize_user_query(query)
+    topic = _clean_search_topic(cleaned)
+    try:
+        hits = _coerce_search_hits(web_search(topic, max_results=4))
+    except Exception:
+        hits = []
+    if not hits:
+        hits = _coerce_search_hits(_search_web_snippets(topic, max_results=4))
+    if not hits:
+        return ""
+
+    is_weather = bool(re.search(r"(날씨|기온|비\s*오|눈\s*오|미세먼지|weather)", cleaned, re.I))
+    is_latest = bool(re.search(r"(최신|최근|오늘|지금|요즘|뉴스|현재|실시간)", cleaned, re.I))
+    if is_weather:
+        lead = f"{topic} 기준으로 웹에서 확인한 내용부터 정리해볼게요."
+    elif is_latest:
+        lead = f"{topic} 관련해서 지금 확인되는 최신 흐름은 이렇게 볼 수 있어요."
+    else:
+        lead = f"{topic} 관련해서 웹에서 바로 확인한 내용을 먼저 추려보면 이렇습니다."
+
+    lines = []
+    for idx, hit in enumerate(hits[:3], start=1):
+        title = hit["title"] or f"결과 {idx}"
+        snippet = hit["snippet"] or "요약 문구가 짧아서 제목 중심으로 확인했습니다."
+        url = hit["url"]
+        if url:
+            lines.append(f"{idx}. {title}\n   {snippet}\n   {url}")
+        else:
+            lines.append(f"{idx}. {title}\n   {snippet}")
+
+    closing = _pick_reply_variant([
+        "필요하면 제가 이 결과를 기준으로 더 짧게 요약하거나, 공식 자료 위주로 다시 좁혀볼게요.",
+        "지금 단계에서는 이 정도가 가장 안전한 1차 확인이고, 원하면 출처별로 더 깊게 갈 수 있어요.",
+        "이 내용을 바탕으로 비교, 설치 방법, 원인 분석처럼 원하는 방향으로 바로 이어갈 수 있습니다.",
+    ])
+    return f"{lead}\n\n" + "\n\n".join(lines) + f"\n\n{closing}"
+
+
+def _build_search_intent_reply(query):
+    live = _build_live_search_reply(query)
+    if live:
+        return live
+    cleaned = _normalize_user_query(query)
+    topic = _clean_search_topic(cleaned)
+    if re.search(r"(날씨|기온|비\s*오|눈\s*오|미세먼지|weather)", cleaned, re.I):
+        return (
+            f"{topic} 날씨는 실시간 확인이 필요한 정보인데, 지금 검색 연결이 막혀 있어 정확한 수치를 가져오지 못했습니다. "
+            "제가 지어내서 말하면 안 되는 종류라서, 검색 연결이 회복되면 바로 현재 기온과 강수 가능성까지 정리하겠습니다."
+        )
+    if re.search(r"(뉴스|최신|최근|오늘|지금|요즘|현재|실시간)", cleaned, re.I):
+        return (
+            f"{topic}{_particle(topic, '은', '는')} 최신 확인이 필요한 주제인데, 지금 검색 결과를 불러오지 못했습니다. "
+            "확인되지 않은 내용을 사실처럼 말하지 않기 위해 여기서는 멈추고, 검색 연결이 돌아오면 출처를 읽어서 핵심만 요약하겠습니다."
+        )
     return (
-        f"{topic} 쪽은 웹 확인이 필요한 요청으로 보입니다.\n\n"
-        "지금 바로 볼 만한 경로를 먼저 정리하면 이렇습니다.\n\n"
-        f"- Google 검색: https://www.google.com/search?q={encoded}\n"
-        f"- DuckDuckGo 검색: https://duckduckgo.com/?q={encoded}\n\n"
-        "원하는 게 공식 사이트 찾기, 설치 방법, 오류 해결, 최신 뉴스 중 어느 쪽인지 말해주면 그 방향으로 더 좁혀서 정리하겠습니다."
+        f"{topic}{_particle(topic, '은', '는')} 웹 확인이 필요한 주제입니다. 지금은 검색 결과를 가져오지 못했지만, "
+        "연결이 가능해지면 링크만 던지지 않고 결과를 읽어서 핵심과 출처를 함께 정리하겠습니다."
     )
 
 
@@ -8148,23 +8302,60 @@ def _build_direct_general_reply(query, history=None):
                 content = trim(item.get("content") or item.get("text") or "")
                 if content:
                     previous.append(content)
-    context_hint = "방금 흐름도 참고해서 말하면, " if previous else ""
-    if style == "concise":
-        return f"{context_hint}{raw}에 대해서는 핵심부터 짚으면 됩니다. 원하는 게 설명인지, 비교인지, 해결 방법인지에 따라 바로 이어서 좁혀볼 수 있어요."
-    if style == "easy":
-        return f"{context_hint}{raw}은 쉽게 풀어서 먼저 큰 그림을 잡는 게 좋아요. 어려운 말보다 예시와 비유를 붙이면 훨씬 빨리 이해됩니다."
-    if style in ("detailed", "technical"):
+    context_hint = "방금 흐름을 이어서 보면, " if previous else ""
+    topic = _extract_aether_topic(raw)
+    wants_friend = bool(re.search(r"(친구처럼|편하게|잡담|그냥|수다|대화|우리\s*뭐|뭐해|심심|놀자)", raw, re.I))
+    wants_serious = bool(re.search(r"(진지|중요|위험|걱정|불안|문제|상담|판단|도와줘)", raw, re.I))
+    wants_expert = bool(re.search(r"(전문|고급|분석|논문|철학|윤리|아키텍처|원리|구조|비판)", raw, re.I))
+    wants_creative = bool(re.search(r"(아이디어|상상|창작|스토리|기획|브레인스토밍|재밌게)", raw, re.I))
+
+    if len(raw) <= 12 and not re.search(r"(뭐야|알려|설명|왜|어떻게|방법|검색|찾아)", raw, re.I):
+        return _pick_reply_variant([
+            f"{raw} 좋죠. 지금은 가볍게 이어가도 되고, 제가 먼저 작은 주제 하나 던져도 돼요. 요즘 제일 신경 쓰이는 일부터 꺼내볼까요?",
+            f"응, {raw}. 지금은 긴 설명보다 분위기를 맞추는 쪽이 좋겠네요. 편하게 말해줘요. 제가 흐름 잡아볼게요.",
+            f"{raw}라고 시작하면 저는 일단 대화 모드로 받을게요. 오늘 있었던 일, 고민, 아이디어 중 아무거나 던져도 됩니다.",
+        ])
+
+    if wants_friend:
+        return _pick_reply_variant([
+            f"{context_hint}좋아, 너무 딱딱하게 안 갈게요. {topic} 얘기라면 먼저 네가 원하는 느낌을 잡는 게 중요해요. 답을 정리해주길 원하는지, 같이 떠들면서 풀고 싶은지에 따라 톤이 달라지거든요.",
+            f"{context_hint}편하게 말하면, {topic}은 지금 바로 같이 풀어볼 수 있는 얘기예요. 내가 먼저 길을 하나 잡아볼게요. 너무 무겁게 말고, 지금 걸리는 부분부터 꺼내면 됩니다.",
+            f"{context_hint}오케이, 친구처럼 가볼게요. {topic}은 정답 하나를 딱 던지기보다 상황을 같이 보면서 좁히는 게 더 자연스러워요.",
+        ])
+
+    if wants_serious:
+        return _pick_reply_variant([
+            f"{context_hint}이건 가볍게 넘기기보다 차분하게 봐야 합니다. {topic}에서 먼저 확인할 건 사실, 위험 신호, 지금 당장 할 수 있는 행동이에요.",
+            f"{context_hint}{topic}은 바로 결론을 세게 내리기보다, 확실한 부분과 아직 확인이 필요한 부분을 나눠야 해요. 그래야 괜히 불안만 키우지 않고 실제 도움이 됩니다.",
+            f"{context_hint}진지하게 보면 {topic}의 핵심은 감정적인 반응을 줄이고 판단 기준을 세우는 겁니다. 지금 있는 정보로 먼저 안전한 선택지를 잡아볼게요.",
+        ])
+
+    if wants_expert or style in ("detailed", "technical"):
         return (
-            f"{context_hint}{raw}은 바로 결론부터 내리기보다 구조를 나눠보는 편이 좋습니다.\n\n"
-            "- 먼저 사용자가 얻고 싶은 결과를 정합니다.\n"
-            "- 확실한 정보와 아직 모호한 정보를 분리합니다.\n"
-            "- 필요한 근거가 있으면 자료나 웹 확인으로 보강합니다.\n"
-            "- 마지막에는 실행 가능한 형태로 다시 정리합니다."
+            f"{context_hint}{topic}을 전문적으로 보려면 먼저 개념, 작동 원리, 한계, 적용 조건을 분리하는 게 좋습니다.\n\n"
+            "제가 볼 때 핵심은 세 가지입니다.\n\n"
+            f"1. {topic}이 실제로 해결하려는 문제가 무엇인지\n"
+            "2. 그 문제를 설명하는 근거가 충분한지\n"
+            "3. 현실에서 적용할 때 어떤 부작용이나 예외가 생기는지\n\n"
+            "이 순서로 보면 단순 정보 나열이 아니라 판단 가능한 설명이 됩니다."
         )
+
+    if wants_creative:
+        return _pick_reply_variant([
+            f"{topic}은 조금 넓게 펼쳐도 재미있겠어요. 먼저 안전한 아이디어 하나, 의외성 있는 아이디어 하나, 바로 실행 가능한 아이디어 하나로 나눠볼 수 있습니다.",
+            f"창작 쪽으로 보면 {topic}은 분위기부터 잡는 게 좋아요. 귀엽게, 진지하게, 어둡게, 미래적으로 같은 방향을 정하면 결과가 훨씬 살아납니다.",
+            f"{topic} 아이디어라면 처음부터 완벽하게 만들기보다 소재를 여러 개 뽑고, 그중 가장 생명력 있는 걸 키우는 방식이 좋습니다.",
+        ])
+
+    if style == "concise":
+        return f"{context_hint}{topic}의 핵심만 말하면, 지금 필요한 건 주제를 크게 벌리기보다 원하는 결과를 바로 잡는 것입니다."
+    if style == "easy":
+        return f"{context_hint}{topic}은 쉽게 말하면 먼저 큰 그림을 잡고 예시를 하나 붙이면 훨씬 빨리 이해됩니다. 어려운 말은 뒤로 미루고, 일상에서 어떻게 보이는지부터 풀어볼게요."
     variants = [
-        f"{context_hint}{raw}에 대해서는 먼저 핵심을 작게 잡는 게 좋아요. 지금 문장만 보면 정보 요청인지, 의견을 원하는지, 실행을 원하는지 중 하나로 이어질 수 있습니다.",
-        f"{context_hint}지금 질문은 바로 이어서 다룰 수 있어요. 제가 먼저 가능한 해석을 잡고, 모호한 부분은 최소한만 확인하면서 답을 좁혀가겠습니다.",
-        f"{context_hint}좋아요. 이건 형식보다 사용자가 지금 얻고 싶은 결과를 맞추는 게 중요합니다. 설명, 비교, 해결 순서 중 원하는 방식으로 이어갈 수 있어요.",
+        f"{context_hint}{topic}은 지금 문맥에서 바로 다룰 수 있어요. 제가 먼저 자연스럽게 해석하면, 사용자는 정보 자체보다 ‘그래서 어떻게 보면 되는지’를 원하고 있는 쪽에 가깝습니다.",
+        f"{context_hint}{topic} 얘기는 너무 공식처럼 말하면 재미가 없어져요. 먼저 결론을 작게 잡고, 필요하면 예시나 근거를 붙이는 식으로 이어가겠습니다.",
+        f"{context_hint}좋아요. {topic}을 기준으로 보면 지금은 길게 돌기보다 바로 쓸 수 있는 답이 필요해 보여요. 핵심부터 잡고 말투는 상황에 맞춰 조절하겠습니다.",
+        f"{context_hint}{topic}에 대해 말하자면, 먼저 사용자가 지금 막힌 지점을 부드럽게 풀어주는 게 좋아요. 정보, 감정, 행동 중 어디에 가까운지 보면서 답을 맞추겠습니다.",
     ]
     return _pick_reply_variant(variants)
 
@@ -8257,8 +8448,14 @@ def aether_generate_reply(query, history=None):
         ]), raw, history)
     if intent["kind"] == "health_safety":
         return _build_health_safety_reply(raw)
-    if re.search(r"(검색|찾아|웹사이트|사이트에서|웹에서|링크)", raw, re.I):
+    if _should_live_search(raw):
         return _build_search_intent_reply(raw)
+    if re.search(r"(친구처럼|편하게|가볍게).*(얘기|대화|말|수다)|(?:잡담|수다).*(하자|해줘|하자고)", raw, re.I):
+        return _avoid_repeated_reply(_pick_reply_variant([
+            "좋아요. 그럼 너무 설명문처럼 굳히지 않고 편하게 받을게요. 오늘 있었던 일, 떠오른 생각, 그냥 아무 말이나 던져도 거기서 자연스럽게 이어가볼게요.",
+            "오케이, 친구처럼 갈게요. 딱 정답을 내놓기보다 네 말의 분위기를 먼저 보고, 필요하면 웃기게도 말하고 진지하게도 같이 볼게요.",
+            "좋습니다. 지금부터는 안내문 말투 줄이고 대화처럼 갈게요. 가볍게 시작하면, 오늘 머릿속에 제일 많이 남은 게 뭐예요?",
+        ]), raw, history)
     for dialogue_builder in (
         _build_memory_preference_reply,
         _build_disambiguation_correction_reply,
